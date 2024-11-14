@@ -2,22 +2,30 @@ use backer::{models::*, nodes::*, transitions::TransitionDrawable, Node};
 use femtovg::{Color, FontId, Paint};
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-use crate::{Ui, View};
+use crate::{GestureHandler, Ui, View, ViewTrait, ViewType};
 
-pub(crate) fn text(id: String, text: impl AsRef<str> + 'static) -> Text {
+pub(crate) fn text<State>(id: String, text: impl AsRef<str> + 'static) -> View<State> {
     let mut hasher = DefaultHasher::new();
     id.hash(&mut hasher);
-    Text {
-        id: hasher.finish(),
-        text: text.as_ref().to_owned(),
-        font_size: 16.,
-        font: None,
-        easing: None,
-        duration: None,
+    View {
+        view_type: ViewType::Text(Text {
+            id: hasher.finish(),
+            text: text.as_ref().to_owned(),
+            font_size: 16.,
+            font: None,
+            easing: None,
+            duration: None,
+        }),
+        gesture_handler: GestureHandler {
+            on_tap: None,
+            on_drag: None,
+            on_hover: None,
+        },
     }
 }
 
-struct Text {
+#[derive(Debug, Clone)]
+pub(crate) struct Text {
     id: u64,
     text: String,
     font_size: f32,
@@ -78,8 +86,8 @@ impl<State> TransitionDrawable<Ui<State>> for Text {
     }
 }
 
-impl<State> View<State> for Text {
-    fn view(self, ui: &mut Ui<State>) -> Node<Ui<State>> {
+impl<State> ViewTrait<State> for Text {
+    fn view(self, ui: &mut Ui<State>, node: Node<Ui<State>>) -> Node<Ui<State>> {
         let font_size = self.font_size;
         let paint = Paint::color(Color::black())
             .with_font(&[ui.default_font])
@@ -89,8 +97,6 @@ impl<State> View<State> for Text {
             .measure_text(0., 0., self.text.clone(), &paint)
             .expect("Error measuring font");
 
-        draw_object(self)
-            .height(text_size.height())
-            .width(text_size.width())
+        node.height(text_size.height()).width(text_size.width())
     }
 }

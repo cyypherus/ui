@@ -19,9 +19,12 @@ use raw_window_handle::HasRawWindowHandle;
 use resource::resource;
 use std::any::Any;
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::{num::NonZeroU32, time::Instant};
-use text_view::text;
+use text_view::{text, Text};
+use winit::dpi::PhysicalPosition;
+use winit::event::{ElementState, MouseButton};
 use winit::{
     application::ApplicationHandler,
     event::{KeyEvent, WindowEvent},
@@ -39,27 +42,45 @@ fn main() {
         600,
         "Title",
         true,
-        UserState {},
+        UserState { my_bool: false },
         Layout::new(|ui: &mut Ui<UserState>| {
             column_spaced(
                 10.,
                 vec![
                     space(),
-                    view(ui, text(id!(), "Lorem ipsum")),
-                    //.attach_under(view(
-                    //     ui,
-                    //     rect(id!())
-                    //         .stroke(Color::rgb(255, 0, 0), 3.)
-                    //         .corner_radius(20.),
-                    // )),
+                    view(
+                        ui,
+                        text(id!(), "Lorem ipsum").on_tap(|state: &mut UserState| {
+                            state.my_bool = !state.my_bool;
+                        }),
+                    ),
+                    view(
+                        ui,
+                        rect(id!())
+                            .stroke(Color::rgb(255, 0, 0), 3.)
+                            .corner_radius(20.)
+                            .finish(),
+                    )
+                    .visible(ui.state.my_bool),
                     space(),
                 ],
             )
+            .pad(10.)
         }),
     );
 }
 
-struct UserState {}
+struct GestureHandler<State> {
+    on_tap: Option<Box<dyn Fn(&mut State)>>,
+    on_drag: Option<Box<dyn Fn(&mut State, DragState)>>,
+    on_hover: Option<Box<dyn Fn(&mut State)>>,
+}
+
+struct DragState {}
+
+struct UserState {
+    my_bool: bool,
+}
 
 impl<State> TransitionState for Ui<State> {
     fn bank(&mut self) -> &mut AnimationBank {
@@ -80,12 +101,12 @@ struct Ui<State> {
     surface: Surface<WindowSurface>,
     state: State,
     default_font: FontId,
-    drawables: Vec<Box<dyn View<Ui<State>>>>,
+    drawables: Vec<View<State>>,
     animation_bank: AnimationBank,
     view_state: HashMap<u64, Box<dyn Any>>,
+    gesture_handlers: Vec<(Area, GestureHandler<State>)>,
+    cursor_position: Option<PhysicalPosition<f64>>,
 }
-
-trait ViewState {}
 
 impl<State> ApplicationHandler for App<State> {
     fn resumed(&mut self, _event_loop: &ActiveEventLoop) {}
@@ -115,6 +136,7 @@ impl<State> ApplicationHandler for App<State> {
                 ..
             } => {}
             WindowEvent::RedrawRequested => {
+                self.ui.gesture_handlers.clear();
                 let dpi_factor = self.ui.window.scale_factor();
                 let size = self.ui.window.inner_size();
                 self.ui
@@ -143,19 +165,155 @@ impl<State> ApplicationHandler for App<State> {
                 self.ui.canvas.flush();
                 self.ui.surface.swap_buffers(&self.ui.context).unwrap();
             }
+            WindowEvent::MouseInput {
+                state: ElementState::Released,
+                button: MouseButton::Left,
+                ..
+            } => {
+                if let Some(point) = self.ui.cursor_position {
+                    if let Some(Some(handler)) = self
+                        .ui
+                        .gesture_handlers
+                        .iter()
+                        .rev()
+                        .find(|g| area_contains(&g.0, point))
+                        .map(|gh| &gh.1.on_tap)
+                    {
+                        handler(&mut self.ui.state);
+                        self.ui.window.request_redraw();
+                    }
+                }
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                self.ui.cursor_position = Some(position);
+                if let Some(point) = self.ui.cursor_position {
+                    if let Some(Some(handler)) = self
+                        .ui
+                        .gesture_handlers
+                        .iter()
+                        .rev()
+                        .find(|g| area_contains(&g.0, point))
+                        .map(|gh| &gh.1.on_hover)
+                    {
+                        handler(&mut self.ui.state);
+                        self.ui.window.request_redraw();
+                    }
+                }
+            }
             _ => (),
         }
     }
 }
 
-fn view<State>(ui: &mut Ui<State>, view: impl View<State>) -> Node<Ui<State>> {
+fn area_contains(area: &Area, point: PhysicalPosition<f64>) -> bool {
+    let x = point.x as f32;
+    let y = point.y as f32;
+    if x > area.x && y > area.y && y < area.y + area.height && x < area.x + area.width {
+        return true;
+    }
+    false
+}
+
+fn view<State: 'static>(ui: &mut Ui<State>, view: View<State>) -> Node<Ui<State>> {
     view.view(ui)
 }
 
-trait View<State>: TransitionDrawable<Ui<State>> {
-    fn view(self, _ui: &mut Ui<State>) -> Node<Ui<State>>;
+struct View<State> {
+    view_type: ViewType,
+    gesture_handler: GestureHandler<State>,
 }
 
+#[derive(Debug, Clone)]
+enum ViewType {
+    Text(Text),
+    Rect(Rect),
+}
+
+impl<State> View<State> {
+    fn on_tap(mut self, f: impl Fn(&mut State) + 'static) -> View<State> {
+        self.gesture_handler = GestureHandler {
+            on_tap: Some(Box::new(f)),
+            on_drag: None,
+            on_hover: None,
+        };
+        self
+    }
+    fn on_drag(mut self, f: impl Fn(&mut State, DragState) + 'static) -> View<State> {
+        self.gesture_handler = GestureHandler {
+            on_tap: None,
+            on_drag: Some(Box::new(f)),
+            on_hover: None,
+        };
+        self
+    }
+    fn on_hover(mut self, f: impl Fn(&mut State) + 'static) -> View<State> {
+        self.gesture_handler = GestureHandler {
+            on_tap: None,
+            on_drag: None,
+            on_hover: Some(Box::new(f)),
+        };
+        self
+    }
+}
+
+impl<State> TransitionDrawable<Ui<State>> for View<State> {
+    fn draw_interpolated(
+        &mut self,
+        area: Area,
+        state: &mut Ui<State>,
+        visible: bool,
+        visible_amount: f32,
+    ) {
+        state.gesture_handlers.push((
+            area,
+            GestureHandler {
+                on_tap: self.gesture_handler.on_tap.take(),
+                on_drag: self.gesture_handler.on_drag.take(),
+                on_hover: self.gesture_handler.on_hover.take(),
+            },
+        ));
+        match &mut self.view_type {
+            ViewType::Text(view) => view.draw_interpolated(area, state, visible, visible_amount),
+            ViewType::Rect(view) => view.draw_interpolated(area, state, visible, visible_amount),
+        }
+    }
+
+    fn id(&self) -> &u64 {
+        match &self.view_type {
+            ViewType::Text(view) => <Text as TransitionDrawable<Ui<State>>>::id(view),
+            ViewType::Rect(view) => <Rect as TransitionDrawable<Ui<State>>>::id(view),
+        }
+    }
+
+    fn easing(&self) -> backer::Easing {
+        match &self.view_type {
+            ViewType::Text(view) => <Text as TransitionDrawable<Ui<State>>>::easing(view),
+            ViewType::Rect(view) => <Rect as TransitionDrawable<Ui<State>>>::easing(view),
+        }
+    }
+
+    fn duration(&self) -> f32 {
+        match &self.view_type {
+            ViewType::Text(view) => <Text as TransitionDrawable<Ui<State>>>::duration(view),
+            ViewType::Rect(view) => <Rect as TransitionDrawable<Ui<State>>>::duration(view),
+        }
+    }
+}
+
+impl<State: 'static> View<State> {
+    fn view(self, ui: &mut Ui<State>) -> Node<Ui<State>> {
+        match self.view_type.clone() {
+            ViewType::Text(view) => view.view(ui, draw_object(self)),
+            ViewType::Rect(view) => view.view(ui, draw_object(self)),
+        }
+    }
+}
+
+trait ViewTrait<State>: TransitionDrawable<Ui<State>> + Sized {
+    fn view(self, ui: &mut Ui<State>, node: Node<Ui<State>>) -> Node<Ui<State>>;
+}
+
+#[derive(Debug, Clone)]
 struct Rect {
     id: u64,
     fill: Option<Color>,
@@ -191,6 +349,16 @@ impl Rect {
         self.stroke = Some((color, line_width));
         self
     }
+    fn finish<State>(self) -> View<State> {
+        View {
+            view_type: ViewType::Rect(self),
+            gesture_handler: GestureHandler {
+                on_tap: None,
+                on_drag: None,
+                on_hover: None,
+            },
+        }
+    }
 }
 
 impl<State> TransitionDrawable<Ui<State>> for Rect {
@@ -207,11 +375,11 @@ impl<State> TransitionDrawable<Ui<State>> for Rect {
         let mut path = Path::new();
         path.rounded_rect(area.x, area.y, area.width, area.height, self.corner_radius);
         if visible_amount < 1. {
-            if let Some(mut fill) = self.fill {
-                fill.set_alpha((visible_amount * 255.) as u8)
+            if let Some(ref mut fill) = self.fill {
+                fill.set_alphaf(visible_amount)
             }
-            if let Some((mut stroke, _)) = self.stroke {
-                stroke.set_alpha((visible_amount * 255.) as u8)
+            if let Some((ref mut stroke, _)) = self.stroke {
+                stroke.set_alphaf(visible_amount);
             }
         }
         if let (None, None) = (self.fill, self.stroke) {
@@ -237,9 +405,9 @@ impl<State> TransitionDrawable<Ui<State>> for Rect {
     }
 }
 
-impl<State> View<State> for Rect {
-    fn view(self, _ui: &mut Ui<State>) -> Node<Ui<State>> {
-        draw_object(self)
+impl<State> ViewTrait<State> for Rect {
+    fn view(self, _ui: &mut Ui<State>, node: Node<Ui<State>>) -> Node<Ui<State>> {
+        node
     }
 }
 
@@ -305,6 +473,8 @@ impl<State> App<State> {
                 animation_bank: AnimationBank::new(),
                 default_font,
                 view_state: HashMap::new(),
+                gesture_handlers: Vec::default(),
+                cursor_position: None,
             },
             view,
         }
