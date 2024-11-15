@@ -1,8 +1,13 @@
 use backer::{models::*, transitions::TransitionDrawable, Node};
-use femtovg::{Color, FontId, Paint};
+use nannou::{
+    color::{rgb, rgba, Rgba},
+    lyon::math::rect,
+    text::font,
+};
+// use femtovg::{Rgba, FontId, Paint};
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-use crate::{GestureHandler, Ui, View, ViewTrait, ViewType};
+use crate::{ui_to_draw, GestureHandler, Ui, View, ViewTrait, ViewType};
 
 pub(crate) fn text(id: String, text: impl AsRef<str> + 'static) -> Text {
     let mut hasher = DefaultHasher::new();
@@ -10,12 +15,11 @@ pub(crate) fn text(id: String, text: impl AsRef<str> + 'static) -> Text {
     Text {
         id: hasher.finish(),
         text: text.as_ref().to_owned(),
-        font_size: 16.,
+        font_size: 40,
         font: None,
         easing: None,
         duration: None,
         fill: None,
-        stroke: None,
     }
 }
 
@@ -23,28 +27,23 @@ pub(crate) fn text(id: String, text: impl AsRef<str> + 'static) -> Text {
 pub(crate) struct Text {
     id: u64,
     text: String,
-    fill: Option<Color>,
-    stroke: Option<(Color, f32)>,
-    font_size: f32,
-    font: Option<FontId>,
+    fill: Option<Rgba<f32>>,
+    font_size: u32,
+    font: Option<font::Id>,
     easing: Option<backer::Easing>,
     duration: Option<f32>,
 }
 
 impl Text {
-    pub(crate) fn fill(mut self, color: Color) -> Self {
+    pub(crate) fn fill(mut self, color: Rgba) -> Self {
         self.fill = Some(color);
         self
     }
-    pub(crate) fn stroke(mut self, color: Color, line_width: f32) -> Self {
-        self.stroke = Some((color, line_width));
-        self
-    }
-    pub(crate) fn font_size(mut self, size: f32) -> Self {
+    pub(crate) fn font_size(mut self, size: u32) -> Self {
         self.font_size = size;
         self
     }
-    pub(crate) fn font(mut self, font_id: FontId) -> Self {
+    pub(crate) fn font(mut self, font_id: font::Id) -> Self {
         self.font = Some(font_id);
         self
     }
@@ -68,64 +67,24 @@ impl<State> TransitionDrawable<Ui<State>> for Text {
         visible: bool,
         visible_amount: f32,
     ) {
-        if !visible && visible_amount == 0. {
-            return;
-        }
-        let mut color = Color::black();
-        color.set_alphaf(visible_amount);
-        let paint = Paint::color(color)
-            .with_font(&[state.default_font])
-            .with_font_size(self.font_size);
-
-        let font_metrics = state
-            .canvas
-            .measure_font(&paint)
-            .expect("Error measuring font");
-
-        let width = state.canvas.width() as f32;
-        let mut y = area.y + area.height;
-
-        let lines = state
-            .canvas
-            .break_text_vec(width, self.text.clone(), &paint)
-            .expect("Error while breaking text");
-
-        for line_range in lines {
-            if let (None, None) = (self.fill, self.stroke) {
-                if let Ok(_res) = state
-                    .canvas
-                    .fill_text(area.x, y, &self.text[line_range], &paint)
-                {
-                    y += font_metrics.height();
-                }
-            } else {
-                if let Some(color) = self.fill {
-                    let mut color = color;
-                    color.set_alphaf(visible_amount);
-                    let paint = Paint::color(color)
-                        .with_font(&[state.default_font])
-                        .with_font_size(self.font_size);
-                    if let Ok(_res) =
-                        state
-                            .canvas
-                            .fill_text(area.x, y, &self.text[line_range.clone()], &paint)
-                    {
-                        y += font_metrics.height();
-                    }
-                }
-                if let Some((color, width)) = self.stroke {
-                    let mut color = color;
-                    color.set_alphaf(visible_amount);
-                    let paint = Paint::color(color)
-                        .with_line_width(width)
-                        .with_font(&[state.default_font])
-                        .with_font_size(self.font_size);
-                    _ = state
-                        .canvas
-                        .stroke_text(area.x, y, &self.text[line_range], &paint);
-                }
-            }
-        }
+        let area = ui_to_draw(area, state.window_size);
+        let fill = self.fill.unwrap_or(rgba(0., 0., 0., 1.));
+        state
+            .draw
+            .text(&self.text)
+            .x(area.x)
+            .y(area.y)
+            .h(area.height)
+            .w(area.width)
+            .font_size(self.font_size)
+            .color(rgba(
+                fill.red,
+                fill.green,
+                fill.blue,
+                visible_amount * fill.alpha,
+            ))
+            .align_text_bottom()
+            .finish()
     }
 
     fn id(&self) -> &u64 {
@@ -142,15 +101,20 @@ impl<State> TransitionDrawable<Ui<State>> for Text {
 
 impl<State> ViewTrait<State> for Text {
     fn view(self, ui: &mut Ui<State>, node: Node<Ui<State>>) -> Node<Ui<State>> {
-        let font_size = self.font_size;
-        let paint = Paint::color(Color::black())
-            .with_font(&[ui.default_font])
-            .with_font_size(font_size);
-        let text_size = ui
-            .canvas
-            .measure_text(0., 0., self.text.clone(), &paint)
-            .expect("Error measuring font");
+        let layout = nannou::text::Builder::from(self.text)
+            .font_size(self.font_size)
+            .build(nannou::geom::Rect {
+                x: nannou::geom::Range {
+                    start: 0.,
+                    end: 400.,
+                },
+                y: nannou::geom::Range {
+                    start: 0.,
+                    end: 400.,
+                },
+            })
+            .bounding_rect();
 
-        node.height(text_size.height()).width(text_size.width())
+        node.height(layout.h()).width(layout.w())
     }
 }
