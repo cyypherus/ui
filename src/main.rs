@@ -42,18 +42,48 @@ fn main() {
         600,
         "Title",
         true,
-        UserState { my_bool: false },
+        UserState {
+            hovered: false,
+            height: 0.,
+            depressed: false,
+        },
         Layout::new(|ui: &mut Ui<UserState>| {
             column_spaced(
                 10.,
                 vec![
                     space(),
-                    view(
+                    stack(vec![view(
                         ui,
-                        text(id!(), "Lorem ipsum").on_tap(|state: &mut UserState| {
-                            state.my_bool = !state.my_bool;
-                        }),
-                    ),
+                        text(id!(), "Lorem ipsum")
+                            .fill(Color::rgb(200, 200, 200))
+                            .finish(),
+                    )
+                    .pad(10.)
+                    .attach_under(view(
+                        ui,
+                        rect(id!())
+                            .stroke(Color::rgb(100, 100, 100), 2.)
+                            .fill(match (ui.state.hovered, ui.state.depressed) {
+                                (_, true) => Color::rgb(20, 20, 20),
+                                (true, false) => Color::rgb(50, 50, 50),
+                                (false, false) => Color::rgb(10, 10, 10),
+                            })
+                            .corner_radius(5.)
+                            .finish()
+                            .on_hover(|state: &mut UserState, hovered| state.hovered = hovered)
+                            .on_click(|state: &mut UserState, click_state| match click_state {
+                                ClickState::Started => state.depressed = true,
+                                ClickState::Cancelled => state.depressed = false,
+                                ClickState::Completed => {
+                                    state.depressed = false;
+                                    if state.height > 50. {
+                                        state.height = 0.;
+                                    } else {
+                                        state.height += 10.;
+                                    }
+                                }
+                            }),
+                    ))]),
                     view(
                         ui,
                         rect(id!())
@@ -61,7 +91,8 @@ fn main() {
                             .corner_radius(20.)
                             .finish(),
                     )
-                    .visible(ui.state.my_bool),
+                    .height(ui.state.height)
+                    .visible(ui.state.hovered),
                     space(),
                 ],
             )
@@ -71,15 +102,37 @@ fn main() {
 }
 
 struct GestureHandler<State> {
-    on_tap: Option<Box<dyn Fn(&mut State)>>,
+    on_click: Option<Box<dyn Fn(&mut State, ClickState)>>,
     on_drag: Option<Box<dyn Fn(&mut State, DragState)>>,
-    on_hover: Option<Box<dyn Fn(&mut State)>>,
+    on_hover: Option<Box<dyn Fn(&mut State, bool)>>,
 }
 
-struct DragState {}
+#[derive(Debug, Clone, Copy)]
+enum DragState {
+    Began(Point),
+    Updated {
+        start: Point,
+        current: Point,
+        distance: f32,
+    },
+    Completed {
+        start: Point,
+        current: Point,
+        distance: f32,
+    },
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ClickState {
+    Started,
+    Cancelled,
+    Completed,
+}
 
 struct UserState {
-    my_bool: bool,
+    hovered: bool,
+    depressed: bool,
+    height: f32,
 }
 
 impl<State> TransitionState for Ui<State> {
@@ -104,8 +157,9 @@ struct Ui<State> {
     drawables: Vec<View<State>>,
     animation_bank: AnimationBank,
     view_state: HashMap<u64, Box<dyn Any>>,
-    gesture_handlers: Vec<(Area, GestureHandler<State>)>,
-    cursor_position: Option<PhysicalPosition<f64>>,
+    gesture_handlers: Vec<(u64, Area, GestureHandler<State>)>,
+    cursor_position: Option<Point>,
+    gesture_state: GestureState,
 }
 
 impl<State> ApplicationHandler for App<State> {
@@ -166,38 +220,110 @@ impl<State> ApplicationHandler for App<State> {
                 self.ui.surface.swap_buffers(&self.ui.context).unwrap();
             }
             WindowEvent::MouseInput {
-                state: ElementState::Released,
+                state: ElementState::Pressed,
                 button: MouseButton::Left,
                 ..
             } => {
                 if let Some(point) = self.ui.cursor_position {
-                    if let Some(Some(handler)) = self
+                    if let Some((capturer, _, handler)) = self
                         .ui
                         .gesture_handlers
                         .iter()
                         .rev()
-                        .find(|g| area_contains(&g.0, point))
-                        .map(|gh| &gh.1.on_tap)
+                        .find(|(_, area, handler)| {
+                            area_contains(area, point)
+                                && (handler.on_click.is_some() || handler.on_drag.is_some())
+                        })
                     {
-                        handler(&mut self.ui.state);
-                        self.ui.window.request_redraw();
+                        if let Some(ref on_click) = handler.on_click {
+                            on_click(&mut self.ui.state, ClickState::Started);
+                            self.ui.window.request_redraw();
+                        }
+                        self.ui.gesture_state = GestureState::Dragging {
+                            start: point,
+                            capturer: *capturer,
+                        }
                     }
                 }
             }
+            WindowEvent::MouseInput {
+                state: ElementState::Released,
+                button: MouseButton::Left,
+                ..
+            } => {
+                if let Some(current) = self.ui.cursor_position {
+                    if let GestureState::Dragging { start, capturer } = self.ui.gesture_state {
+                        let distance = start.distance(current);
+                        let mut needs_redraw = false;
+                        if let Some((_, area, handler)) = self
+                            .ui
+                            .gesture_handlers
+                            .iter()
+                            .find(|(id, _, _)| *id == capturer)
+                        {
+                            if let Some(ref on_click) = handler.on_click {
+                                if area_contains(area, current) {
+                                    on_click(&mut self.ui.state, ClickState::Completed);
+                                    needs_redraw = true;
+                                } else {
+                                    on_click(&mut self.ui.state, ClickState::Cancelled);
+                                    needs_redraw = true;
+                                }
+                            }
+                            if let Some(ref on_drag) = handler.on_drag {
+                                on_drag(
+                                    &mut self.ui.state,
+                                    DragState::Completed {
+                                        start,
+                                        current,
+                                        distance,
+                                    },
+                                );
+                                needs_redraw = true;
+                            }
+                        }
+                        if needs_redraw {
+                            self.ui.window.request_redraw();
+                        }
+                    }
+                }
+                self.ui.gesture_state = GestureState::None;
+            }
             WindowEvent::CursorMoved { position, .. } => {
-                self.ui.cursor_position = Some(position);
-                if let Some(point) = self.ui.cursor_position {
+                let current_position = Point {
+                    x: position.x as f32,
+                    y: position.y as f32,
+                };
+                self.ui.cursor_position = Some(current_position);
+                let mut needs_redraw = false;
+                self.ui.gesture_handlers.iter().for_each(|(_, area, gh)| {
+                    if let Some(on_hover) = &gh.on_hover {
+                        on_hover(&mut self.ui.state, area_contains(area, current_position));
+                        needs_redraw = true;
+                    }
+                });
+                if let GestureState::Dragging { start, capturer } = self.ui.gesture_state {
+                    let distance = start.distance(current_position);
                     if let Some(Some(handler)) = self
                         .ui
                         .gesture_handlers
                         .iter()
-                        .rev()
-                        .find(|g| area_contains(&g.0, point))
-                        .map(|gh| &gh.1.on_hover)
+                        .find(|(id, _, _)| *id == capturer)
+                        .map(|(_, _, gh)| &gh.on_drag)
                     {
-                        handler(&mut self.ui.state);
-                        self.ui.window.request_redraw();
+                        handler(
+                            &mut self.ui.state,
+                            DragState::Updated {
+                                start,
+                                current: current_position,
+                                distance,
+                            },
+                        );
+                        needs_redraw = true;
                     }
+                }
+                if needs_redraw {
+                    self.ui.window.request_redraw();
                 }
             }
             _ => (),
@@ -205,9 +331,27 @@ impl<State> ApplicationHandler for App<State> {
     }
 }
 
-fn area_contains(area: &Area, point: PhysicalPosition<f64>) -> bool {
-    let x = point.x as f32;
-    let y = point.y as f32;
+#[derive(Debug, Clone, Copy)]
+enum GestureState {
+    None,
+    Dragging { start: Point, capturer: u64 },
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Point {
+    x: f32,
+    y: f32,
+}
+
+impl Point {
+    fn distance(&self, to: Point) -> f32 {
+        ((to.x - self.x).powf(2.) + (to.y - self.y).powf(2.)).sqrt()
+    }
+}
+
+fn area_contains(area: &Area, point: Point) -> bool {
+    let x = point.x;
+    let y = point.y;
     if x > area.x && y > area.y && y < area.y + area.height && x < area.x + area.width {
         return true;
     }
@@ -230,28 +374,16 @@ enum ViewType {
 }
 
 impl<State> View<State> {
-    fn on_tap(mut self, f: impl Fn(&mut State) + 'static) -> View<State> {
-        self.gesture_handler = GestureHandler {
-            on_tap: Some(Box::new(f)),
-            on_drag: None,
-            on_hover: None,
-        };
+    fn on_click(mut self, f: impl Fn(&mut State, ClickState) + 'static) -> View<State> {
+        self.gesture_handler.on_click = Some(Box::new(f));
         self
     }
     fn on_drag(mut self, f: impl Fn(&mut State, DragState) + 'static) -> View<State> {
-        self.gesture_handler = GestureHandler {
-            on_tap: None,
-            on_drag: Some(Box::new(f)),
-            on_hover: None,
-        };
+        self.gesture_handler.on_drag = Some(Box::new(f));
         self
     }
-    fn on_hover(mut self, f: impl Fn(&mut State) + 'static) -> View<State> {
-        self.gesture_handler = GestureHandler {
-            on_tap: None,
-            on_drag: None,
-            on_hover: Some(Box::new(f)),
-        };
+    fn on_hover(mut self, f: impl Fn(&mut State, bool) + 'static) -> View<State> {
+        self.gesture_handler.on_hover = Some(Box::new(f));
         self
     }
 }
@@ -265,9 +397,10 @@ impl<State> TransitionDrawable<Ui<State>> for View<State> {
         visible_amount: f32,
     ) {
         state.gesture_handlers.push((
+            *self.id(),
             area,
             GestureHandler {
-                on_tap: self.gesture_handler.on_tap.take(),
+                on_click: self.gesture_handler.on_click.take(),
                 on_drag: self.gesture_handler.on_drag.take(),
                 on_hover: self.gesture_handler.on_hover.take(),
             },
@@ -353,7 +486,7 @@ impl Rect {
         View {
             view_type: ViewType::Rect(self),
             gesture_handler: GestureHandler {
-                on_tap: None,
+                on_click: None,
                 on_drag: None,
                 on_hover: None,
             },
@@ -469,12 +602,13 @@ impl<State> App<State> {
                 window,
                 context,
                 surface,
-                drawables: Vec::default(),
+                drawables: Vec::new(),
                 animation_bank: AnimationBank::new(),
                 default_font,
                 view_state: HashMap::new(),
-                gesture_handlers: Vec::default(),
+                gesture_handlers: Vec::new(),
                 cursor_position: None,
+                gesture_state: GestureState::None,
             },
             view,
         }
