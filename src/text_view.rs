@@ -1,6 +1,6 @@
 use backer::{models::*, transitions::TransitionDrawable, Node};
 use nannou::{
-    color::{rgb, rgba, Rgba},
+    color::{rgb, rgba, srgb, srgba, Rgba, Srgb},
     lyon::math::rect,
     text::font,
 };
@@ -17,8 +17,6 @@ pub(crate) fn text(id: String, text: impl AsRef<str> + 'static) -> Text {
         text: text.as_ref().to_owned(),
         font_size: 40,
         font: None,
-        easing: None,
-        duration: None,
         fill: None,
     }
 }
@@ -27,15 +25,13 @@ pub(crate) fn text(id: String, text: impl AsRef<str> + 'static) -> Text {
 pub(crate) struct Text {
     id: u64,
     text: String,
-    fill: Option<Rgba<f32>>,
+    fill: Option<Srgb<f32>>,
     font_size: u32,
     font: Option<font::Id>,
-    easing: Option<backer::Easing>,
-    duration: Option<f32>,
 }
 
 impl Text {
-    pub(crate) fn fill(mut self, color: Rgba) -> Self {
+    pub(crate) fn fill(mut self, color: Srgb<f32>) -> Self {
         self.fill = Some(color);
         self
     }
@@ -55,6 +51,9 @@ impl Text {
                 on_drag: None,
                 on_hover: None,
             },
+            easing: None,
+            duration: None,
+            delay: 0.,
         }
     }
 }
@@ -67,8 +66,11 @@ impl<State> TransitionDrawable<Ui<State>> for Text {
         visible: bool,
         visible_amount: f32,
     ) {
+        if !visible && visible_amount == 0. {
+            return;
+        }
         let area = ui_to_draw(area, state.window_size);
-        let fill = self.fill.unwrap_or(rgba(0., 0., 0., 1.));
+        let fill = self.fill.unwrap_or(srgb(0., 0., 0.));
         state
             .draw
             .text(&self.text)
@@ -77,12 +79,7 @@ impl<State> TransitionDrawable<Ui<State>> for Text {
             .h(area.height)
             .w(area.width)
             .font_size(self.font_size)
-            .color(rgba(
-                fill.red,
-                fill.green,
-                fill.blue,
-                visible_amount * fill.alpha,
-            ))
+            .color(rgba(fill.red, fill.green, fill.blue, visible_amount))
             .align_text_bottom()
             .finish()
     }
@@ -90,12 +87,14 @@ impl<State> TransitionDrawable<Ui<State>> for Text {
     fn id(&self) -> &u64 {
         &self.id
     }
-
     fn easing(&self) -> backer::Easing {
-        self.easing.unwrap_or(backer::Easing::EaseOut)
+        backer::Easing::EaseOut
     }
     fn duration(&self) -> f32 {
-        self.duration.unwrap_or(200.)
+        0.
+    }
+    fn delay(&self) -> f32 {
+        0.
     }
 }
 

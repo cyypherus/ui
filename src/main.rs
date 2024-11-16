@@ -25,7 +25,43 @@ fn main() {
             column_spaced(
                 10.,
                 vec![
-                    view(ui, text(id!(), "Hello").finish()).visible(ui.state.toggle),
+                    view(
+                        ui,
+                        text(id!(), "Hello world")
+                            .font_size(10)
+                            .fill(srgb(1., 1., 1.))
+                            .finish()
+                            .transition_duration(300.),
+                    )
+                    .pad(15.)
+                    .attach_under(view(
+                        ui,
+                        rect(id!())
+                            .fill(srgb(0.2, 0.15, 0.15))
+                            .stroke(srgb(0.3, 0.2, 0.2), 2.)
+                            .corner_rounding(0.3)
+                            .finish()
+                            .transition_duration(200.),
+                    ))
+                    .pad(5.)
+                    .attach_under(view(
+                        ui,
+                        rect(id!())
+                            .stroke(srgb(0.3, 0.2, 0.2), 2.)
+                            .corner_rounding(0.3)
+                            .finish()
+                            .transition_duration(400.),
+                    ))
+                    .pad(5.)
+                    .attach_under(view(
+                        ui,
+                        rect(id!())
+                            .stroke(srgb(0.3, 0.2, 0.2), 2.)
+                            .corner_rounding(0.3)
+                            .finish()
+                            .transition_duration(600.),
+                    ))
+                    .visible(ui.state.toggle),
                     view(
                         ui,
                         rect(id!())
@@ -35,7 +71,7 @@ fn main() {
                                 (true, false) => srgb(0.3, 0.3, 0.3),
                                 (false, false) => srgb(0.1, 0.1, 0.1),
                             })
-                            .corner_rounding(if ui.state.hovered { 0.1 } else { 0.2 })
+                            .corner_rounding(0.2)
                             .finish()
                             .on_hover(|state: &mut UserState, hovered| state.hovered = hovered)
                             .on_click(|state: &mut UserState, click_state| match click_state {
@@ -84,6 +120,9 @@ struct Ui<State> {
 struct View<State> {
     view_type: ViewType,
     gesture_handler: GestureHandler<State>,
+    easing: Option<backer::Easing>,
+    duration: Option<f32>,
+    delay: f32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -133,6 +172,18 @@ impl<State> View<State> {
         self.gesture_handler.on_hover = Some(Box::new(f));
         self
     }
+    fn easing(mut self, easing: backer::Easing) -> Self {
+        self.easing = Some(easing);
+        self
+    }
+    fn transition_duration(mut self, duration_ms: f32) -> Self {
+        self.duration = Some(duration_ms);
+        self
+    }
+    fn transition_delay(mut self, delay_ms: f32) -> Self {
+        self.delay = delay_ms;
+        self
+    }
 }
 
 impl<State: 'static> View<State> {
@@ -178,17 +229,14 @@ impl<State> TransitionDrawable<Ui<State>> for View<State> {
     }
 
     fn easing(&self) -> backer::Easing {
-        match &self.view_type {
-            ViewType::Text(view) => <Text as TransitionDrawable<Ui<State>>>::easing(view),
-            ViewType::Rect(view) => <Rect as TransitionDrawable<Ui<State>>>::easing(view),
-        }
+        self.easing.unwrap_or(backer::Easing::EaseOut)
     }
 
     fn duration(&self) -> f32 {
-        match &self.view_type {
-            ViewType::Text(view) => <Text as TransitionDrawable<Ui<State>>>::duration(view),
-            ViewType::Rect(view) => <Rect as TransitionDrawable<Ui<State>>>::duration(view),
-        }
+        self.duration.unwrap_or(100.)
+    }
+    fn delay(&self) -> f32 {
+        self.delay
     }
 }
 
@@ -239,7 +287,7 @@ impl<State: 'static> App<State> {
         };
         state.ui.window_size = size;
         state.ui.gesture_handlers.clear();
-        state.ui.draw.background().color(BLUE);
+        state.ui.draw.background().color(BLACK);
         state.view.draw(size, &mut state.ui);
     }
     fn window_event(_app: &NannouApp, state: &mut Self, event: WindowEvent) {
@@ -388,6 +436,7 @@ struct Rect {
     stroke: Option<(Srgb<f32>, f32)>,
     easing: Option<backer::Easing>,
     duration: Option<f32>,
+    delay: f32,
 }
 
 fn rect(id: String) -> Rect {
@@ -400,6 +449,7 @@ fn rect(id: String) -> Rect {
         stroke: None,
         easing: None,
         duration: None,
+        delay: 0.,
     }
 }
 
@@ -424,6 +474,9 @@ impl Rect {
                 on_drag: None,
                 on_hover: None,
             },
+            easing: None,
+            duration: None,
+            delay: 0.,
         }
     }
 }
@@ -502,6 +555,9 @@ impl<State> TransitionDrawable<Ui<State>> for Rect {
     }
     fn duration(&self) -> f32 {
         self.duration.unwrap_or(200.)
+    }
+    fn delay(&self) -> f32 {
+        self.delay
     }
 }
 
