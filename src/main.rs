@@ -3,7 +3,7 @@ use backer::nodes::*;
 use backer::transitions::{AnimationBank, TransitionDrawable, TransitionState};
 use backer::{id, Layout, Node};
 use parley::{FontContext, LayoutContext};
-use rect::{rect, Rect};
+use rect::rect;
 use std::any::Any;
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
@@ -222,7 +222,7 @@ impl<'s, State> ApplicationHandler for App<'s, State> {
     fn window_event(
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
-        window_id: winit::window::WindowId,
+        _window_id: winit::window::WindowId,
         event: winit::event::WindowEvent,
     ) {
         if let Some(event) = crate::event::WindowEvent::from_winit_window_event(event) {
@@ -230,7 +230,6 @@ impl<'s, State> ApplicationHandler for App<'s, State> {
                 event::WindowEvent::Moved(_) => {}
                 event::WindowEvent::KeyPressed(_) => {}
                 event::WindowEvent::KeyReleased(_) => {}
-                event::WindowEvent::ReceivedCharacter(_) => {}
                 event::WindowEvent::MouseMoved(pos) => self.ui.mouse_moved(pos),
                 event::WindowEvent::MousePressed(MouseButton::Left) => self.ui.mouse_pressed(),
                 event::WindowEvent::MousePressed(_) => {}

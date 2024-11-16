@@ -3,11 +3,8 @@ use crate::{
     GestureHandler, Ui, ViewTrait,
 };
 use backer::{models::*, transitions::TransitionDrawable, Node};
-use parley::{Font, FontStack, PositionedLayoutItem, TextStyle};
-use std::{
-    hash::{DefaultHasher, Hash, Hasher},
-    sync::Arc,
-};
+use parley::{FontStack, PositionedLayoutItem, TextStyle};
+use std::hash::{DefaultHasher, Hash, Hasher};
 use vello::{
     kurbo::Affine,
     peniko::{Color, Fill},

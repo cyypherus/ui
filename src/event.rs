@@ -50,9 +50,6 @@ pub enum WindowEvent {
     /// The given keyboard key was released.
     KeyReleased(Key),
 
-    /// Character input received event.
-    ReceivedCharacter(char),
-
     /// The mouse moved to the given x, y position.
     MouseMoved(Point),
 
