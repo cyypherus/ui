@@ -2,26 +2,27 @@ use backer::models::Area;
 use backer::nodes::*;
 use backer::transitions::{AnimationBank, TransitionDrawable, TransitionState};
 use backer::{id, Layout, Node};
+use parley::{FontContext, LayoutContext};
+use rect::{rect, Rect};
 use std::any::Any;
 use std::collections::HashMap;
-use std::future;
-use std::hash::{DefaultHasher, Hash, Hasher};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
-use vello::kurbo::Affine;
-use vello::low_level::{BumpAllocators, DebugLayers};
+use text_view::text;
 use vello::peniko::Color;
+use vello::util::{RenderContext, RenderSurface};
+use vello::{AaConfig, Renderer, RendererOptions, Scene};
+use view::view;
+use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
 use winit::event::MouseButton;
 use winit::event_loop::EventLoop;
-// use text_view::{text, Text};
-use vello::util::{RenderContext, RenderSurface};
-use vello::{AaConfig, Renderer, RendererOptions, Scene};
-use winit::application::ApplicationHandler;
 use winit::window::{Window, WindowAttributes};
 
 mod event;
+mod rect;
 mod text_view;
+mod view;
 
 fn main() {
     App::start(
@@ -30,89 +31,74 @@ fn main() {
             depressed: false,
             toggle: false,
         },
-        |ui| column(vec![space(), view(ui, rect(id!()).finish())]),
-    );
-}
-
-// fn main() {
-//     App::start(
-//         UserState {
-//             hovered: false,
-//             depressed: false,
-//             toggle: false,
-//         },
-//         |ui| {
-//             column_spaced(
-//                 10.,
-//                 vec![
-//                     view(
-//                         ui,
-//                         text(id!(), "Hello world")
-//                             .font_size(10)
-//                             .fill(srgb(1., 1., 1.))
-//                             .finish()
-//                             .transition_duration(300.),
-//                     )
-//                     .pad(15.)
-//                     .attach_under(view(
-//                         ui,
-//                         rect(id!())
-//                             .fill(srgb(0.2, 0.15, 0.15))
-//                             .stroke(srgb(0.3, 0.2, 0.2), 2.)
-//                             .corner_rounding(0.3)
-//                             .finish()
-//                             .transition_duration(200.),
-//                     ))
-//                     .pad(5.)
-//                     .attach_under(view(
-//                         ui,
-//                         rect(id!())
-//                             .stroke(srgb(0.3, 0.2, 0.2), 2.)
-//                             .corner_rounding(0.3)
-//                             .finish()
-//                             .transition_duration(400.),
-//                     ))
-//                     .pad(5.)
-//                     .attach_under(view(
-//                         ui,
-//                         rect(id!())
-//                             .stroke(srgb(0.3, 0.2, 0.2), 2.)
-//                             .corner_rounding(0.3)
-//                             .finish()
-//                             .transition_duration(600.),
-//                     ))
-//                     .visible(ui.state.toggle),
-//                     view(
-//                         ui,
-//                         rect(id!())
-//                             .stroke(srgb(0.4, 0.4, 0.4), 1.)
-//                             .fill(match (ui.state.hovered, ui.state.depressed) {
-//                                 (_, true) => srgb(0.2, 0.2, 0.2),
-//                                 (true, false) => srgb(0.3, 0.3, 0.3),
-//                                 (false, false) => srgb(0.1, 0.1, 0.1),
-//                             })
-//                             .corner_rounding(0.2)
-//                             .finish()
-//                             .on_hover(|state: &mut UserState, hovered| state.hovered = hovered)
-//                             .on_click(|state: &mut UserState, click_state| match click_state {
-//                                 ClickState::Started => state.depressed = true,
-//                                 ClickState::Cancelled => state.depressed = false,
-//                                 ClickState::Completed => {
-//                                     state.depressed = false;
-//                                     state.toggle = !state.toggle;
-//                                 }
-//                             }),
-//                     )
-//                     .width(100.)
-//                     .height(40.),
-//                 ],
-//             )
-//         },
-//     )
-// }
-
-fn view<'s, State: 'static>(ui: &mut Ui<State>, view: View<State>) -> Node<Ui<'s, State>> {
-    view.view(ui)
+        |ui| {
+            column_spaced(
+                10.,
+                vec![
+                    view(
+                        ui,
+                        text(id!(), "Hello world")
+                            .font_size(10)
+                            .fill(Color::rgb(1., 1., 1.))
+                            .finish()
+                            .transition_duration(300.),
+                    )
+                    .pad(15.)
+                    .attach_under(view(
+                        ui,
+                        rect(id!())
+                            .fill(Color::rgb(0.2, 0.15, 0.15))
+                            .stroke(Color::rgb(0.3, 0.2, 0.2), 2.)
+                            .corner_rounding(10.)
+                            .finish()
+                            .transition_duration(200.),
+                    ))
+                    .pad(5.)
+                    .attach_under(view(
+                        ui,
+                        rect(id!())
+                            .stroke(Color::rgb(0.3, 0.2, 0.2), 2.)
+                            .corner_rounding(15.)
+                            .finish()
+                            .transition_duration(400.),
+                    ))
+                    .pad(5.)
+                    .attach_under(view(
+                        ui,
+                        rect(id!())
+                            .stroke(Color::rgb(0.3, 0.2, 0.2), 2.)
+                            .corner_rounding(20.)
+                            .finish()
+                            .transition_duration(600.),
+                    ))
+                    .visible(ui.state.toggle),
+                    view(
+                        ui,
+                        rect(id!())
+                            .stroke(Color::rgb(0.4, 0.4, 0.4), 1.)
+                            .fill(match (ui.state.hovered, ui.state.depressed) {
+                                (_, true) => Color::rgb(0.2, 0.2, 0.2),
+                                (true, false) => Color::rgb(0.3, 0.3, 0.3),
+                                (false, false) => Color::rgb(0.1, 0.1, 0.1),
+                            })
+                            .corner_rounding(20.)
+                            .finish()
+                            .on_hover(|state: &mut UserState, hovered| state.hovered = hovered)
+                            .on_click(|state: &mut UserState, click_state| match click_state {
+                                ClickState::Started => state.depressed = true,
+                                ClickState::Cancelled => state.depressed = false,
+                                ClickState::Completed => {
+                                    state.depressed = false;
+                                    state.toggle = !state.toggle;
+                                }
+                            }),
+                    )
+                    .width(100.)
+                    .height(40.),
+                ],
+            )
+        },
+    )
 }
 
 struct UserState {
@@ -145,14 +131,8 @@ struct Ui<'s, State> {
     cursor_position: Option<Point>,
     gesture_state: GestureState,
     scene: Scene,
-}
-
-struct View<State> {
-    view_type: ViewType,
-    gesture_handler: GestureHandler<State>,
-    easing: Option<backer::Easing>,
-    duration: Option<f32>,
-    delay: f32,
+    font_cx: FontContext,
+    layout_cx: LayoutContext,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -187,93 +167,6 @@ enum ClickState {
     Started,
     Cancelled,
     Completed,
-}
-
-impl<State> View<State> {
-    fn on_click(mut self, f: impl Fn(&mut State, ClickState) + 'static) -> View<State> {
-        self.gesture_handler.on_click = Some(Box::new(f));
-        self
-    }
-    fn on_drag(mut self, f: impl Fn(&mut State, DragState) + 'static) -> View<State> {
-        self.gesture_handler.on_drag = Some(Box::new(f));
-        self
-    }
-    fn on_hover(mut self, f: impl Fn(&mut State, bool) + 'static) -> View<State> {
-        self.gesture_handler.on_hover = Some(Box::new(f));
-        self
-    }
-    fn easing(mut self, easing: backer::Easing) -> Self {
-        self.easing = Some(easing);
-        self
-    }
-    fn transition_duration(mut self, duration_ms: f32) -> Self {
-        self.duration = Some(duration_ms);
-        self
-    }
-    fn transition_delay(mut self, delay_ms: f32) -> Self {
-        self.delay = delay_ms;
-        self
-    }
-}
-
-impl<State: 'static> View<State> {
-    fn view<'s>(self, ui: &mut Ui<State>) -> Node<Ui<'s, State>> {
-        match self.view_type.clone() {
-            // ViewType::Text(view) => view.view(ui, draw_object(self)),
-            ViewType::Rect(view) => view.view(ui, draw_object(self)),
-        }
-    }
-}
-
-impl<'s, State> TransitionDrawable<Ui<'s, State>> for View<State> {
-    fn draw_interpolated(
-        &mut self,
-        area: Area,
-        state: &mut Ui<State>,
-        visible: bool,
-        visible_amount: f32,
-    ) {
-        if !visible && visible_amount == 0. {
-            return;
-        }
-        state.gesture_handlers.push((
-            *self.id(),
-            area,
-            GestureHandler {
-                on_click: self.gesture_handler.on_click.take(),
-                on_drag: self.gesture_handler.on_drag.take(),
-                on_hover: self.gesture_handler.on_hover.take(),
-            },
-        ));
-        match &mut self.view_type {
-            // ViewType::Text(view) => view.draw_interpolated(area, state, visible, visible_amount),
-            ViewType::Rect(view) => view.draw_interpolated(area, state, visible, visible_amount),
-        }
-    }
-
-    fn id(&self) -> &u64 {
-        match &self.view_type {
-            // ViewType::Text(view) => <Text as TransitionDrawable<Ui<State>>>::id(view),
-            ViewType::Rect(view) => <Rect as TransitionDrawable<Ui<State>>>::id(view),
-        }
-    }
-
-    fn easing(&self) -> backer::Easing {
-        self.easing.unwrap_or(backer::Easing::EaseOut)
-    }
-
-    fn duration(&self) -> f32 {
-        self.duration.unwrap_or(100.)
-    }
-    fn delay(&self) -> f32 {
-        self.delay
-    }
-}
-
-#[derive(Debug, Clone)]
-enum ViewType {
-    // Text(Text),
-    Rect(Rect),
 }
 
 fn window_attributes() -> WindowAttributes {
@@ -374,6 +267,7 @@ impl<'s, State> ApplicationHandler for App<'s, State> {
                         .as_ref()
                         .map(|r| (r.surface.config.width, r.surface.config.height))
                     {
+                        self.ui.gesture_handlers.clear();
                         self.view.draw(
                             Area {
                                 x: 0.,
@@ -526,7 +420,9 @@ impl<'s, State> App<'s, State> {
         #[allow(unused_mut)]
         let mut renderers: Vec<Option<Renderer>> = vec![];
 
-        #[cfg(not(target_arch = "wasm32"))]
+        let mut font_cx = FontContext::new();
+        font_cx.collection.register_fonts(RUBIK_FONT.to_vec());
+
         let render_state = None::<RenderState>;
         let mut app = Self {
             ui: Ui {
@@ -541,12 +437,15 @@ impl<'s, State> App<'s, State> {
                 cursor_position: None,
                 gesture_state: GestureState::None,
                 scene: Scene::new(),
+                layout_cx: LayoutContext::new(),
+                font_cx,
             },
             view,
         };
         event_loop.run_app(&mut app).expect("run to completion");
     }
 }
+const RUBIK_FONT: &[u8] = include_bytes!("../assets/Rubik-VariableFont_wght.ttf");
 
 fn area_contains(area: &Area, point: Point) -> bool {
     let x = point.x;
@@ -576,156 +475,5 @@ trait ViewTrait<'s, State>: TransitionDrawable<Ui<'s, State>> + Sized {
 impl<'s, State> TransitionState for Ui<'s, State> {
     fn bank(&mut self) -> &mut AnimationBank {
         &mut self.animation_bank
-    }
-}
-
-#[derive(Debug, Clone)]
-struct Rect {
-    id: u64,
-    // fill: Option<Srgb<f32>>,
-    rounding: f32,
-    // stroke: Option<(Srgb<f32>, f32)>,
-    easing: Option<backer::Easing>,
-    duration: Option<f32>,
-    delay: f32,
-}
-
-fn rect(id: String) -> Rect {
-    let mut hasher = DefaultHasher::new();
-    id.hash(&mut hasher);
-    Rect {
-        id: hasher.finish(),
-        // fill: None,
-        rounding: 0.,
-        // stroke: None,
-        easing: None,
-        duration: None,
-        delay: 0.,
-    }
-}
-
-impl Rect {
-    // fn fill(mut self, color: Srgb<f32>) -> Self {
-    //     self.fill = Some(color);
-    //     self
-    // }
-    fn corner_rounding(mut self, radius: f32) -> Self {
-        self.rounding = radius;
-        self
-    }
-    // fn stroke(mut self, color: Srgb<f32>, line_width: f32) -> Self {
-    //     self.stroke = Some((color, line_width));
-    //     self
-    // }
-    fn finish<State>(self) -> View<State> {
-        View {
-            view_type: ViewType::Rect(self),
-            gesture_handler: GestureHandler {
-                on_click: None,
-                on_drag: None,
-                on_hover: None,
-            },
-            easing: None,
-            duration: None,
-            delay: 0.,
-        }
-    }
-}
-
-impl<'s, State> TransitionDrawable<Ui<'s, State>> for Rect {
-    fn draw_interpolated(
-        &mut self,
-        area: Area,
-        state: &mut Ui<State>,
-        visible: bool,
-        visible_amount: f32,
-    ) {
-        if !visible && visible_amount == 0. {
-            return;
-        }
-        state.scene.draw_blurred_rounded_rect(
-            Affine::IDENTITY,
-            vello::kurbo::Rect {
-                x0: area.x as f64,
-                y0: area.y as f64,
-                x1: (area.x + area.width) as f64,
-                y1: (area.y + area.height) as f64,
-            },
-            Color::rgba(1., 0., 0., 1.),
-            10.,
-            0.1,
-        );
-        // let area = ui_to_draw(area, state.window_size);
-        // fn generate_squircle(
-        //     x: f32,
-        //     y: f32,
-        //     width: f32,
-        //     height: f32,
-        //     radius: f32,
-        // ) -> impl Iterator<Item = (f32, f32)> {
-        //     let a = width / 2.0;
-        //     let b = height / 2.0;
-        //     let aspect = width / height;
-        //     let x_exponent = 1.0 / radius;
-        //     let y_exponent = (1.0 / radius) * aspect;
-        //     let steps = (((width + height) * 2.) / 10.) as usize;
-        //     (0..steps).map(move |i| {
-        //         let t = (i as f32 / steps as f32) * std::f32::consts::TAU;
-        //         let cos_t = t.cos();
-        //         let sin_t = t.sin();
-        //         let px = x + a * cos_t.signum() * cos_t.abs().powf(x_exponent);
-        //         let py = y + b * sin_t.signum() * sin_t.abs().powf(y_exponent);
-
-        //         (px, py)
-        //     })
-        // }
-
-        // let points = generate_squircle(area.x, area.y, area.width, area.height, 1. / self.rounding);
-        // let polygon = state.draw.polygon();
-        // if self.stroke.is_none() && self.fill.is_none() {
-        //     polygon
-        //         .color(srgba(0., 0., 0., visible_amount))
-        //         .points(points)
-        //         .finish();
-        // } else {
-        //     polygon
-        //         .stroke_opts(if let Some((_, width)) = self.stroke {
-        //             StrokeOptions::default()
-        //                 .with_line_width(width)
-        //                 .with_end_cap(nannou::lyon::tessellation::LineCap::Square)
-        //         } else {
-        //             StrokeOptions::default()
-        //         })
-        //         .color(if let Some(color) = self.fill {
-        //             srgba(color.red, color.green, color.blue, visible_amount)
-        //         } else {
-        //             srgba(0., 0., 0., 0.)
-        //         })
-        //         .stroke_color(if let Some((color, _)) = self.stroke {
-        //             srgba(color.red, color.green, color.blue, visible_amount)
-        //         } else {
-        //             srgba(0., 0., 0., 0.)
-        //         })
-        //         .points(points)
-        //         .finish();
-        // }
-    }
-    fn id(&self) -> &u64 {
-        &self.id
-    }
-    fn easing(&self) -> backer::Easing {
-        self.easing.unwrap_or(backer::Easing::EaseOut)
-    }
-    fn duration(&self) -> f32 {
-        self.duration.unwrap_or(200.)
-    }
-    fn delay(&self) -> f32 {
-        self.delay
-    }
-}
-
-impl<'s, State> ViewTrait<'s, State> for Rect {
-    fn view(self, _ui: &mut Ui<State>, node: Node<Ui<'s, State>>) -> Node<Ui<'s, State>> {
-        node
     }
 }

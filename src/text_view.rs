@@ -1,8 +1,17 @@
+use crate::{
+    view::{View, ViewType},
+    GestureHandler, Ui, ViewTrait,
+};
 use backer::{models::*, transitions::TransitionDrawable, Node};
-// use femtovg::{Rgba, FontId, Paint};
-use std::hash::{DefaultHasher, Hash, Hasher};
-
-use crate::{GestureHandler, Ui, View, ViewTrait, ViewType};
+use parley::{Font, FontStack, PositionedLayoutItem, TextStyle};
+use std::{
+    hash::{DefaultHasher, Hash, Hasher},
+    sync::Arc,
+};
+use vello::{
+    kurbo::Affine,
+    peniko::{Color, Fill},
+};
 
 pub(crate) fn text(id: String, text: impl AsRef<str> + 'static) -> Text {
     let mut hasher = DefaultHasher::new();
@@ -12,7 +21,7 @@ pub(crate) fn text(id: String, text: impl AsRef<str> + 'static) -> Text {
         text: text.as_ref().to_owned(),
         font_size: 40,
         // font: None,
-        // fill: None,
+        fill: None,
     }
 }
 
@@ -20,16 +29,16 @@ pub(crate) fn text(id: String, text: impl AsRef<str> + 'static) -> Text {
 pub(crate) struct Text {
     id: u64,
     text: String,
-    // fill: Option<Srgb<f32>>,
+    fill: Option<Color>,
     font_size: u32,
     // font: Option<font::Id>,
 }
 
 impl Text {
-    // pub(crate) fn fill(mut self, color: Srgb<f32>) -> Self {
-    //     self.fill = Some(color);
-    //     self
-    // }
+    pub(crate) fn fill(mut self, color: Color) -> Self {
+        self.fill = Some(color);
+        self
+    }
     pub(crate) fn font_size(mut self, size: u32) -> Self {
         self.font_size = size;
         self
@@ -39,18 +48,17 @@ impl Text {
     //     self
     // }
     pub(crate) fn finish<State>(self) -> View<State> {
-        todo!()
-        // View {
-        //     view_type: ViewType::Text(self),
-        //     gesture_handler: GestureHandler {
-        //         on_click: None,
-        //         on_drag: None,
-        //         on_hover: None,
-        //     },
-        //     easing: None,
-        //     duration: None,
-        //     delay: 0.,
-        // }
+        View {
+            view_type: ViewType::Text(self),
+            gesture_handler: GestureHandler {
+                on_click: None,
+                on_drag: None,
+                on_hover: None,
+            },
+            easing: None,
+            duration: None,
+            delay: 0.,
+        }
     }
 }
 
@@ -65,19 +73,71 @@ impl<'s, State> TransitionDrawable<Ui<'s, State>> for Text {
         if !visible && visible_amount == 0. {
             return;
         }
-        // let area = ui_to_draw(area, state.window_size);
-        // let fill = self.fill.unwrap_or(srgb(0., 0., 0.));
-        // state
-        //     .draw
-        //     .text(&self.text)
-        //     .x(area.x)
-        //     .y(area.y)
-        //     .h(area.height)
-        //     .w(area.width)
-        //     .font_size(self.font_size)
-        //     .color(rgba(fill.red, fill.green, fill.blue, visible_amount))
-        //     .align_text_bottom()
-        //     .finish()
+        let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
+        let mut builder = state.layout_cx.tree_builder(
+            &mut state.font_cx,
+            1.,
+            &TextStyle {
+                brush: [255, 0, 0, 0],
+                font_stack,
+                line_height: 1.3,
+                font_size: 16.0,
+                ..Default::default()
+            },
+        );
+        builder.push_text(&self.text);
+        let mut layout = builder.build().0;
+        layout.break_all_lines(None);
+        layout.align(None, parley::Alignment::Middle);
+
+        let transform = Affine::translate((area.x as f64, area.y as f64));
+        for line in layout.lines() {
+            for item in line.items() {
+                let PositionedLayoutItem::GlyphRun(glyph_run) = item else {
+                    continue;
+                };
+                let mut x = glyph_run.offset();
+                let y = glyph_run.baseline();
+                let run = glyph_run.run();
+                let font = run.font();
+                let font_size = run.font_size();
+                let synthesis = run.synthesis();
+                let glyph_xform = synthesis
+                    .skew()
+                    .map(|angle| Affine::skew(angle.to_radians().tan() as f64, 0.0));
+                let coords = run
+                    .normalized_coords()
+                    .iter()
+                    .map(|coord| vello::skrifa::instance::NormalizedCoord::from_bits(*coord))
+                    .collect::<Vec<_>>();
+                state
+                    .scene
+                    .draw_glyphs(font)
+                    .brush(
+                        self.fill
+                            .unwrap_or(Color::BLACK)
+                            .multiply_alpha(visible_amount),
+                    )
+                    .hint(true)
+                    .transform(transform)
+                    .glyph_transform(glyph_xform)
+                    .font_size(font_size)
+                    .normalized_coords(&coords)
+                    .draw(
+                        Fill::NonZero,
+                        glyph_run.glyphs().map(|glyph| {
+                            let gx = x + glyph.x;
+                            let gy = y - glyph.y;
+                            x += glyph.advance;
+                            vello::Glyph {
+                                id: glyph.id as _,
+                                x: gx,
+                                y: gy,
+                            }
+                        }),
+                    );
+            }
+        }
     }
 
     fn id(&self) -> &u64 {
@@ -96,19 +156,22 @@ impl<'s, State> TransitionDrawable<Ui<'s, State>> for Text {
 
 impl<'s, State> ViewTrait<'s, State> for Text {
     fn view(self, ui: &mut Ui<State>, node: Node<Ui<'s, State>>) -> Node<Ui<'s, State>> {
-        // let layout = nannou::text::Builder::from(self.text)
-        //     .font_size(self.font_size)
-        //     .build(nannou::geom::Rect {
-        //         x: nannou::geom::Range {
-        //             start: 0.,
-        //             end: 400.,
-        //         },
-        //         y: nannou::geom::Range {
-        //             start: 0.,
-        //             end: 400.,
-        //         },
-        //     })
-        //     .bounding_rect();
-        node //.height(layout.h()).width(layout.w())
+        let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
+        let mut builder = ui.layout_cx.tree_builder(
+            &mut ui.font_cx,
+            1.,
+            &TextStyle {
+                brush: [255, 0, 0, 0],
+                font_stack,
+                line_height: 1.3,
+                font_size: 16.0,
+                ..Default::default()
+            },
+        );
+        builder.push_text(&self.text);
+        let mut layout = builder.build().0;
+        layout.break_all_lines(None);
+        layout.align(None, parley::Alignment::Middle);
+        node.width(layout.full_width()).height(layout.height())
     }
 }
