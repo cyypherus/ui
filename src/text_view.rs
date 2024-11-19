@@ -19,6 +19,9 @@ pub(crate) fn text(id: String, text: impl AsRef<str> + 'static) -> Text {
         font_size: 40,
         // font: None,
         fill: None,
+        easing: None,
+        duration: None,
+        delay: 0.,
     }
 }
 
@@ -29,6 +32,9 @@ pub(crate) struct Text {
     fill: Option<Color>,
     font_size: u32,
     // font: Option<font::Id>,
+    pub(crate) easing: Option<backer::Easing>,
+    pub(crate) duration: Option<f32>,
+    pub(crate) delay: f32,
 }
 
 impl Text {
@@ -52,9 +58,6 @@ impl Text {
                 on_drag: None,
                 on_hover: None,
             },
-            easing: None,
-            duration: None,
-            delay: 0.,
         }
     }
 }

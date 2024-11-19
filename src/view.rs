@@ -1,4 +1,4 @@
-use crate::rect::Rect;
+use crate::rect::{AnimatedRect, Rect};
 use crate::text_view::Text;
 use crate::{ClickState, DragState, GestureHandler, Ui, ViewTrait};
 use backer::nodes::draw_object;
@@ -12,20 +12,22 @@ pub(crate) fn view<'s, State: 'static>(
     view.view(ui)
 }
 
-pub(crate) struct View<State> {
+pub struct View<State> {
     pub(crate) view_type: ViewType,
     pub(crate) gesture_handler: GestureHandler<State>,
-    pub(crate) easing: Option<backer::Easing>,
-    pub(crate) duration: Option<f32>,
-    pub(crate) delay: f32,
+}
+
+#[derive(Debug)]
+pub(crate) enum AnimatedView {
+    Rect(AnimatedRect),
 }
 
 impl<State> View<State> {
-    pub(crate) fn on_click(mut self, f: impl Fn(&mut State, ClickState) + 'static) -> View<State> {
+    pub fn on_click(mut self, f: impl Fn(&mut State, ClickState) + 'static) -> View<State> {
         self.gesture_handler.on_click = Some(Box::new(f));
         self
     }
-    pub(crate) fn on_drag(mut self, f: impl Fn(&mut State, DragState) + 'static) -> View<State> {
+    pub fn on_drag(mut self, f: impl Fn(&mut State, DragState) + 'static) -> View<State> {
         self.gesture_handler.on_drag = Some(Box::new(f));
         self
     }
@@ -33,16 +35,25 @@ impl<State> View<State> {
         self.gesture_handler.on_hover = Some(Box::new(f));
         self
     }
-    pub(crate) fn easing(mut self, easing: backer::Easing) -> Self {
-        self.easing = Some(easing);
+    pub fn easing(mut self, easing: backer::Easing) -> Self {
+        match self.view_type {
+            ViewType::Text(ref mut view) => view.easing = Some(easing),
+            ViewType::Rect(ref mut view) => view.easing = Some(easing),
+        }
         self
     }
-    pub(crate) fn transition_duration(mut self, duration_ms: f32) -> Self {
-        self.duration = Some(duration_ms);
+    pub fn transition_duration(mut self, duration_ms: f32) -> Self {
+        match self.view_type {
+            ViewType::Text(ref mut view) => view.duration = Some(duration_ms),
+            ViewType::Rect(ref mut view) => view.duration = Some(duration_ms),
+        }
         self
     }
-    pub(crate) fn transition_delay(mut self, delay_ms: f32) -> Self {
-        self.delay = delay_ms;
+    pub fn transition_delay(mut self, delay_ms: f32) -> Self {
+        match self.view_type {
+            ViewType::Text(ref mut view) => view.delay = delay_ms,
+            ViewType::Rect(ref mut view) => view.delay = delay_ms,
+        }
         self
     }
 }
@@ -90,14 +101,25 @@ impl<'s, State> TransitionDrawable<Ui<'s, State>> for View<State> {
     }
 
     fn easing(&self) -> backer::Easing {
-        self.easing.unwrap_or(backer::Easing::EaseOut)
+        match &self.view_type {
+            ViewType::Text(view) => view.easing,
+            ViewType::Rect(view) => view.easing,
+        }
+        .unwrap_or(backer::Easing::EaseOut)
     }
 
     fn duration(&self) -> f32 {
-        self.duration.unwrap_or(100.)
+        match &self.view_type {
+            ViewType::Text(view) => view.duration,
+            ViewType::Rect(view) => view.duration,
+        }
+        .unwrap_or(200.)
     }
     fn delay(&self) -> f32 {
-        self.delay
+        match &self.view_type {
+            ViewType::Text(view) => view.delay,
+            ViewType::Rect(view) => view.delay,
+        }
     }
 }
 

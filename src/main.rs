@@ -11,8 +11,8 @@ use std::sync::Arc;
 use text_view::text;
 use vello::peniko::Color;
 use vello::util::{RenderContext, RenderSurface};
-use vello::{AaConfig, Renderer, RendererOptions, Scene};
-use view::view;
+use vello::{Renderer, RendererOptions, Scene};
+use view::{view, AnimatedView};
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
 use winit::event::MouseButton;
@@ -35,47 +35,71 @@ fn main() {
             column_spaced(
                 10.,
                 vec![
+                    // view(
+                    //     ui,
+                    //     text(id!(), "Hello world")
+                    //         .font_size(10)
+                    //         .fill(Color::rgb(1., 1., 1.))
+                    //         .finish()
+                    //         .transition_duration(1700.),
+                    // )
+                    space()
+                        .height(30.)
+                        .width(100.)
+                        .pad(15.)
+                        .attach_under(view(
+                            ui,
+                            rect(id!())
+                                .fill(Color::rgb(0.2, 0.15, 0.15))
+                                .stroke(stroke(ui.state.toggle), stroke_width(ui.state.toggle))
+                                .corner_rounding(rounding(ui.state.toggle, 30.))
+                                .finish()
+                                .transition_duration(1700.),
+                        ))
+                        .pad(10.)
+                        .attach_under(view(
+                            ui,
+                            rect(id!())
+                                .stroke(stroke(ui.state.toggle), stroke_width(ui.state.toggle))
+                                .corner_rounding(rounding(ui.state.toggle, 30.))
+                                .finish()
+                                .transition_duration(1900.),
+                        ))
+                        .pad(10.)
+                        .attach_under(view(
+                            ui,
+                            rect(id!())
+                                .stroke(stroke(ui.state.toggle), stroke_width(ui.state.toggle))
+                                .corner_rounding(rounding(ui.state.toggle, 30.))
+                                .finish()
+                                .transition_duration(2100.),
+                        ))
+                        .visible(ui.state.toggle)
+                        .pad(10.)
+                        .attach_under(view(
+                            ui,
+                            rect(id!())
+                                .stroke(stroke(ui.state.toggle), stroke_width(ui.state.toggle))
+                                .corner_rounding(rounding(ui.state.toggle, 30.))
+                                .finish()
+                                .transition_duration(2300.),
+                        ))
+                        .visible(ui.state.toggle)
+                        .pad(10.)
+                        .attach_under(view(
+                            ui,
+                            rect(id!())
+                                .stroke(stroke(ui.state.toggle), stroke_width(ui.state.toggle))
+                                .corner_rounding(rounding(ui.state.toggle, 30.))
+                                .finish()
+                                .transition_duration(2500.),
+                        ))
+                        .visible(ui.state.toggle),
+                    space().height(150.).width(0.).visible(!ui.state.toggle),
                     view(
                         ui,
-                        text(id!(), "Hello world")
-                            .font_size(10)
-                            .fill(Color::rgb(1., 1., 1.))
-                            .finish()
-                            .transition_duration(300.),
-                    )
-                    .pad(15.)
-                    .attach_under(view(
-                        ui,
                         rect(id!())
-                            .fill(Color::rgb(0.2, 0.15, 0.15))
-                            .stroke(Color::rgb(0.3, 0.2, 0.2), 2.)
-                            .corner_rounding(10.)
-                            .finish()
-                            .transition_duration(200.),
-                    ))
-                    .pad(5.)
-                    .attach_under(view(
-                        ui,
-                        rect(id!())
-                            .stroke(Color::rgb(0.3, 0.2, 0.2), 2.)
-                            .corner_rounding(15.)
-                            .finish()
-                            .transition_duration(400.),
-                    ))
-                    .pad(5.)
-                    .attach_under(view(
-                        ui,
-                        rect(id!())
-                            .stroke(Color::rgb(0.3, 0.2, 0.2), 2.)
-                            .corner_rounding(20.)
-                            .finish()
-                            .transition_duration(600.),
-                    ))
-                    .visible(ui.state.toggle),
-                    view(
-                        ui,
-                        rect(id!())
-                            .stroke(Color::rgb(0.4, 0.4, 0.4), 1.)
+                            .stroke(Color::rgb(0.4, 0.4, 0.4), 4.)
                             .fill(match (ui.state.hovered, ui.state.depressed) {
                                 (_, true) => Color::rgb(0.2, 0.2, 0.2),
                                 (true, false) => Color::rgb(0.3, 0.3, 0.3),
@@ -99,6 +123,30 @@ fn main() {
             )
         },
     )
+}
+
+fn stroke(toggle: bool) -> Color {
+    if toggle {
+        Color::rgb(1., 0.2, 0.2)
+    } else {
+        Color::rgb(1., 0.2, 1.)
+    }
+}
+
+fn rounding(toggle: bool, basis: f32) -> f32 {
+    if toggle {
+        0.
+    } else {
+        basis
+    }
+}
+
+fn stroke_width(toggle: bool) -> f32 {
+    if toggle {
+        4.
+    } else {
+        0.
+    }
 }
 
 struct UserState {
@@ -126,7 +174,8 @@ struct Ui<'s, State> {
     cached_window: Option<Arc<Window>>,
     state: State,
     animation_bank: AnimationBank,
-    view_state: HashMap<u64, Box<dyn Any>>,
+    // system_state: HashMap<u64, Box<dyn Any>>,
+    view_state: HashMap<u64, AnimatedView>,
     gesture_handlers: Vec<(u64, Area, GestureHandler<State>)>,
     cursor_position: Option<Point>,
     gesture_state: GestureState,
@@ -141,14 +190,18 @@ enum GestureState {
     Dragging { start: Point, capturer: u64 },
 }
 
+type ClickHandler<State> = Option<Box<dyn Fn(&mut State, ClickState)>>;
+type DragHandler<State> = Option<Box<dyn Fn(&mut State, DragState)>>;
+type HoverHandler<State> = Option<Box<dyn Fn(&mut State, bool)>>;
+
 struct GestureHandler<State> {
-    on_click: Option<Box<dyn Fn(&mut State, ClickState)>>,
-    on_drag: Option<Box<dyn Fn(&mut State, DragState)>>,
-    on_hover: Option<Box<dyn Fn(&mut State, bool)>>,
+    on_click: ClickHandler<State>,
+    on_drag: DragHandler<State>,
+    on_hover: HoverHandler<State>,
 }
 
 #[derive(Debug, Clone, Copy)]
-enum DragState {
+pub enum DragState {
     Began(Point),
     Updated {
         start: Point,
@@ -169,30 +222,28 @@ enum ClickState {
     Completed,
 }
 
-fn window_attributes() -> WindowAttributes {
-    Window::default_attributes()
-        .with_inner_size(LogicalSize::new(1044, 800))
-        .with_resizable(true)
-        .with_title("????")
-}
-
-const AA_CONFIGS: [AaConfig; 3] = [AaConfig::Area, AaConfig::Msaa8, AaConfig::Msaa16];
-
 impl<'s, State> ApplicationHandler for App<'s, State> {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         let Option::None = self.ui.render_state else {
             return;
         };
-        let window =
-            self.ui.cached_window.take().unwrap_or_else(|| {
-                Arc::new(event_loop.create_window(window_attributes()).unwrap())
-            });
+        let window = self.ui.cached_window.take().unwrap_or_else(|| {
+            Arc::new(
+                event_loop
+                    .create_window(
+                        Window::default_attributes()
+                            .with_inner_size(LogicalSize::new(1044, 800))
+                            .with_resizable(true),
+                    )
+                    .unwrap(),
+            )
+        });
         let size = window.inner_size();
         let surface_future = self.ui.context.create_surface(
             window.clone(),
             size.width,
             size.height,
-            vello::wgpu::PresentMode::AutoNoVsync,
+            vello::wgpu::PresentMode::Immediate,
         );
         let surface = pollster::block_on(surface_future).expect("Error creating surface");
         self.ui.render_state = {
@@ -208,7 +259,11 @@ impl<'s, State> ApplicationHandler for App<'s, State> {
                     RendererOptions {
                         surface_format: Some(render_state.surface.format),
                         use_cpu: false,
-                        antialiasing_support: AA_CONFIGS.iter().copied().collect(),
+                        antialiasing_support: vello::AaSupport {
+                            area: true,
+                            msaa8: false,
+                            msaa16: false,
+                        },
                         num_init_threads: NonZeroUsize::new(1),
                     },
                 )
@@ -238,14 +293,7 @@ impl<'s, State> ApplicationHandler for App<'s, State> {
                 event::WindowEvent::MouseEntered => {}
                 event::WindowEvent::MouseExited => {}
                 event::WindowEvent::MouseWheel(_, _) => {}
-                event::WindowEvent::Resized(size) => {
-                    if let Some(RenderState { surface, window }) = &mut self.ui.render_state {
-                        self.ui
-                            .context
-                            .resize_surface(surface, size.x as u32, size.y as u32);
-                        window.request_redraw();
-                    };
-                }
+                event::WindowEvent::Resized(_) => {}
                 event::WindowEvent::HoveredFile(_) => {}
                 event::WindowEvent::DroppedFile(_) => {}
                 event::WindowEvent::HoveredFileCancelled => {}
@@ -259,62 +307,7 @@ impl<'s, State> ApplicationHandler for App<'s, State> {
                 }
                 event::WindowEvent::Unfocused => {}
                 event::WindowEvent::Closed => event_loop.exit(),
-                event::WindowEvent::RedrawRequested => {
-                    if let Some((width, height)) = &self
-                        .ui
-                        .render_state
-                        .as_ref()
-                        .map(|r| (r.surface.config.width, r.surface.config.height))
-                    {
-                        self.ui.gesture_handlers.clear();
-                        self.view.draw(
-                            Area {
-                                x: 0.,
-                                y: 0.,
-                                width: *width as f32,
-                                height: *height as f32,
-                            },
-                            &mut self.ui,
-                        );
-                    }
-                    let Some(RenderState { surface, window }) = &self.ui.render_state else {
-                        return;
-                    };
-                    window.request_redraw();
-
-                    let width = surface.config.width;
-                    let height = surface.config.height;
-                    let device_handle = &self.ui.context.devices[surface.dev_id];
-
-                    window.set_title("haven-ui");
-
-                    let render_params = vello::RenderParams {
-                        base_color: Color::BLACK,
-                        width,
-                        height,
-                        antialiasing_method: vello::AaConfig::Msaa8,
-                    };
-
-                    let surface_texture = surface
-                        .surface
-                        .get_current_texture()
-                        .expect("failed to get surface texture");
-
-                    self.ui.renderers[surface.dev_id]
-                        .as_mut()
-                        .unwrap()
-                        .render_to_surface(
-                            &device_handle.device,
-                            &device_handle.queue,
-                            &self.ui.scene,
-                            &surface_texture,
-                            &render_params,
-                        )
-                        .expect("failed to render to surface");
-
-                    surface_texture.present();
-                    self.ui.scene.reset();
-                }
+                event::WindowEvent::RedrawRequested => self.redraw(),
             }
         }
     }
@@ -443,6 +436,68 @@ impl<'s, State> App<'s, State> {
         };
         event_loop.run_app(&mut app).expect("run to completion");
     }
+    fn redraw(&mut self) {
+        if let Some(RenderState { surface, window }) = &mut self.ui.render_state {
+            let size = window.inner_size();
+            let width = size.width;
+            let height = size.height;
+            if surface.config.width != width || surface.config.height != height {
+                self.ui.context.resize_surface(surface, width, height);
+            }
+            self.ui.gesture_handlers.clear();
+            self.view.draw(
+                Area {
+                    x: 0.,
+                    y: 0.,
+                    width: surface.config.width as f32,
+                    height: surface.config.height as f32,
+                },
+                &mut self.ui,
+            );
+        }
+        let Some(RenderState { surface, window }) = &mut self.ui.render_state else {
+            return;
+        };
+        window.request_redraw();
+
+        let size = window.inner_size();
+        let width = size.width;
+        let height = size.height;
+
+        let device_handle = &self.ui.context.devices[surface.dev_id];
+
+        window.set_title("haven-ui");
+
+        let render_params = vello::RenderParams {
+            base_color: Color::BLACK,
+            width,
+            height,
+            antialiasing_method: vello::AaConfig::Area,
+        };
+
+        let surface_texture = surface
+            .surface
+            .get_current_texture()
+            .expect("failed to get surface texture");
+
+        window.pre_present_notify();
+
+        self.ui.renderers[surface.dev_id]
+            .as_mut()
+            .unwrap()
+            .render_to_surface(
+                &device_handle.device,
+                &device_handle.queue,
+                &self.ui.scene,
+                &surface_texture,
+                &render_params,
+            )
+            .expect("failed to render to surface");
+
+        surface_texture.present();
+        device_handle.device.poll(vello::wgpu::Maintain::Wait);
+        self.ui.scene.reset();
+    }
 }
 const RUBIK_FONT: &[u8] = include_bytes!("../assets/Rubik-VariableFont_wght.ttf");
 
@@ -462,7 +517,7 @@ impl Point {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct Point {
+pub struct Point {
     x: f32,
     y: f32,
 }
