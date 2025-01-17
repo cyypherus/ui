@@ -1,20 +1,27 @@
 use crate::rect::{AnimatedRect, Rect};
-use crate::text_view::Text;
-use crate::{ClickState, DragState, GestureHandler, Ui, ViewTrait};
+use crate::text::Text;
+use crate::{ClickState, DragState, GestureHandler, Ui};
 use backer::nodes::draw_object;
 use backer::transitions::TransitionDrawable;
 use backer::{models::Area, Node};
 
-pub(crate) fn view<'s, State: 'static>(
-    ui: &mut Ui<State>,
-    view: View<State>,
-) -> Node<Ui<'s, State>> {
+pub fn view<'s, State: 'static + Clone>(ui: &mut Ui<State>, view: View<State>) -> Node<Ui<State>> {
     view.view(ui)
 }
 
 pub struct View<State> {
     pub(crate) view_type: ViewType,
     pub(crate) gesture_handler: GestureHandler<State>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum ViewType {
+    Text(Text),
+    Rect(Rect),
+}
+
+pub(crate) trait ViewTrait<'s, State: Clone>: TransitionDrawable<Ui<State>> + Sized {
+    fn view(self, ui: &mut Ui<State>, node: Node<Ui<State>>) -> Node<Ui<State>>;
 }
 
 #[derive(Debug)]
@@ -31,7 +38,7 @@ impl<State> View<State> {
         self.gesture_handler.on_drag = Some(Box::new(f));
         self
     }
-    pub(crate) fn on_hover(mut self, f: impl Fn(&mut State, bool) + 'static) -> View<State> {
+    pub fn on_hover(mut self, f: impl Fn(&mut State, bool) + 'static) -> View<State> {
         self.gesture_handler.on_hover = Some(Box::new(f));
         self
     }
@@ -58,8 +65,8 @@ impl<State> View<State> {
     }
 }
 
-impl<State: 'static> View<State> {
-    fn view<'s>(self, ui: &mut Ui<State>) -> Node<Ui<'s, State>> {
+impl<State: 'static + Clone> View<State> {
+    fn view<'s>(self, ui: &mut Ui<State>) -> Node<Ui<State>> {
         match self.view_type.clone() {
             ViewType::Text(view) => view.view(ui, draw_object(self)),
             ViewType::Rect(view) => view.view(ui, draw_object(self)),
@@ -67,7 +74,7 @@ impl<State: 'static> View<State> {
     }
 }
 
-impl<'s, State> TransitionDrawable<Ui<'s, State>> for View<State> {
+impl<State: Clone> TransitionDrawable<Ui<State>> for View<State> {
     fn draw_interpolated(
         &mut self,
         area: Area,
@@ -121,10 +128,14 @@ impl<'s, State> TransitionDrawable<Ui<'s, State>> for View<State> {
             ViewType::Rect(view) => view.delay,
         }
     }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) enum ViewType {
-    Text(Text),
-    Rect(Rect),
+    fn constraints(
+        &self,
+        available_area: Area,
+        state: &mut Ui<State>,
+    ) -> Option<backer::SizeConstraints> {
+        match &self.view_type {
+            ViewType::Text(view) => view.constraints(available_area, state),
+            ViewType::Rect(view) => view.constraints(available_area, state),
+        }
+    }
 }

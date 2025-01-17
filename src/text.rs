@@ -1,6 +1,6 @@
 use crate::{
-    view::{View, ViewType},
-    GestureHandler, Ui, ViewTrait,
+    view::{View, ViewTrait, ViewType},
+    GestureHandler, Ui,
 };
 use backer::{models::*, transitions::TransitionDrawable, Node};
 use parley::{FontStack, PositionedLayoutItem, TextStyle};
@@ -10,7 +10,7 @@ use vello::{
     peniko::{Color, Fill},
 };
 
-pub(crate) fn text(id: String, text: impl AsRef<str> + 'static) -> Text {
+pub fn text(id: String, text: impl AsRef<str> + 'static) -> Text {
     let mut hasher = DefaultHasher::new();
     id.hash(&mut hasher);
     Text {
@@ -26,7 +26,7 @@ pub(crate) fn text(id: String, text: impl AsRef<str> + 'static) -> Text {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Text {
+pub struct Text {
     id: u64,
     text: String,
     fill: Option<Color>,
@@ -38,11 +38,11 @@ pub(crate) struct Text {
 }
 
 impl Text {
-    pub(crate) fn fill(mut self, color: Color) -> Self {
+    pub fn fill(mut self, color: Color) -> Self {
         self.fill = Some(color);
         self
     }
-    pub(crate) fn font_size(mut self, size: u32) -> Self {
+    pub fn font_size(mut self, size: u32) -> Self {
         self.font_size = size;
         self
     }
@@ -50,7 +50,7 @@ impl Text {
     //     self.font = Some(font_id);
     //     self
     // }
-    pub(crate) fn finish<State>(self) -> View<State> {
+    pub fn finish<State>(self) -> View<State> {
         View {
             view_type: ViewType::Text(self),
             gesture_handler: GestureHandler {
@@ -62,7 +62,7 @@ impl Text {
     }
 }
 
-impl<'s, State> TransitionDrawable<Ui<'s, State>> for Text {
+impl<State: Clone> TransitionDrawable<Ui<State>> for Text {
     fn draw_interpolated(
         &mut self,
         area: Area,
@@ -73,20 +73,24 @@ impl<'s, State> TransitionDrawable<Ui<'s, State>> for Text {
         if !visible && visible_amount == 0. {
             return;
         }
-        let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
-        let mut builder = state.layout_cx.tree_builder(
-            &mut state.font_cx,
-            1.,
-            &TextStyle {
-                brush: [255, 0, 0, 0],
-                font_stack,
-                line_height: 1.3,
-                font_size: 16.0,
-                ..Default::default()
-            },
-        );
-        builder.push_text(&self.text);
-        let mut layout = builder.build().0;
+
+        let mut layout = state.cx().with_font_layout_ctx(|layout_cx, font_cx| {
+            let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
+            let mut builder = layout_cx.tree_builder(
+                font_cx,
+                1.,
+                &TextStyle {
+                    brush: [255, 0, 0, 0],
+                    font_stack,
+                    line_height: 1.3,
+                    font_size: 16.0,
+                    ..Default::default()
+                },
+            );
+            builder.push_text(&self.text);
+            builder.build().0
+        });
+
         layout.break_all_lines(None);
         layout.align(None, parley::Alignment::Middle);
 
@@ -111,6 +115,7 @@ impl<'s, State> TransitionDrawable<Ui<'s, State>> for Text {
                     .map(|coord| vello::skrifa::instance::NormalizedCoord::from_bits(*coord))
                     .collect::<Vec<_>>();
                 state
+                    .cx()
                     .scene
                     .draw_glyphs(font)
                     .brush(
@@ -152,24 +157,33 @@ impl<'s, State> TransitionDrawable<Ui<'s, State>> for Text {
     fn delay(&self) -> f32 {
         0.
     }
+    fn constraints(
+        &self,
+        _available_area: Area,
+        _state: &mut Ui<State>,
+    ) -> Option<backer::SizeConstraints> {
+        None
+    }
 }
 
-impl<'s, State> ViewTrait<'s, State> for Text {
-    fn view(self, ui: &mut Ui<State>, node: Node<Ui<'s, State>>) -> Node<Ui<'s, State>> {
-        let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
-        let mut builder = ui.layout_cx.tree_builder(
-            &mut ui.font_cx,
-            1.,
-            &TextStyle {
-                brush: [255, 0, 0, 0],
-                font_stack,
-                line_height: 1.3,
-                font_size: 16.0,
-                ..Default::default()
-            },
-        );
-        builder.push_text(&self.text);
-        let mut layout = builder.build().0;
+impl<'s, State: Clone> ViewTrait<'s, State> for Text {
+    fn view(self, ui: &mut Ui<State>, node: Node<Ui<State>>) -> Node<Ui<State>> {
+        let mut layout = ui.cx().with_font_layout_ctx(|layout_cx, font_cx| {
+            let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
+            let mut builder = layout_cx.tree_builder(
+                font_cx,
+                1.,
+                &TextStyle {
+                    brush: [255, 0, 0, 0],
+                    font_stack,
+                    line_height: 1.3,
+                    font_size: 16.0,
+                    ..Default::default()
+                },
+            );
+            builder.push_text(&self.text);
+            builder.build().0
+        });
         layout.break_all_lines(None);
         layout.align(None, parley::Alignment::Middle);
         node.width(layout.full_width()).height(layout.height())

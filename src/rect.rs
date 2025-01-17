@@ -1,9 +1,9 @@
-use crate::view::{AnimatedView, View, ViewType};
-use crate::{GestureHandler, Ui, ViewTrait};
+use crate::view::{AnimatedView, View, ViewTrait, ViewType};
+use crate::{GestureHandler, Ui};
 use backer::transitions::TransitionDrawable;
+use backer::SizeConstraints;
 use backer::{models::Area, Node};
 use lilt::{Animated, Easing, FloatRepresentable, Interpolable};
-use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::time::Instant;
 use vello::kurbo::{RoundedRect, Shape, Stroke};
@@ -11,7 +11,7 @@ use vello::peniko::{Brush, Fill};
 use vello::{kurbo::Affine, peniko::Color};
 
 #[derive(Debug, Clone)]
-pub(crate) struct Rect {
+pub struct Rect {
     id: u64,
     fill: Option<Color>,
     radius: f32,
@@ -117,7 +117,7 @@ impl Interpolable for AnimatedU8 {
     }
 }
 
-pub(crate) fn rect(id: String) -> Rect {
+pub fn rect(id: String) -> Rect {
     let mut hasher = DefaultHasher::new();
     id.hash(&mut hasher);
     Rect {
@@ -132,19 +132,19 @@ pub(crate) fn rect(id: String) -> Rect {
 }
 
 impl Rect {
-    pub(crate) fn fill(mut self, color: Color) -> Self {
+    pub fn fill(mut self, color: Color) -> Self {
         self.fill = Some(color);
         self
     }
-    pub(crate) fn corner_rounding(mut self, radius: f32) -> Self {
+    pub fn corner_rounding(mut self, radius: f32) -> Self {
         self.radius = radius;
         self
     }
-    pub(crate) fn stroke(mut self, color: Color, line_width: f32) -> Self {
+    pub fn stroke(mut self, color: Color, line_width: f32) -> Self {
         self.stroke = Some((color, line_width));
         self
     }
-    pub(crate) fn finish<State>(self) -> View<State> {
+    pub fn finish<State>(self) -> View<State> {
         View {
             view_type: ViewType::Rect(self),
             gesture_handler: GestureHandler {
@@ -156,7 +156,7 @@ impl Rect {
     }
 }
 
-impl<'s, State> TransitionDrawable<Ui<'s, State>> for Rect {
+impl<State: Clone> TransitionDrawable<Ui<State>> for Rect {
     fn draw_interpolated(
         &mut self,
         area: Area,
@@ -168,6 +168,7 @@ impl<'s, State> TransitionDrawable<Ui<'s, State>> for Rect {
             return;
         }
         let AnimatedView::Rect(mut animated) = state
+            .cx()
             .view_state
             .remove(&self.id)
             .unwrap_or(AnimatedView::Rect(AnimatedRect::new_from(self)));
@@ -182,7 +183,7 @@ impl<'s, State> TransitionDrawable<Ui<'s, State>> for Rect {
         )
         .to_path(0.01);
         if animated.fill.is_none() && animated.stroke.is_none() {
-            state.scene.fill(
+            state.cx().scene.fill(
                 Fill::EvenOdd,
                 Affine::IDENTITY,
                 Color::BLACK.multiply_alpha(visible_amount),
@@ -191,7 +192,7 @@ impl<'s, State> TransitionDrawable<Ui<'s, State>> for Rect {
             )
         } else {
             if let Some(fill) = &animated.fill {
-                state.scene.fill(
+                state.cx().scene.fill(
                     Fill::EvenOdd,
                     Affine::IDENTITY,
                     Color::rgba8(
@@ -206,7 +207,7 @@ impl<'s, State> TransitionDrawable<Ui<'s, State>> for Rect {
                 )
             }
             if let Some((stroke, width)) = &animated.stroke {
-                state.scene.stroke(
+                state.cx().scene.stroke(
                     &Stroke::new(width.animate_wrapped(now) as f64),
                     Affine::IDENTITY,
                     &Brush::Solid(
@@ -224,6 +225,7 @@ impl<'s, State> TransitionDrawable<Ui<'s, State>> for Rect {
             }
         }
         state
+            .cx()
             .view_state
             .insert(self.id, AnimatedView::Rect(animated));
 
@@ -276,10 +278,18 @@ impl<'s, State> TransitionDrawable<Ui<'s, State>> for Rect {
     fn delay(&self) -> f32 {
         self.delay
     }
+
+    fn constraints(
+        &self,
+        _available_area: Area,
+        _state: &mut Ui<State>,
+    ) -> Option<SizeConstraints> {
+        todo!()
+    }
 }
 
-impl<'s, State> ViewTrait<'s, State> for Rect {
-    fn view(self, _ui: &mut Ui<State>, node: Node<Ui<'s, State>>) -> Node<Ui<'s, State>> {
+impl<'s, State: Clone> ViewTrait<'s, State> for Rect {
+    fn view(self, _ui: &mut Ui<State>, node: Node<Ui<State>>) -> Node<Ui<State>> {
         node
     }
 }
