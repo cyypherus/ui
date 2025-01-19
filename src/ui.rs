@@ -1,20 +1,11 @@
-use crate::{
-    area_contains, view::AnimatedView, ClickState, DragState, GestureHandler, GestureState, Point,
-};
+use crate::{view::AnimatedView, ClickState, DragState, GestureHandler};
+use backer::Node;
 pub use backer::{
     models::*,
     transitions::{AnimationBank, TransitionState},
 };
-use backer::{
-    nodes::scoper,
-    traits::{ScopeCtx, ScopeCtxResult},
-    Node,
-};
 use parley::{FontContext, LayoutContext};
-use std::{
-    cell::{Cell, RefCell},
-    sync::Arc,
-};
+use std::{cell::Cell, sync::Arc};
 use std::{collections::HashMap, rc::Rc};
 use vello::{util::RenderSurface, Scene};
 use winit::window::Window;
@@ -25,23 +16,26 @@ pub struct Ui<State: Clone> {
     pub cx: Option<UiCx>,
 }
 
+pub fn scoper<State: 'static + Clone, SubState: 'static + Clone>(
+    scope: impl Fn(&mut State) -> &mut SubState + 'static + Copy,
+    tree: impl Fn(&mut Ui<SubState>) -> Node<Ui<SubState>> + 'static,
+) -> Node<Ui<State>> {
+    backer::nodes::scope(
+        move |ui: &mut Ui<State>| ui.scope_ui(scope),
+        move |embed: Ui<SubState>, ui: &mut Ui<State>| ui.embed_ui(scope, embed),
+        tree,
+    )
+}
+
 impl<'s, State: Clone + 'static> Ui<State> {
-    pub fn scope_ui<ScopedState: 'static + Clone>(
+    pub fn embed_ui<ScopedState: 'static + Clone>(
         &mut self,
-        scope_ctx: ScopeCtx<Ui<ScopedState>>,
-        scope: fn(&mut State) -> &mut ScopedState,
-    ) -> ScopeCtxResult {
-        let child_cx = self.cx.take();
-        let mut child_ui = Ui {
-            state: scope(&mut self.state).clone(),
-            gesture_handlers: Vec::new(),
-            cx: child_cx,
-        };
-        let result = scope_ctx.with_scoped(&mut child_ui);
-        self.cx = child_ui.cx.take();
-        // embed(&mut self.state, child_ui.state);
+        scope: impl Fn(&mut State) -> &mut ScopedState + 'static + Copy,
+        mut embed: Ui<ScopedState>,
+    ) {
+        self.cx = embed.cx.take();
         self.gesture_handlers.append(
-            &mut child_ui
+            &mut embed
                 .gesture_handlers
                 .into_iter()
                 .map(|h| {
@@ -52,9 +46,9 @@ impl<'s, State: Clone + 'static> Ui<State> {
                             on_click: h.2.on_click.map(|o_c| {
                                 let r: Box<dyn Fn(&mut State, ClickState)> =
                                     Box::new(move |state, click_state| {
-                                        (o_c)(&mut scope(state), click_state)
+                                        (o_c)(scope(state), click_state)
                                     });
-                                return r;
+                                r
                             }),
 
                             on_drag: h.2.on_drag.map(|o_c| {
@@ -62,19 +56,64 @@ impl<'s, State: Clone + 'static> Ui<State> {
                                     Box::new(move |state, drag_state| {
                                         (o_c)(&mut scope(state), drag_state)
                                     });
-                                return r;
+                                r
                             }),
                             on_hover: h.2.on_hover.map(|o_c| {
                                 let r: Box<dyn Fn(&mut State, bool)> =
                                     Box::new(move |state, on_hover| (o_c)(scope(state), on_hover));
-                                return r;
+                                r
                             }),
                         },
                     )
                 })
                 .collect(),
         );
-        return result;
+    }
+    pub fn scope_ui<ScopedState: 'static + Clone>(
+        &mut self,
+        scope: impl Fn(&mut State) -> &mut ScopedState + 'static + Copy,
+    ) -> Ui<ScopedState> {
+        let child_cx = self.cx.take();
+        Ui {
+            state: scope(&mut self.state).clone(),
+            gesture_handlers: Vec::new(),
+            cx: child_cx,
+        }
+        // self.cx = child_ui.cx.take();
+        // self.gesture_handlers.append(
+        //     &mut child_ui
+        //         .gesture_handlers
+        //         .into_iter()
+        //         .map(|h| {
+        //             (
+        //                 h.0,
+        //                 h.1,
+        //                 GestureHandler {
+        //                     on_click: h.2.on_click.map(|o_c| {
+        //                         let r: Box<dyn Fn(&mut State, ClickState)> =
+        //                             Box::new(move |state, click_state| {
+        //                                 (o_c)(&mut scope(state), click_state)
+        //                             });
+        //                         return r;
+        //                     }),
+
+        //                     on_drag: h.2.on_drag.map(|o_c| {
+        //                         let r: Box<dyn Fn(&mut State, DragState)> =
+        //                             Box::new(move |state, drag_state| {
+        //                                 (o_c)(&mut scope(state), drag_state)
+        //                             });
+        //                         return r;
+        //                     }),
+        //                     on_hover: h.2.on_hover.map(|o_c| {
+        //                         let r: Box<dyn Fn(&mut State, bool)> =
+        //                             Box::new(move |state, on_hover| (o_c)(scope(state), on_hover));
+        //                         return r;
+        //                     }),
+        //                 },
+        //             )
+        //         })
+        //         .collect(),
+        // );
     }
 }
 

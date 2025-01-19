@@ -288,7 +288,7 @@ impl<State: Clone> TransitionDrawable<Ui<State>> for Rect {
     }
 }
 
-impl<'s, State: Clone> ViewTrait<'s, State> for Rect {
+impl<State: Clone> ViewTrait<'_, State> for Rect {
     fn view(self, _ui: &mut Ui<State>, node: Node<Ui<State>>) -> Node<Ui<State>> {
         node
     }

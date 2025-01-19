@@ -1,28 +1,49 @@
 use haven::{
-    column_spaced, id, rect, scoper, space, stack, text, view, App, ClickState, Color, Node, Ui,
+    column, column_spaced, id, rect, row, row_spaced, scope, scoper, stack, text, view, App,
+    ClickState, Color, Node, Ui,
 };
 
 #[derive(Clone)]
 struct UserState {
-    button: ButtonState,
+    button: Vec<ButtonState>,
 }
 
 fn main() {
     App::start(
         UserState {
-            button: ButtonState::new(),
+            button: vec![ButtonState::new(); 100],
         },
         move |ui| {
-            column_spaced(
-                10.,
-                vec![
-                    view(ui, text(id!(), "hello!").fill(Color::WHITE).finish()),
-                    scoper(
-                        |ctx, ui: &mut Ui<UserState>| ui.scope_ui(ctx, |f| &mut f.button),
-                        |ui: &mut Ui<ButtonState>| button(id!(), ui),
-                    ),
-                ],
-            )
+            row((0..ui.state.button.len())
+                .collect::<Vec<usize>>()
+                .chunks(10)
+                .enumerate()
+                .map(|(c, chunk)| {
+                    column(
+                        chunk
+                            .iter()
+                            .map(|&i| {
+                                let button_hovered = ui.state.button[i].hovered;
+                                scoper(
+                                    move |f: &mut UserState| &mut f.button[i],
+                                    move |ui| {
+                                        button(
+                                            id!() + c.to_string().as_str() + i.to_string().as_str(),
+                                            ui,
+                                        )
+                                    },
+                                )
+                                .height(if button_hovered { 200. } else { 100. })
+                                .width(if button_hovered {
+                                    200.
+                                } else {
+                                    100.
+                                })
+                            })
+                            .collect(),
+                    )
+                })
+                .collect())
         },
     )
 }
@@ -46,10 +67,17 @@ fn button(id: String, ui: &mut Ui<ButtonState>) -> Node<Ui<ButtonState>> {
     stack(vec![
         view(
             ui,
-            rect(id)
-                .stroke(Color::rgb(0.4, 0.4, 0.4), 4.)
+            rect(id.clone())
+                .stroke(
+                    match (ui.state.depressed, ui.state.hovered) {
+                        (_, true) => Color::rgb(0.9, 0.9, 0.9),
+                        (true, false) => Color::rgb(0.8, 0.3, 0.3),
+                        (false, false) => Color::rgb(0.1, 0.1, 0.1),
+                    },
+                    4.,
+                )
                 .fill(match (ui.state.depressed, ui.state.hovered) {
-                    (_, true) => Color::rgb(0.2, 0.2, 0.2),
+                    (_, true) => Color::rgb(0.9, 0.2, 0.2),
                     (true, false) => Color::rgb(0.3, 0.3, 0.3),
                     (false, false) => Color::rgb(0.1, 0.1, 0.1),
                 })
@@ -62,28 +90,24 @@ fn button(id: String, ui: &mut Ui<ButtonState>) -> Node<Ui<ButtonState>> {
                     ClickState::Completed => {
                         state.depressed = false;
                     }
-                }),
+                }), // .transition_duration(900.)
+                    // .easing(lilt::Easing::EaseOutCirc),
         ),
-        view(ui, text(id!(), "hello!").fill(Color::WHITE).finish()),
+        view(
+            ui,
+            text(id!() + id.as_str(), "hello!")
+                .fill(Color::WHITE)
+                .finish(),
+        ),
     ])
-    .width({
-        let mut w = 100.;
+    .pad({
+        let mut p = 5.;
         if ui.state.hovered {
-            w += 10.
+            p -= 10.
         }
         if ui.state.depressed {
-            w -= 5.
+            p += 10.
         }
-        w
-    })
-    .height({
-        let mut h = 50.;
-        if ui.state.hovered {
-            h += 10.
-        }
-        if ui.state.depressed {
-            h -= 5.
-        }
-        h
+        p
     })
 }
