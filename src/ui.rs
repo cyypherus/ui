@@ -10,29 +10,32 @@ use std::{collections::HashMap, rc::Rc};
 use vello::{util::RenderSurface, Scene};
 use winit::window::Window;
 
-pub struct Ui<State: Clone> {
+pub struct Ui<State> {
     pub state: State,
     pub gesture_handlers: Vec<(u64, Area, GestureHandler<State>)>,
     pub cx: Option<UiCx>,
 }
 
-pub fn scoper<State: 'static + Clone, SubState: 'static + Clone>(
-    scope: impl Fn(&mut State) -> &mut SubState + 'static + Copy,
-    tree: impl Fn(&mut Ui<SubState>) -> Node<Ui<SubState>> + 'static,
+pub fn scoper<State: 'static, T: 'static>(
+    scope: impl Fn(&mut State) -> T + 'static + Copy,
+    embed: impl Fn(&mut State, T) + 'static + Copy,
+    tree: impl Fn(&mut Ui<T>) -> Node<Ui<T>> + 'static,
 ) -> Node<Ui<State>> {
     backer::nodes::scope(
         move |ui: &mut Ui<State>| ui.scope_ui(scope),
-        move |embed: Ui<SubState>, ui: &mut Ui<State>| ui.embed_ui(scope, embed),
+        move |embed_ui: Ui<T>, ui: &mut Ui<State>| ui.embed_ui(scope, embed, embed_ui),
         tree,
     )
 }
 
-impl<'s, State: Clone + 'static> Ui<State> {
-    pub fn embed_ui<ScopedState: 'static + Clone>(
+impl<'s, State: 'static> Ui<State> {
+    pub fn embed_ui<T: 'static>(
         &mut self,
-        scope: impl Fn(&mut State) -> &mut ScopedState + 'static + Copy,
-        mut embed: Ui<ScopedState>,
+        scope: impl Fn(&mut State) -> T + 'static + Copy,
+        embed_state: impl Fn(&mut State, T) + 'static + Copy,
+        mut embed: Ui<T>,
     ) {
+        embed_state(&mut self.state, embed.state);
         self.cx = embed.cx.take();
         self.gesture_handlers.append(
             &mut embed
@@ -46,7 +49,9 @@ impl<'s, State: Clone + 'static> Ui<State> {
                             on_click: h.2.on_click.map(|o_c| {
                                 let r: Box<dyn Fn(&mut State, ClickState)> =
                                     Box::new(move |state, click_state| {
-                                        (o_c)(scope(state), click_state)
+                                        let mut scoped = scope(state);
+                                        (o_c)(&mut scoped, click_state);
+                                        embed_state(state, scoped);
                                     });
                                 r
                             }),
@@ -54,13 +59,19 @@ impl<'s, State: Clone + 'static> Ui<State> {
                             on_drag: h.2.on_drag.map(|o_c| {
                                 let r: Box<dyn Fn(&mut State, DragState)> =
                                     Box::new(move |state, drag_state| {
-                                        (o_c)(&mut scope(state), drag_state)
+                                        let mut scoped = scope(state);
+                                        (o_c)(&mut scoped, drag_state);
+                                        embed_state(state, scoped);
                                     });
                                 r
                             }),
                             on_hover: h.2.on_hover.map(|o_c| {
                                 let r: Box<dyn Fn(&mut State, bool)> =
-                                    Box::new(move |state, on_hover| (o_c)(scope(state), on_hover));
+                                    Box::new(move |state, on_hover| {
+                                        let mut scoped = scope(state);
+                                        (o_c)(&mut scoped, on_hover);
+                                        embed_state(state, scoped);
+                                    });
                                 r
                             }),
                         },
@@ -69,13 +80,13 @@ impl<'s, State: Clone + 'static> Ui<State> {
                 .collect(),
         );
     }
-    pub fn scope_ui<ScopedState: 'static + Clone>(
+    pub fn scope_ui<T: 'static>(
         &mut self,
-        scope: impl Fn(&mut State) -> &mut ScopedState + 'static + Copy,
-    ) -> Ui<ScopedState> {
+        scope: impl Fn(&mut State) -> T + 'static + Copy,
+    ) -> Ui<T> {
         let child_cx = self.cx.take();
         Ui {
-            state: scope(&mut self.state).clone(),
+            state: scope(&mut self.state),
             gesture_handlers: Vec::new(),
             cx: child_cx,
         }
@@ -117,13 +128,13 @@ impl<'s, State: Clone + 'static> Ui<State> {
     }
 }
 
-impl<State: Clone> TransitionState for Ui<State> {
+impl<State> TransitionState for Ui<State> {
     fn bank(&mut self) -> &mut AnimationBank {
         &mut self.cx().animation_bank
     }
 }
 
-impl<State: Clone> Ui<State> {
+impl<State> Ui<State> {
     pub(crate) fn cx(&mut self) -> &mut UiCx {
         self.cx.as_mut().unwrap()
     }

@@ -5,7 +5,7 @@ use backer::nodes::draw_object;
 use backer::transitions::TransitionDrawable;
 use backer::{models::Area, Node};
 
-pub fn view<'s, State: 'static + Clone>(ui: &mut Ui<State>, view: View<State>) -> Node<Ui<State>> {
+pub fn view<'s, State: 'static>(ui: &mut Ui<State>, view: View<State>) -> Node<Ui<State>> {
     view.view(ui)
 }
 
@@ -20,7 +20,7 @@ pub(crate) enum ViewType {
     Rect(Rect),
 }
 
-pub(crate) trait ViewTrait<'s, State: Clone>: TransitionDrawable<Ui<State>> + Sized {
+pub(crate) trait ViewTrait<'s, State>: TransitionDrawable<Ui<State>> + Sized {
     fn view(self, ui: &mut Ui<State>, node: Node<Ui<State>>) -> Node<Ui<State>>;
 }
 
@@ -65,7 +65,7 @@ impl<State> View<State> {
     }
 }
 
-impl<State: 'static + Clone> View<State> {
+impl<State: 'static> View<State> {
     fn view<'s>(self, ui: &mut Ui<State>) -> Node<Ui<State>> {
         match self.view_type.clone() {
             ViewType::Text(view) => view.view(ui, draw_object(self)),
@@ -74,7 +74,7 @@ impl<State: 'static + Clone> View<State> {
     }
 }
 
-impl<State: Clone> TransitionDrawable<Ui<State>> for View<State> {
+impl<State> TransitionDrawable<Ui<State>> for View<State> {
     fn draw_interpolated(
         &mut self,
         area: Area,

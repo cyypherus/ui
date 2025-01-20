@@ -156,7 +156,7 @@ impl Rect {
     }
 }
 
-impl<State: Clone> TransitionDrawable<Ui<State>> for Rect {
+impl<State> TransitionDrawable<Ui<State>> for Rect {
     fn draw_interpolated(
         &mut self,
         area: Area,
@@ -288,7 +288,7 @@ impl<State: Clone> TransitionDrawable<Ui<State>> for Rect {
     }
 }
 
-impl<State: Clone> ViewTrait<'_, State> for Rect {
+impl<State> ViewTrait<'_, State> for Rect {
     fn view(self, _ui: &mut Ui<State>, node: Node<Ui<State>>) -> Node<Ui<State>> {
         node
     }
