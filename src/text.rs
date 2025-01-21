@@ -167,7 +167,7 @@ impl<State> TransitionDrawable<Ui<State>> for Text {
 }
 
 impl<'s, State> ViewTrait<'s, State> for Text {
-    fn view(self, ui: &mut Ui<State>, node: Node<Ui<State>>) -> Node<Ui<State>> {
+    fn view(self, ui: &'_ mut Ui<State>, node: Node<'s, Ui<State>>) -> Node<'s, Ui<State>> {
         let mut layout = ui.cx().with_font_layout_ctx(|layout_cx, font_cx| {
             let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
             let mut builder = layout_cx.tree_builder(

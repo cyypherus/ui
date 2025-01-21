@@ -14,9 +14,9 @@ use vello::{util::RenderContext, Renderer, RendererOptions, Scene};
 use winit::{application::ApplicationHandler, event_loop::EventLoop, window::Window};
 use winit::{dpi::LogicalSize, event::MouseButton};
 
-pub struct App<'s, State: Clone> {
+pub struct App<'s, 'n, State: Clone> {
     state: State,
-    view: Layout<Ui<State>>,
+    view: Node<'n, Ui<State>>,
     pub(crate) cursor_position: Option<Point>,
     pub(crate) gesture_state: GestureState,
     pub gesture_handlers: Option<Vec<(u64, Area, GestureHandler<State>)>>,
@@ -27,14 +27,14 @@ pub struct App<'s, State: Clone> {
     pub(crate) cx: Option<UiCx>,
 }
 
-impl<'s, State: Clone> App<'s, State> {
-    pub fn start(state: State, view: impl Fn(&mut Ui<State>) -> Node<Ui<State>> + 'static) {
+impl<'s, 'n, State: Clone> App<'s, 'n, State> {
+    pub fn start(state: State, view: Node<'n, Ui<State>>) {
         let event_loop = EventLoop::new().expect("Could not create event loop");
         #[allow(unused_mut)]
         let mut render_cx = RenderContext::new();
         #[cfg(not(target_arch = "wasm32"))]
         {
-            Self::run(state, event_loop, render_cx, Layout::new(view));
+            Self::run(state, event_loop, render_cx, view);
         }
     }
     fn run(
@@ -42,7 +42,7 @@ impl<'s, State: Clone> App<'s, State> {
         event_loop: EventLoop<()>,
         render_cx: RenderContext,
         #[cfg(target_arch = "wasm32")] render_state: RenderState,
-        view: Layout<Ui<State>>,
+        view: Node<'n, Ui<State>>,
     ) {
         #[allow(unused_mut)]
         let mut renderers: Vec<Option<Renderer>> = vec![];
@@ -90,6 +90,7 @@ impl<'s, State: Clone> App<'s, State> {
                 gesture_handlers: self.gesture_handlers.take().unwrap(),
                 cx: self.cx.take(),
             };
+
             self.view.draw(
                 Area {
                     x: 0.,
@@ -155,7 +156,7 @@ impl<'s, State: Clone> App<'s, State> {
     }
 }
 
-impl<'s, State: Clone> ApplicationHandler for App<'s, State> {
+impl<'s, 'n, State: Clone> ApplicationHandler for App<'s, 'n, State> {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         let Option::None = self.render_state else {
             return;
@@ -248,7 +249,7 @@ impl<'s, State: Clone> ApplicationHandler for App<'s, State> {
         }
     }
 }
-impl<'s, State: Clone> App<'s, State> {
+impl<'s, 'n, State: Clone> App<'s, 'n, State> {
     pub(crate) fn mouse_moved(&mut self, pos: Point) {
         self.cursor_position = Some(pos);
         self.gesture_handlers

@@ -16,17 +16,17 @@ pub struct Ui<State> {
     pub cx: Option<UiCx>,
 }
 
-pub fn scoper<State: 'static, T: 'static>(
-    scope: impl Fn(&mut State) -> T + 'static + Copy,
-    embed: impl Fn(&mut State, T) + 'static + Copy,
-    tree: impl Fn(&mut Ui<T>) -> Node<Ui<T>> + 'static,
-) -> Node<Ui<State>> {
-    backer::nodes::scope(
-        move |ui: &mut Ui<State>| ui.scope_ui(scope),
-        move |embed_ui: Ui<T>, ui: &mut Ui<State>| ui.embed_ui(scope, embed, embed_ui),
-        tree,
-    )
-}
+// pub fn scoper<'a, State, T>(
+//     scope: impl Fn(&mut State) -> &mut T + 'static + Copy,
+//     // embed: impl Fn(&mut State, T) + 'static + Copy,
+//     tree: impl Fn(&mut Ui<T>) -> Node<Ui<T>> + 'static,
+// ) -> Node<'a, Ui<State>> {
+//     backer::nodes::scope(
+//         move |ui: &mut Ui<State>| ui.scope_ui(scope),
+//     move |embed_ui: Ui<T>, ui: &mut Ui<State>| ui.embed_ui(scope, embed, embed_ui),
+//         tree,
+//     )
+// }
 
 impl<'s, State: 'static> Ui<State> {
     pub fn embed_ui<T: 'static>(
@@ -80,51 +80,13 @@ impl<'s, State: 'static> Ui<State> {
                 .collect(),
         );
     }
-    pub fn scope_ui<T: 'static>(
-        &mut self,
-        scope: impl Fn(&mut State) -> T + 'static + Copy,
-    ) -> Ui<T> {
+    pub fn scope_ui<T>(&mut self, scope: impl Fn(&mut State) -> T + 'static + Copy) -> Ui<T> {
         let child_cx = self.cx.take();
         Ui {
             state: scope(&mut self.state),
             gesture_handlers: Vec::new(),
             cx: child_cx,
         }
-        // self.cx = child_ui.cx.take();
-        // self.gesture_handlers.append(
-        //     &mut child_ui
-        //         .gesture_handlers
-        //         .into_iter()
-        //         .map(|h| {
-        //             (
-        //                 h.0,
-        //                 h.1,
-        //                 GestureHandler {
-        //                     on_click: h.2.on_click.map(|o_c| {
-        //                         let r: Box<dyn Fn(&mut State, ClickState)> =
-        //                             Box::new(move |state, click_state| {
-        //                                 (o_c)(&mut scope(state), click_state)
-        //                             });
-        //                         return r;
-        //                     }),
-
-        //                     on_drag: h.2.on_drag.map(|o_c| {
-        //                         let r: Box<dyn Fn(&mut State, DragState)> =
-        //                             Box::new(move |state, drag_state| {
-        //                                 (o_c)(&mut scope(state), drag_state)
-        //                             });
-        //                         return r;
-        //                     }),
-        //                     on_hover: h.2.on_hover.map(|o_c| {
-        //                         let r: Box<dyn Fn(&mut State, bool)> =
-        //                             Box::new(move |state, on_hover| (o_c)(scope(state), on_hover));
-        //                         return r;
-        //                     }),
-        //                 },
-        //             )
-        //         })
-        //         .collect(),
-        // );
     }
 }
 

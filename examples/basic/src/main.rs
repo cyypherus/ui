@@ -1,4 +1,7 @@
-use haven::{column, id, rect, row, scoper, stack, text, view, App, ClickState, Color, Node, Ui};
+use haven::{
+    column, dynamic, id, rect, row, scope, space, stack, text, view, App, ClickState, Color, Node,
+    Ui,
+};
 
 #[derive(Clone)]
 struct UserState {
@@ -12,29 +15,38 @@ fn main() {
             count: 0,
             button: vec![ButtonState::new(|state| state.count += 1); 100],
         },
-        move |ui| {
-            column(vec![
-                view(
-                    ui,
-                    text(id!(), format!("{}", ui.state.count))
-                        .fill(Color::WHITE)
-                        .finish(),
-                )
-                .pad(100.),
-                scoper(
-                    move |f: &mut UserState| f.button[0].clone(),
-                    move |e: &mut UserState, mut f: ButtonState<UserState>| {
-                        if f.clicked {
-                            (f.action)(e);
-                            f.clicked = false;
-                        }
-                        e.button[0] = f;
-                    },
-                    move |ui| button(id!(), ui),
-                )
-                .width(100.)
-                .height(100.),
-            ])
+        dynamic(|ui: &mut Ui<UserState>| {
+            // space()
+            // column(vec![
+            view(
+                ui,
+                text(id!(), format!("{}", ui.state.count))
+                    .fill(Color::WHITE)
+                    .finish(),
+            )
+            .pad(100.)
+            // scoper(
+            //     move |f: &mut UserState| {
+            //         let child_cx = self.cx.take();
+            //         Ui {
+            //             state: state.button,
+            //             gesture_handlers: Vec::new(),
+            //             cx: child_cx,
+            //         }
+            // f.button[0].clone()
+            // },
+            // move |e: &mut UserState, mut f: ButtonState<UserState>| {
+            //     if f.clicked {
+            //         (f.action)(e);
+            //         f.clicked = false;
+            //     }
+            //     e.button[0] = f;
+            // },
+            //     move |ui| button(id!(), ui),
+            // )
+            // .width(100.)
+            // .height(100.),
+            // ])
             // row((0..ui.state.button.len())
             //     .collect::<Vec<usize>>()
             //     .chunks(10)
@@ -72,7 +84,7 @@ fn main() {
             //         )
             //     })
             //     .collect())
-        },
+        }),
     )
 }
 
@@ -95,7 +107,7 @@ impl<T> ButtonState<T> {
     }
 }
 
-fn button<T: 'static>(id: String, ui: &mut Ui<ButtonState<T>>) -> Node<Ui<ButtonState<T>>> {
+fn button<'n, T>(id: String, ui: &'n mut Ui<ButtonState<T>>) -> Node<'n, Ui<ButtonState<T>>> {
     stack(vec![
         view(
             ui,
@@ -136,14 +148,14 @@ fn button<T: 'static>(id: String, ui: &mut Ui<ButtonState<T>>) -> Node<Ui<Button
                 .finish(),
         ),
     ])
-    .pad({
-        let mut p = 5.;
-        if ui.state.hovered {
-            p -= 10.
-        }
-        if ui.state.depressed {
-            p += 10.
-        }
-        p
-    })
+    // .pad({
+    //     let mut p = 5.;
+    //     if ui.state.hovered {
+    //         p -= 10.
+    //     }
+    //     if ui.state.depressed {
+    //         p += 10.
+    //     }
+    //     p
+    // })
 }

@@ -19,7 +19,7 @@ pub use backer::{
 pub use gestures::{ClickState, DragState, GestureHandler, GestureState};
 pub use rect::rect;
 pub use text::text;
-pub use ui::{scoper, Ui};
+pub use ui::Ui;
 pub use vello::peniko::Color;
 pub use view::view;
 

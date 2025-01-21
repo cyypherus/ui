@@ -12,10 +12,10 @@ use vello::{kurbo::Affine, peniko::Color};
 
 #[derive(Debug, Clone)]
 pub struct Rect {
-    id: u64,
-    fill: Option<Color>,
-    radius: f32,
-    stroke: Option<(Color, f32)>,
+    pub(crate) id: u64,
+    pub(crate) fill: Option<Color>,
+    pub(crate) radius: f32,
+    pub(crate) stroke: Option<(Color, f32)>,
     pub(crate) easing: Option<backer::Easing>,
     pub(crate) duration: Option<f32>,
     pub(crate) delay: f32,
@@ -23,13 +23,13 @@ pub struct Rect {
 
 #[derive(Debug, Clone)]
 pub(crate) struct AnimatedRect {
-    fill: Option<AnimatedColor>,
-    radius: Animated<f32, Instant>,
-    stroke: Option<(AnimatedColor, Animated<f32, Instant>)>,
+    pub(crate) fill: Option<AnimatedColor>,
+    pub(crate) radius: Animated<f32, Instant>,
+    pub(crate) stroke: Option<(AnimatedColor, Animated<f32, Instant>)>,
 }
 
 impl AnimatedRect {
-    fn update(from: &Rect, existing: &mut AnimatedRect) {
+    pub(crate) fn update(from: &Rect, existing: &mut AnimatedRect) {
         let now = Instant::now();
         if let (Some(existing_fill), Some(new_fill)) = (&mut existing.fill, from.fill) {
             existing_fill.r.transition(AnimatedU8(new_fill.r), now);
@@ -46,7 +46,7 @@ impl AnimatedRect {
             existing_width.transition(new_width, now);
         }
     }
-    fn new_from(from: &Rect) -> Self {
+    pub(crate) fn new_from(from: &Rect) -> Self {
         AnimatedRect {
             fill: from.fill.map(|fill| AnimatedColor {
                 r: Animated::new(AnimatedU8(fill.r))
@@ -94,13 +94,13 @@ impl AnimatedRect {
 
 #[derive(Debug, Clone)]
 pub(crate) struct AnimatedColor {
-    r: Animated<AnimatedU8, Instant>,
-    g: Animated<AnimatedU8, Instant>,
-    b: Animated<AnimatedU8, Instant>,
+    pub(crate) r: Animated<AnimatedU8, Instant>,
+    pub(crate) g: Animated<AnimatedU8, Instant>,
+    pub(crate) b: Animated<AnimatedU8, Instant>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct AnimatedU8(u8);
+pub(crate) struct AnimatedU8(pub(crate) u8);
 
 impl FloatRepresentable for AnimatedU8 {
     fn float_value(&self) -> f32 {
@@ -288,8 +288,8 @@ impl<State> TransitionDrawable<Ui<State>> for Rect {
     }
 }
 
-impl<State> ViewTrait<'_, State> for Rect {
-    fn view(self, _ui: &mut Ui<State>, node: Node<Ui<State>>) -> Node<Ui<State>> {
+impl<'s, State> ViewTrait<'s, State> for Rect {
+    fn view(self, ui: &mut Ui<State>, node: Node<'s, Ui<State>>) -> Node<'s, Ui<State>> {
         node
     }
 }

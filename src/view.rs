@@ -1,11 +1,15 @@
+use std::time::Instant;
+
 use crate::rect::{AnimatedRect, Rect};
 use crate::text::Text;
 use crate::{ClickState, DragState, GestureHandler, Ui};
-use backer::nodes::draw_object;
+use backer::nodes::{draw, draw_object};
 use backer::transitions::TransitionDrawable;
 use backer::{models::Area, Node};
+use vello::kurbo::{Affine, RoundedRect, Shape, Stroke};
+use vello::peniko::{Brush, Color, Fill};
 
-pub fn view<'s, State: 'static>(ui: &mut Ui<State>, view: View<State>) -> Node<Ui<State>> {
+pub fn view<'n, 's, State>(ui: &'s mut Ui<State>, view: View<State>) -> Node<'n, Ui<State>> {
     view.view(ui)
 }
 
@@ -21,7 +25,7 @@ pub(crate) enum ViewType {
 }
 
 pub(crate) trait ViewTrait<'s, State>: TransitionDrawable<Ui<State>> + Sized {
-    fn view(self, ui: &mut Ui<State>, node: Node<Ui<State>>) -> Node<Ui<State>>;
+    fn view(self, ui: &mut Ui<State>, node: Node<'s, Ui<State>>) -> Node<'s, Ui<State>>;
 }
 
 #[derive(Debug)]
@@ -65,11 +69,85 @@ impl<State> View<State> {
     }
 }
 
-impl<State: 'static> View<State> {
-    fn view<'s>(self, ui: &mut Ui<State>) -> Node<Ui<State>> {
+impl<State> View<State> {
+    fn view<'n, 's>(self, ui: &'s mut Ui<State>) -> Node<'n, Ui<State>>
+    where
+        State: 's,
+    {
+        // match self.view_type.clone() {
+        //     ViewType::Text(view) => view.view(ui, draw_object(self)),
+        //     ViewType::Rect(view) => view.view(ui, draw_object(self)),
+        // }
         match self.view_type.clone() {
-            ViewType::Text(view) => view.view(ui, draw_object(self)),
-            ViewType::Rect(view) => view.view(ui, draw_object(self)),
+            ViewType::Text(view) => draw(|_, _| {}),
+            ViewType::Rect(mut view) => draw(move |area, state: &mut Ui<State>| {
+                state.gesture_handlers.push((
+                    *self.id(),
+                    area,
+                    GestureHandler {
+                        on_click: self.gesture_handler.on_click.take(),
+                        on_drag: self.gesture_handler.on_drag.take(),
+                        on_hover: self.gesture_handler.on_hover.take(),
+                    },
+                ));
+                let AnimatedView::Rect(mut animated) = state
+                    .cx()
+                    .view_state
+                    .remove(&view.id)
+                    .unwrap_or(AnimatedView::Rect(AnimatedRect::new_from(&view)));
+                AnimatedRect::update(&view, &mut animated);
+                let now = Instant::now();
+                let path = RoundedRect::from_rect(
+                    vello::kurbo::Rect::from_origin_size(
+                        vello::kurbo::Point::new(area.x as f64, area.y as f64),
+                        vello::kurbo::Size::new(area.width as f64, area.height as f64),
+                    ),
+                    animated.radius.animate_wrapped(now) as f64,
+                )
+                .to_path(0.01);
+                if animated.fill.is_none() && animated.stroke.is_none() {
+                    state.cx().scene.fill(
+                        Fill::EvenOdd,
+                        Affine::IDENTITY,
+                        Color::BLACK.multiply_alpha(1.),
+                        None,
+                        &path,
+                    )
+                } else {
+                    if let Some(fill) = &animated.fill {
+                        state.cx().scene.fill(
+                            Fill::EvenOdd,
+                            Affine::IDENTITY,
+                            Color::rgba8(
+                                fill.r.animate_wrapped(now).0,
+                                fill.g.animate_wrapped(now).0,
+                                fill.b.animate_wrapped(now).0,
+                                255,
+                            ),
+                            None,
+                            &path,
+                        )
+                    }
+                    if let Some((stroke, width)) = &animated.stroke {
+                        state.cx().scene.stroke(
+                            &Stroke::new(width.animate_wrapped(now) as f64),
+                            Affine::IDENTITY,
+                            &Brush::Solid(Color::rgba8(
+                                stroke.r.animate_wrapped(now).0,
+                                stroke.g.animate_wrapped(now).0,
+                                stroke.b.animate_wrapped(now).0,
+                                255,
+                            )),
+                            None,
+                            &path,
+                        );
+                    }
+                }
+                state
+                    .cx()
+                    .view_state
+                    .insert(*self.id(), AnimatedView::Rect(animated));
+            }),
         }
     }
 }
