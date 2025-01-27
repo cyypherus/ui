@@ -1,22 +1,24 @@
 use crate::ui::{Ui, UiCx};
-use crate::{area_contains, ClickState, DragState, GestureHandler, Point};
+use crate::{area_contains, ClickState, DragState, GestureHandler, Point, RcUi};
 use crate::{event, ui::RenderState, Area, GestureState, Layout, RUBIK_FONT};
 pub use backer::transitions::AnimationBank;
 use backer::Node;
 
 use parley::{FontContext, LayoutContext};
+use std::borrow::Borrow;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::{num::NonZeroUsize, sync::Arc};
-use vello::peniko::Color;
+use vello::kurbo::{Affine, RoundedRect, Shape};
+use vello::peniko::{Color, Fill};
 use vello::{util::RenderContext, Renderer, RendererOptions, Scene};
 use winit::{application::ApplicationHandler, event_loop::EventLoop, window::Window};
 use winit::{dpi::LogicalSize, event::MouseButton};
 
 pub struct App<'s, 'n, State: Clone> {
     state: State,
-    view: Node<'n, Ui<State>>,
+    view: Node<'n, RcUi<State>>,
     pub(crate) cursor_position: Option<Point>,
     pub(crate) gesture_state: GestureState,
     pub gesture_handlers: Option<Vec<(u64, Area, GestureHandler<State>)>>,
@@ -28,7 +30,7 @@ pub struct App<'s, 'n, State: Clone> {
 }
 
 impl<'s, 'n, State: Clone> App<'s, 'n, State> {
-    pub fn start(state: State, view: Node<'n, Ui<State>>) {
+    pub fn start(state: State, view: Node<'n, RcUi<State>>) {
         let event_loop = EventLoop::new().expect("Could not create event loop");
         #[allow(unused_mut)]
         let mut render_cx = RenderContext::new();
@@ -42,7 +44,7 @@ impl<'s, 'n, State: Clone> App<'s, 'n, State> {
         event_loop: EventLoop<()>,
         render_cx: RenderContext,
         #[cfg(target_arch = "wasm32")] render_state: RenderState,
-        view: Node<'n, Ui<State>>,
+        view: Node<'n, RcUi<State>>,
     ) {
         #[allow(unused_mut)]
         let mut renderers: Vec<Option<Renderer>> = vec![];
@@ -85,10 +87,12 @@ impl<'s, 'n, State: Clone> App<'s, 'n, State> {
             if surface.config.width != width || surface.config.height != height {
                 context.resize_surface(surface, width, height);
             }
-            let mut ui = Ui {
-                state: self.state.clone(),
-                gesture_handlers: self.gesture_handlers.take().unwrap(),
-                cx: self.cx.take(),
+            let mut ui = RcUi {
+                ui: Rc::new(RefCell::new(Ui {
+                    state: self.state.clone(),
+                    gesture_handlers: self.gesture_handlers.take().unwrap(),
+                    cx: self.cx.take(),
+                })),
             };
 
             self.view.draw(
@@ -100,9 +104,25 @@ impl<'s, 'n, State: Clone> App<'s, 'n, State> {
                 },
                 &mut ui,
             );
-            self.state = ui.state;
-            self.gesture_handlers = Some(ui.gesture_handlers);
-            self.cx = ui.cx.take();
+            self.state = RefCell::borrow(&ui.ui).state.clone();
+            self.gesture_handlers = Some(std::mem::take(
+                &mut RefCell::borrow_mut(&ui.ui).gesture_handlers,
+            ));
+            self.cx = RefCell::borrow_mut(&ui.ui).cx.take();
+            // self.cx.as_mut().unwrap().scene.fill(
+            //     Fill::EvenOdd,
+            //     Affine::IDENTITY,
+            //     Color::RED,
+            //     None,
+            //     &RoundedRect::from_rect(
+            //         vello::kurbo::Rect::from_origin_size(
+            //             vello::kurbo::Point::new(0. as f64, 0. as f64),
+            //             vello::kurbo::Size::new(100. as f64, 100. as f64),
+            //         ),
+            //         1.4,
+            //     )
+            //     .to_path(0.01),
+            // )
         }
         let Self {
             context,
@@ -144,7 +164,7 @@ impl<'s, 'n, State: Clone> App<'s, 'n, State> {
             .render_to_surface(
                 &device_handle.device,
                 &device_handle.queue,
-                &scene,
+                scene,
                 &surface_texture,
                 &render_params,
             )
@@ -272,7 +292,7 @@ impl<'s, 'n, State: Clone> App<'s, 'n, State> {
                 .map(|(_, _, gh)| &gh.on_drag)
             {
                 handler(
-                    &mut self.state.clone(),
+                    &mut self.state,
                     DragState::Updated {
                         start,
                         current: pos,

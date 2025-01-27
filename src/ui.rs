@@ -5,7 +5,12 @@ pub use backer::{
     transitions::{AnimationBank, TransitionState},
 };
 use parley::{FontContext, LayoutContext};
-use std::{cell::Cell, sync::Arc};
+use std::{
+    borrow::BorrowMut,
+    cell::{Cell, Ref, RefCell, RefMut},
+    ops::Deref,
+    sync::Arc,
+};
 use std::{collections::HashMap, rc::Rc};
 use vello::{util::RenderSurface, Scene};
 use winit::window::Window;
@@ -16,30 +21,50 @@ pub struct Ui<State> {
     pub cx: Option<UiCx>,
 }
 
-// pub fn scoper<'a, State, T>(
-//     scope: impl Fn(&mut State) -> &mut T + 'static + Copy,
-//     // embed: impl Fn(&mut State, T) + 'static + Copy,
-//     tree: impl Fn(&mut Ui<T>) -> Node<Ui<T>> + 'static,
-// ) -> Node<'a, Ui<State>> {
-//     backer::nodes::scope(
-//         move |ui: &mut Ui<State>| ui.scope_ui(scope),
-//     move |embed_ui: Ui<T>, ui: &mut Ui<State>| ui.embed_ui(scope, embed, embed_ui),
-//         tree,
-//     )
-// }
+#[derive(Clone)]
+pub struct RcUi<State> {
+    pub ui: Rc<RefCell<Ui<State>>>,
+}
 
-impl<'s, State: 'static> Ui<State> {
-    pub fn embed_ui<T: 'static>(
+impl<State> RcUi<State> {
+    pub fn borrow_state(&self) -> Ref<State> {
+        Ref::map(RefCell::borrow(&self.ui), |ui| &ui.state)
+    }
+}
+
+pub fn scoper<'a, State: 'a + 'static, T: Clone + 'a + 'static>(
+    scope: impl Fn(&mut State) -> T + 'static + Copy,
+    embed: impl Fn(&mut State, T) + 'static + Copy,
+    tree: impl Fn(&mut RcUi<T>) -> Node<'a, RcUi<T>> + 'static,
+) -> Node<'a, RcUi<State>> {
+    backer::nodes::scope(
+        move |ui: &mut RcUi<State>| ui.scope_ui(scope),
+        move |ui: &mut RcUi<State>, embed_ui: RcUi<T>| ui.embed_ui(scope, embed, embed_ui),
+        tree,
+    )
+}
+
+impl<'s, State: 'static> RcUi<State> {
+    pub fn embed_ui<T: Clone + 'static>(
         &mut self,
         scope: impl Fn(&mut State) -> T + 'static + Copy,
         embed_state: impl Fn(&mut State, T) + 'static + Copy,
-        mut embed: Ui<T>,
+        embed: RcUi<T>,
     ) {
-        embed_state(&mut self.state, embed.state);
-        self.cx = embed.cx.take();
-        self.gesture_handlers.append(
-            &mut embed
-                .gesture_handlers
+        let embed_state_obj = embed.ui.borrow().state.clone();
+        embed_state(
+            &mut RefCell::borrow_mut(&self.ui).borrow_mut().state,
+            embed_state_obj,
+        );
+        dbg!("]]");
+        dbg!(RefCell::borrow(&embed.ui)
+            .gesture_handlers
+            .iter()
+            .map(|g| g.2.on_click.is_some())
+            .collect::<Vec<_>>());
+        RefCell::borrow_mut(&self.ui).cx = RefCell::borrow_mut(&embed.ui).cx.take();
+        RefCell::borrow_mut(&self.ui).gesture_handlers.append(
+            &mut std::mem::take(&mut RefCell::borrow_mut(&embed.ui).gesture_handlers)
                 .into_iter()
                 .map(|h| {
                     (
@@ -77,22 +102,28 @@ impl<'s, State: 'static> Ui<State> {
                         },
                     )
                 })
-                .collect(),
+                .collect::<Vec<_>>(),
         );
     }
-    pub fn scope_ui<T>(&mut self, scope: impl Fn(&mut State) -> T + 'static + Copy) -> Ui<T> {
-        let child_cx = self.cx.take();
-        Ui {
-            state: scope(&mut self.state),
-            gesture_handlers: Vec::new(),
-            cx: child_cx,
+    pub fn scope_ui<T>(&mut self, scope: impl Fn(&mut State) -> T + 'static + Copy) -> RcUi<T> {
+        let child_cx = RefCell::borrow_mut(&self.ui).cx.take();
+        RcUi {
+            ui: Rc::new(RefCell::new(Ui {
+                state: scope(&mut RefCell::borrow_mut(&self.ui).state),
+                gesture_handlers: Vec::new(),
+                cx: child_cx,
+            })),
         }
     }
 }
 
-impl<State> TransitionState for Ui<State> {
-    fn bank(&mut self) -> &mut AnimationBank {
-        &mut self.cx().animation_bank
+impl<State> TransitionState for RcUi<State> {
+    fn get_bank(&self) -> AnimationBank {
+        self.ui.borrow().cx.as_ref().unwrap().animation_bank.clone()
+    }
+
+    fn set_bank(&mut self, bank: AnimationBank) {
+        RefCell::borrow_mut(&self.ui).cx().animation_bank = bank;
     }
 }
 

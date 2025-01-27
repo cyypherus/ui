@@ -1,3 +1,4 @@
+use crate::ui::RcUi;
 use crate::view::{AnimatedView, View, ViewTrait, ViewType};
 use crate::{GestureHandler, Ui};
 use backer::transitions::TransitionDrawable;
@@ -5,7 +6,9 @@ use backer::SizeConstraints;
 use backer::{models::Area, Node};
 use lilt::{Animated, Easing, FloatRepresentable, Interpolable};
 use std::hash::{DefaultHasher, Hash, Hasher};
+use std::rc::Rc;
 use std::time::Instant;
+use std::u64::MAX;
 use vello::kurbo::{RoundedRect, Shape, Stroke};
 use vello::peniko::{Brush, Fill};
 use vello::{kurbo::Affine, peniko::Color};
@@ -156,18 +159,34 @@ impl Rect {
     }
 }
 
-impl<State> TransitionDrawable<Ui<State>> for Rect {
+impl<State> TransitionDrawable<RcUi<State>> for Rect {
     fn draw_interpolated(
         &mut self,
         area: Area,
-        state: &mut Ui<State>,
+        state: &mut RcUi<State>,
         visible: bool,
         visible_amount: f32,
     ) {
+        // state.ui.borrow_mut().cx.as_mut().unwrap().scene.fill(
+        //     Fill::EvenOdd,
+        //     Affine::IDENTITY,
+        //     Color::RED,
+        //     None,
+        //     &RoundedRect::from_rect(
+        //         vello::kurbo::Rect::from_origin_size(
+        //             vello::kurbo::Point::new(0. as f64, 0. as f64),
+        //             vello::kurbo::Size::new(100. as f64, 100. as f64),
+        //         ),
+        //         1.4,
+        //     )
+        //     .to_path(0.01),
+        // );
         if !visible && visible_amount == 0. {
             return;
         }
         let AnimatedView::Rect(mut animated) = state
+            .ui
+            .borrow_mut()
             .cx()
             .view_state
             .remove(&self.id)
@@ -183,7 +202,7 @@ impl<State> TransitionDrawable<Ui<State>> for Rect {
         )
         .to_path(0.01);
         if animated.fill.is_none() && animated.stroke.is_none() {
-            state.cx().scene.fill(
+            state.ui.borrow_mut().cx().scene.fill(
                 Fill::EvenOdd,
                 Affine::IDENTITY,
                 Color::BLACK.multiply_alpha(visible_amount),
@@ -192,7 +211,7 @@ impl<State> TransitionDrawable<Ui<State>> for Rect {
             )
         } else {
             if let Some(fill) = &animated.fill {
-                state.cx().scene.fill(
+                state.ui.borrow_mut().cx.as_mut().unwrap().scene.fill(
                     Fill::EvenOdd,
                     Affine::IDENTITY,
                     Color::rgba8(
@@ -207,7 +226,7 @@ impl<State> TransitionDrawable<Ui<State>> for Rect {
                 )
             }
             if let Some((stroke, width)) = &animated.stroke {
-                state.cx().scene.stroke(
+                state.ui.borrow_mut().cx().scene.stroke(
                     &Stroke::new(width.animate_wrapped(now) as f64),
                     Affine::IDENTITY,
                     &Brush::Solid(
@@ -225,6 +244,8 @@ impl<State> TransitionDrawable<Ui<State>> for Rect {
             }
         }
         state
+            .ui
+            .borrow_mut()
             .cx()
             .view_state
             .insert(self.id, AnimatedView::Rect(animated));
@@ -282,14 +303,14 @@ impl<State> TransitionDrawable<Ui<State>> for Rect {
     fn constraints(
         &self,
         _available_area: Area,
-        _state: &mut Ui<State>,
+        _state: &mut RcUi<State>,
     ) -> Option<SizeConstraints> {
         todo!()
     }
 }
 
 impl<'s, State> ViewTrait<'s, State> for Rect {
-    fn view(self, ui: &mut Ui<State>, node: Node<'s, Ui<State>>) -> Node<'s, Ui<State>> {
+    fn view(self, _ui: &mut RcUi<State>, node: Node<'s, RcUi<State>>) -> Node<'s, RcUi<State>> {
         node
     }
 }

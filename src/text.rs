@@ -1,10 +1,16 @@
 use crate::{
+    ui::RcUi,
     view::{View, ViewTrait, ViewType},
     GestureHandler, Ui,
 };
 use backer::{models::*, transitions::TransitionDrawable, Node};
 use parley::{FontStack, PositionedLayoutItem, TextStyle};
-use std::hash::{DefaultHasher, Hash, Hasher};
+use std::{
+    borrow::BorrowMut,
+    cell::RefCell,
+    hash::{DefaultHasher, Hash, Hasher},
+    rc::Rc,
+};
 use vello::{
     kurbo::Affine,
     peniko::{Color, Fill},
@@ -62,11 +68,11 @@ impl Text {
     }
 }
 
-impl<State> TransitionDrawable<Ui<State>> for Text {
+impl<State> TransitionDrawable<RcUi<State>> for Text {
     fn draw_interpolated(
         &mut self,
         area: Area,
-        state: &mut Ui<State>,
+        state: &mut RcUi<State>,
         visible: bool,
         visible_amount: f32,
     ) {
@@ -74,22 +80,25 @@ impl<State> TransitionDrawable<Ui<State>> for Text {
             return;
         }
 
-        let mut layout = state.cx().with_font_layout_ctx(|layout_cx, font_cx| {
-            let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
-            let mut builder = layout_cx.tree_builder(
-                font_cx,
-                1.,
-                &TextStyle {
-                    brush: [255, 0, 0, 0],
-                    font_stack,
-                    line_height: 1.3,
-                    font_size: 16.0,
-                    ..Default::default()
-                },
-            );
-            builder.push_text(&self.text);
-            builder.build().0
-        });
+        let mut layout =
+            RefCell::borrow_mut(&state.ui)
+                .cx()
+                .with_font_layout_ctx(|layout_cx, font_cx| {
+                    let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
+                    let mut builder = layout_cx.tree_builder(
+                        font_cx,
+                        1.,
+                        &TextStyle {
+                            brush: [255, 0, 0, 0],
+                            font_stack,
+                            line_height: 1.3,
+                            font_size: 16.0,
+                            ..Default::default()
+                        },
+                    );
+                    builder.push_text(&self.text);
+                    builder.build().0
+                });
 
         layout.break_all_lines(None);
         layout.align(None, parley::Alignment::Middle);
@@ -114,7 +123,7 @@ impl<State> TransitionDrawable<Ui<State>> for Text {
                     .iter()
                     .map(|coord| vello::skrifa::instance::NormalizedCoord::from_bits(*coord))
                     .collect::<Vec<_>>();
-                state
+                RefCell::borrow_mut(&state.ui)
                     .cx()
                     .scene
                     .draw_glyphs(font)
@@ -160,30 +169,33 @@ impl<State> TransitionDrawable<Ui<State>> for Text {
     fn constraints(
         &self,
         _available_area: Area,
-        _state: &mut Ui<State>,
+        _state: &mut RcUi<State>,
     ) -> Option<backer::SizeConstraints> {
         None
     }
 }
 
 impl<'s, State> ViewTrait<'s, State> for Text {
-    fn view(self, ui: &'_ mut Ui<State>, node: Node<'s, Ui<State>>) -> Node<'s, Ui<State>> {
-        let mut layout = ui.cx().with_font_layout_ctx(|layout_cx, font_cx| {
-            let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
-            let mut builder = layout_cx.tree_builder(
-                font_cx,
-                1.,
-                &TextStyle {
-                    brush: [255, 0, 0, 0],
-                    font_stack,
-                    line_height: 1.3,
-                    font_size: 16.0,
-                    ..Default::default()
-                },
-            );
-            builder.push_text(&self.text);
-            builder.build().0
-        });
+    fn view(self, ui: &mut RcUi<State>, node: Node<'s, RcUi<State>>) -> Node<'s, RcUi<State>> {
+        let mut layout =
+            RefCell::borrow_mut(&ui.ui)
+                .cx()
+                .with_font_layout_ctx(|layout_cx, font_cx| {
+                    let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
+                    let mut builder = layout_cx.tree_builder(
+                        font_cx,
+                        1.,
+                        &TextStyle {
+                            brush: [255, 0, 0, 0],
+                            font_stack,
+                            line_height: 1.3,
+                            font_size: 16.0,
+                            ..Default::default()
+                        },
+                    );
+                    builder.push_text(&self.text);
+                    builder.build().0
+                });
         layout.break_all_lines(None);
         layout.align(None, parley::Alignment::Middle);
         node.width(layout.full_width()).height(layout.height())

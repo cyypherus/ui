@@ -1,6 +1,11 @@
+use std::{
+    borrow::Borrow,
+    cell::{Ref, RefCell},
+};
+
 use haven::{
-    column, dynamic, id, rect, row, scope, space, stack, text, view, App, ClickState, Color, Node,
-    Ui,
+    column, dynamic, id, rect, row, scope, scoper, space, stack, text, view, App, ClickState,
+    Color, Node, RcUi, Ui,
 };
 
 #[derive(Clone)]
@@ -15,16 +20,45 @@ fn main() {
             count: 0,
             button: vec![ButtonState::new(|state| state.count += 1); 100],
         },
-        dynamic(|ui: &mut Ui<UserState>| {
-            // space()
+        dynamic(|ui: &mut RcUi<UserState>| {
+            column(vec![
+                view(|_| {
+                    rect(id!())
+                        .stroke(Color::rgb(1., 0., 0.), 5.)
+                        .fill(Color::rgb(1., 0., 0.))
+                        .finish()
+                })
+                .width(100.)
+                .height(100.),
+                scoper(
+                    move |state: &mut UserState| state.button[0].clone(),
+                    move |state: &mut UserState, substate: ButtonState<UserState>| {
+                        state.button[0] = substate
+                    },
+                    move |_ui: &mut RcUi<ButtonState<UserState>>| button(id!()),
+                )
+                .height(100.)
+                .width(100.),
+                // view(
+                //     ui.clone(),
+                //     text(id!(), c).fill(Color::WHITE).finish().on_hover(
+                //         |state: &mut UserState, _| {
+                //             state.count += 1;
+                //         },
+                //     ),
+                // )
+                // .width(100.)
+                // .height(100.),
+            ])
+
             // column(vec![
-            view(
-                ui,
-                text(id!(), format!("{}", ui.state.count))
-                    .fill(Color::WHITE)
-                    .finish(),
-            )
-            .pad(100.)
+            // view(
+            //     ui,
+            //     text(id!(), format!("{}", ui.state.count))
+            //         .fill(Color::WHITE)
+            //         .finish(),
+            // )
+            // .pad(100.)
             // scoper(
             //     move |f: &mut UserState| {
             //         let child_cx = self.cx.take();
@@ -107,53 +141,58 @@ impl<T> ButtonState<T> {
     }
 }
 
-fn button<'n, T>(id: String, ui: &'n mut Ui<ButtonState<T>>) -> Node<'n, Ui<ButtonState<T>>> {
+fn button<'n, T: Clone + 'n>(id: String) -> Node<'n, RcUi<ButtonState<T>>> {
+    let id_a = id.clone();
     stack(vec![
-        view(
-            ui,
-            rect(id.clone())
+        view(move |ui: &mut RcUi<ButtonState<T>>| {
+            rect(id_a.clone())
                 .stroke(
-                    match (ui.state.depressed, ui.state.hovered) {
-                        (_, true) => Color::rgb(0.9, 0.9, 0.9),
-                        (true, false) => Color::rgb(0.8, 0.3, 0.3),
-                        (false, false) => Color::rgb(0.1, 0.1, 0.1),
+                    {
+                        match (ui.borrow_state().depressed, ui.borrow_state().hovered) {
+                            (_, true) => Color::rgb(0.9, 0.9, 0.9),
+                            (true, false) => Color::rgb(0.8, 0.3, 0.3),
+                            (false, false) => Color::rgb(0.1, 0.1, 0.1),
+                        }
                     },
                     4.,
                 )
-                .fill(match (ui.state.depressed, ui.state.hovered) {
-                    (_, true) => Color::rgb(0.9, 0.2, 0.2),
-                    (true, false) => Color::rgb(0.3, 0.3, 0.3),
-                    (false, false) => Color::rgb(0.1, 0.1, 0.1),
-                })
-                .corner_rounding(if ui.state.hovered { 25. } else { 20. })
+                .fill(
+                    match (ui.borrow_state().depressed, ui.borrow_state().hovered) {
+                        (_, true) => Color::rgb(0.9, 0.2, 0.2),
+                        (true, false) => Color::rgb(0.3, 0.3, 0.3),
+                        (false, false) => Color::rgb(0.1, 0.1, 0.1),
+                    },
+                )
+                .corner_rounding(if ui.borrow_state().hovered { 25. } else { 20. })
                 .finish()
-                .on_hover(|state: &mut ButtonState<T>, hovered| state.hovered = hovered)
-                .on_click(
-                    |state: &mut ButtonState<T>, click_state| match click_state {
+                .on_hover(|state: &mut ButtonState<T>, hovered| {
+                    dbg!("??");
+                    state.hovered = hovered
+                })
+                .on_click(|state: &mut ButtonState<T>, click_state| {
+                    dbg!("??");
+                    match click_state {
                         ClickState::Started => state.depressed = true,
                         ClickState::Cancelled => state.depressed = false,
                         ClickState::Completed => {
                             state.clicked = true;
                             state.depressed = false;
                         }
-                    },
-                ),
-            // .transition_duration(900.)
-            // .easing(lilt::Easing::EaseOutCirc),
-        ),
-        view(
-            ui,
+                    }
+                })
+        }),
+        view(move |_| {
             text(id!() + id.as_str(), "hello!")
                 .fill(Color::WHITE)
-                .finish(),
-        ),
+                .finish()
+        }),
     ])
     // .pad({
     //     let mut p = 5.;
-    //     if ui.state.hovered {
+    //     if ui.borrow_state().hovered {
     //         p -= 10.
     //     }
-    //     if ui.state.depressed {
+    //     if ui.borrow_state().depressed {
     //         p += 10.
     //     }
     //     p

@@ -1,16 +1,16 @@
-use std::time::Instant;
-
 use crate::rect::{AnimatedRect, Rect};
 use crate::text::Text;
-use crate::{ClickState, DragState, GestureHandler, Ui};
-use backer::nodes::{draw, draw_object};
+use crate::ui::RcUi;
+use crate::{ClickState, DragState, GestureHandler};
+use backer::nodes::{draw_object, dynamic};
 use backer::transitions::TransitionDrawable;
 use backer::{models::Area, Node};
-use vello::kurbo::{Affine, RoundedRect, Shape, Stroke};
-use vello::peniko::{Brush, Color, Fill};
+use std::cell::RefCell;
 
-pub fn view<'n, 's, State>(ui: &'s mut Ui<State>, view: View<State>) -> Node<'n, Ui<State>> {
-    view.view(ui)
+pub fn view<'a, State: 'a>(
+    view: impl Fn(&mut RcUi<State>) -> View<State> + 'a,
+) -> Node<'a, RcUi<State>> {
+    dynamic(move |ui| view(ui).view(ui))
 }
 
 pub struct View<State> {
@@ -24,8 +24,8 @@ pub(crate) enum ViewType {
     Rect(Rect),
 }
 
-pub(crate) trait ViewTrait<'s, State>: TransitionDrawable<Ui<State>> + Sized {
-    fn view(self, ui: &mut Ui<State>, node: Node<'s, Ui<State>>) -> Node<'s, Ui<State>>;
+pub(crate) trait ViewTrait<'s, State>: TransitionDrawable<RcUi<State>> + Sized {
+    fn view(self, ui: &mut RcUi<State>, node: Node<'s, RcUi<State>>) -> Node<'s, RcUi<State>>;
 }
 
 #[derive(Debug)]
@@ -70,100 +70,29 @@ impl<State> View<State> {
 }
 
 impl<State> View<State> {
-    fn view<'n, 's>(self, ui: &'s mut Ui<State>) -> Node<'n, Ui<State>>
+    fn view<'a>(self, ui: &mut RcUi<State>) -> Node<'a, RcUi<State>>
     where
-        State: 's,
+        State: 'a,
     {
-        // match self.view_type.clone() {
-        //     ViewType::Text(view) => view.view(ui, draw_object(self)),
-        //     ViewType::Rect(view) => view.view(ui, draw_object(self)),
-        // }
         match self.view_type.clone() {
-            ViewType::Text(view) => draw(|_, _| {}),
-            ViewType::Rect(mut view) => draw(move |area, state: &mut Ui<State>| {
-                state.gesture_handlers.push((
-                    *self.id(),
-                    area,
-                    GestureHandler {
-                        on_click: self.gesture_handler.on_click.take(),
-                        on_drag: self.gesture_handler.on_drag.take(),
-                        on_hover: self.gesture_handler.on_hover.take(),
-                    },
-                ));
-                let AnimatedView::Rect(mut animated) = state
-                    .cx()
-                    .view_state
-                    .remove(&view.id)
-                    .unwrap_or(AnimatedView::Rect(AnimatedRect::new_from(&view)));
-                AnimatedRect::update(&view, &mut animated);
-                let now = Instant::now();
-                let path = RoundedRect::from_rect(
-                    vello::kurbo::Rect::from_origin_size(
-                        vello::kurbo::Point::new(area.x as f64, area.y as f64),
-                        vello::kurbo::Size::new(area.width as f64, area.height as f64),
-                    ),
-                    animated.radius.animate_wrapped(now) as f64,
-                )
-                .to_path(0.01);
-                if animated.fill.is_none() && animated.stroke.is_none() {
-                    state.cx().scene.fill(
-                        Fill::EvenOdd,
-                        Affine::IDENTITY,
-                        Color::BLACK.multiply_alpha(1.),
-                        None,
-                        &path,
-                    )
-                } else {
-                    if let Some(fill) = &animated.fill {
-                        state.cx().scene.fill(
-                            Fill::EvenOdd,
-                            Affine::IDENTITY,
-                            Color::rgba8(
-                                fill.r.animate_wrapped(now).0,
-                                fill.g.animate_wrapped(now).0,
-                                fill.b.animate_wrapped(now).0,
-                                255,
-                            ),
-                            None,
-                            &path,
-                        )
-                    }
-                    if let Some((stroke, width)) = &animated.stroke {
-                        state.cx().scene.stroke(
-                            &Stroke::new(width.animate_wrapped(now) as f64),
-                            Affine::IDENTITY,
-                            &Brush::Solid(Color::rgba8(
-                                stroke.r.animate_wrapped(now).0,
-                                stroke.g.animate_wrapped(now).0,
-                                stroke.b.animate_wrapped(now).0,
-                                255,
-                            )),
-                            None,
-                            &path,
-                        );
-                    }
-                }
-                state
-                    .cx()
-                    .view_state
-                    .insert(*self.id(), AnimatedView::Rect(animated));
-            }),
+            ViewType::Text(view) => view.view(ui, draw_object(self)),
+            ViewType::Rect(view) => view.view(ui, draw_object(self)),
         }
     }
 }
 
-impl<State> TransitionDrawable<Ui<State>> for View<State> {
+impl<State> TransitionDrawable<RcUi<State>> for View<State> {
     fn draw_interpolated(
         &mut self,
         area: Area,
-        state: &mut Ui<State>,
+        state: &mut RcUi<State>,
         visible: bool,
         visible_amount: f32,
     ) {
         if !visible && visible_amount == 0. {
             return;
         }
-        state.gesture_handlers.push((
+        RefCell::borrow_mut(&state.ui).gesture_handlers.push((
             *self.id(),
             area,
             GestureHandler {
@@ -180,8 +109,8 @@ impl<State> TransitionDrawable<Ui<State>> for View<State> {
 
     fn id(&self) -> &u64 {
         match &self.view_type {
-            ViewType::Text(view) => <Text as TransitionDrawable<Ui<State>>>::id(view),
-            ViewType::Rect(view) => <Rect as TransitionDrawable<Ui<State>>>::id(view),
+            ViewType::Text(view) => <Text as TransitionDrawable<RcUi<State>>>::id(view),
+            ViewType::Rect(view) => <Rect as TransitionDrawable<RcUi<State>>>::id(view),
         }
     }
 
@@ -209,7 +138,7 @@ impl<State> TransitionDrawable<Ui<State>> for View<State> {
     fn constraints(
         &self,
         available_area: Area,
-        state: &mut Ui<State>,
+        state: &mut RcUi<State>,
     ) -> Option<backer::SizeConstraints> {
         match &self.view_type {
             ViewType::Text(view) => view.constraints(available_area, state),
