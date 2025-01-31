@@ -53,6 +53,14 @@ pub fn dynamic_view<'a, State: 'a>(
     })
 }
 
+pub fn dynamic_node<'a, State: 'a>(
+    view: impl Fn(RefMut<State>) -> Node<'a, RcUi<State>> + 'a,
+) -> Node<'a, RcUi<State>> {
+    dynamic(move |ui: &mut RcUi<State>| {
+        view(RefMut::map(RefCell::borrow_mut(&ui.ui), |ui| &mut ui.state))
+    })
+}
+
 pub fn view<'a, State: 'a>(view: impl Fn() -> View<State> + 'a) -> Node<'a, RcUi<State>> {
     dynamic(move |ui: &mut RcUi<State>| view().view(ui))
 }

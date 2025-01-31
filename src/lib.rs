@@ -23,7 +23,7 @@ pub use text::text;
 pub use ui::{RcUi, Ui};
 pub use vello::peniko::Color;
 pub use view::const_hash;
-pub use view::{dynamic_view, view};
+pub use view::{dynamic_node, dynamic_view, view};
 
 use primitives::*;
 

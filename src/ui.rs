@@ -1,8 +1,9 @@
-use crate::{view::AnimatedView, GestureHandler};
+use crate::{view::AnimatedView, ClickState, DragState, GestureHandler};
 pub use backer::models::*;
 use lilt::Animated;
 use parley::{FontContext, LayoutContext};
 use std::{
+    borrow::BorrowMut,
     cell::{Cell, Ref, RefCell},
     sync::Arc,
     time::Instant,
@@ -82,71 +83,61 @@ impl<State> RcUi<State> {
 // }
 
 impl<'s, State: 'static> RcUi<State> {
-    // pub fn embed_ui<T: Clone + 'static>(
-    //     &mut self,
-    //     scope: impl Fn(&mut State) -> T + 'static + Copy,
-    //     embed_state: impl Fn(&mut State, T) + 'static + Copy,
-    //     embed: RcUi<T>,
-    // ) {
-    //     let embed_state_obj = embed.ui.borrow().state.clone();
-    //     embed_state(
-    //         &mut RefCell::borrow_mut(&self.ui).borrow_mut().state,
-    //         embed_state_obj,
-    //     );
-    //     RefCell::borrow_mut(&self.ui).cx = RefCell::borrow_mut(&embed.ui).cx.take();
-    //     RefCell::borrow_mut(&self.ui).gesture_handlers.append(
-    //         &mut std::mem::take(&mut RefCell::borrow_mut(&embed.ui).gesture_handlers)
-    //             .into_iter()
-    //             .map(|h| {
-    //                 (
-    //                     h.0,
-    //                     h.1,
-    //                     GestureHandler {
-    //                         on_click: h.2.on_click.map(|o_c| {
-    //                             let r: Box<dyn Fn(&mut State, ClickState)> =
-    //                                 Box::new(move |state, click_state| {
-    //                                     let mut scoped = scope(state);
-    //                                     (o_c)(&mut scoped, click_state);
-    //                                     embed_state(state, scoped);
-    //                                 });
-    //                             r
-    //                         }),
+    pub fn embed_ui<T: Clone + 'static>(
+        &mut self,
+        scope: impl Fn(&mut State) -> &mut T + 'static + Copy,
+        embed: RcUi<T>,
+    ) {
+        RefCell::borrow_mut(&self.ui).cx = RefCell::borrow_mut(&embed.ui).cx.take();
+        RefCell::borrow_mut(&self.ui).gesture_handlers.append(
+            &mut std::mem::take(&mut RefCell::borrow_mut(&embed.ui).gesture_handlers)
+                .into_iter()
+                .map(|h| {
+                    (
+                        h.0,
+                        h.1,
+                        GestureHandler {
+                            on_click: h.2.on_click.map(|o_c| {
+                                let r: Box<dyn Fn(&mut State, ClickState)> =
+                                    Box::new(move |state, click_state| {
+                                        let mut scoped = scope(state);
+                                        (o_c)(&mut scoped, click_state);
+                                    });
+                                r
+                            }),
 
-    //                         on_drag: h.2.on_drag.map(|o_c| {
-    //                             let r: Box<dyn Fn(&mut State, DragState)> =
-    //                                 Box::new(move |state, drag_state| {
-    //                                     let mut scoped = scope(state);
-    //                                     (o_c)(&mut scoped, drag_state);
-    //                                     embed_state(state, scoped);
-    //                                 });
-    //                             r
-    //                         }),
-    //                         on_hover: h.2.on_hover.map(|o_c| {
-    //                             let r: Box<dyn Fn(&mut State, bool)> =
-    //                                 Box::new(move |state, on_hover| {
-    //                                     let mut scoped = scope(state);
-    //                                     (o_c)(&mut scoped, on_hover);
-    //                                     embed_state(state, scoped);
-    //                                 });
-    //                             r
-    //                         }),
-    //                     },
-    //                 )
-    //             })
-    //             .collect::<Vec<_>>(),
-    //     );
-    // }
-    // pub fn scope_ui<T>(&mut self, scope: impl Fn(&mut State) -> T + 'static + Copy) -> RcUi<T> {
-    //     let child_cx = RefCell::borrow_mut(&self.ui).cx.take();
-    //     RcUi {
-    //         ui: Rc::new(RefCell::new(Ui {
-    //             state: scope(&mut RefCell::borrow_mut(&self.ui).state),
-    //             gesture_handlers: Vec::new(),
-    //             cx: child_cx,
-    //             animation_bank:
-    //         })),
-    //     }
-    // }
+                            on_drag: h.2.on_drag.map(|o_c| {
+                                let r: Box<dyn Fn(&mut State, DragState)> =
+                                    Box::new(move |state, drag_state| {
+                                        let mut scoped = scope(state);
+                                        (o_c)(&mut scoped, drag_state);
+                                    });
+                                r
+                            }),
+                            on_hover: h.2.on_hover.map(|o_c| {
+                                let r: Box<dyn Fn(&mut State, bool)> =
+                                    Box::new(move |state, on_hover| {
+                                        let mut scoped = scope(state);
+                                        (o_c)(&mut scoped, on_hover);
+                                    });
+                                r
+                            }),
+                        },
+                    )
+                })
+                .collect::<Vec<_>>(),
+        );
+    }
+    pub fn scope_ui<T>(&mut self, scope: impl Fn(&mut State) -> T + 'static + Copy) -> RcUi<T> {
+        let child_cx = RefCell::borrow_mut(&self.ui).cx.take();
+        RcUi {
+            ui: Rc::new(RefCell::new(Ui {
+                state: scope(&mut RefCell::borrow_mut(&self.ui).state),
+                gesture_handlers: Vec::new(),
+                cx: child_cx,
+            })),
+        }
+    }
 }
 
 impl<State> Ui<State> {
