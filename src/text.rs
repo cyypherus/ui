@@ -1,26 +1,20 @@
 use crate::{
     ui::RcUi,
     view::{View, ViewTrait, ViewType},
-    GestureHandler, Ui,
+    GestureHandler,
 };
-use backer::{models::*, transitions::TransitionDrawable, Node};
+use backer::{models::*, Node};
+use lilt::Easing;
 use parley::{FontStack, PositionedLayoutItem, TextStyle};
-use std::{
-    borrow::BorrowMut,
-    cell::RefCell,
-    hash::{DefaultHasher, Hash, Hasher},
-    rc::Rc,
-};
+use std::cell::RefCell;
 use vello::{
     kurbo::Affine,
     peniko::{Color, Fill},
 };
 
-pub fn text(id: String, text: impl AsRef<str> + 'static) -> Text {
-    let mut hasher = DefaultHasher::new();
-    id.hash(&mut hasher);
+pub fn text(id: u64, text: impl AsRef<str> + 'static) -> Text {
     Text {
-        id: hasher.finish(),
+        id,
         text: text.as_ref().to_owned(),
         font_size: 40,
         // font: None,
@@ -33,12 +27,12 @@ pub fn text(id: String, text: impl AsRef<str> + 'static) -> Text {
 
 #[derive(Debug, Clone)]
 pub struct Text {
-    id: u64,
+    pub(crate) id: u64,
     text: String,
     fill: Option<Color>,
     font_size: u32,
     // font: Option<font::Id>,
-    pub(crate) easing: Option<backer::Easing>,
+    pub(crate) easing: Option<Easing>,
     pub(crate) duration: Option<f32>,
     pub(crate) delay: f32,
 }
@@ -68,8 +62,8 @@ impl Text {
     }
 }
 
-impl<State> TransitionDrawable<RcUi<State>> for Text {
-    fn draw_interpolated(
+impl Text {
+    pub(crate) fn draw<State>(
         &mut self,
         area: Area,
         state: &mut RcUi<State>,
@@ -154,25 +148,18 @@ impl<State> TransitionDrawable<RcUi<State>> for Text {
         }
     }
 
-    fn id(&self) -> &u64 {
-        &self.id
-    }
-    fn easing(&self) -> backer::Easing {
-        backer::Easing::EaseOut
-    }
-    fn duration(&self) -> f32 {
-        0.
-    }
-    fn delay(&self) -> f32 {
-        0.
-    }
-    fn constraints(
-        &self,
-        _available_area: Area,
-        _state: &mut RcUi<State>,
-    ) -> Option<backer::SizeConstraints> {
-        None
-    }
+    // fn id(&self) -> &u64 {
+    //     &self.id
+    // }
+    // fn easing(&self) -> backer::Easing {
+    //     backer::Easing::EaseOut
+    // }
+    // fn duration(&self) -> f32 {
+    //     0.
+    // }
+    // fn delay(&self) -> f32 {
+    //     0.
+    // }
 }
 
 impl<'s, State> ViewTrait<'s, State> for Text {

@@ -10,18 +10,20 @@ mod view;
 
 pub use app::App;
 pub use backer::{
-    id,
+    // id,
     models::*,
     nodes::*,
-    transitions::{AnimationBank, TransitionDrawable, TransitionState},
-    Layout, Node,
+    // transitions::{AnimationBank, TransitionDrawable, TransitionState},
+    Layout,
+    Node,
 };
 pub use gestures::{ClickState, DragState, GestureHandler, GestureState};
 pub use rect::rect;
 pub use text::text;
-pub use ui::{scoper, RcUi, Ui};
+pub use ui::{RcUi, Ui};
 pub use vello::peniko::Color;
-pub use view::view;
+pub use view::const_hash;
+pub use view::{dynamic_view, view};
 
 use primitives::*;
 

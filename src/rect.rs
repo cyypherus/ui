@@ -1,14 +1,11 @@
 use crate::ui::RcUi;
 use crate::view::{AnimatedView, View, ViewTrait, ViewType};
-use crate::{GestureHandler, Ui};
-use backer::transitions::TransitionDrawable;
-use backer::SizeConstraints;
+use crate::GestureHandler;
+// use backer::transitions::TransitionDrawable;
+// use backer::SizeConstraints;
 use backer::{models::Area, Node};
 use lilt::{Animated, Easing, FloatRepresentable, Interpolable};
-use std::hash::{DefaultHasher, Hash, Hasher};
-use std::rc::Rc;
 use std::time::Instant;
-use std::u64::MAX;
 use vello::kurbo::{RoundedRect, Shape, Stroke};
 use vello::peniko::{Brush, Fill};
 use vello::{kurbo::Affine, peniko::Color};
@@ -19,7 +16,7 @@ pub struct Rect {
     pub(crate) fill: Option<Color>,
     pub(crate) radius: f32,
     pub(crate) stroke: Option<(Color, f32)>,
-    pub(crate) easing: Option<backer::Easing>,
+    pub(crate) easing: Option<Easing>,
     pub(crate) duration: Option<f32>,
     pub(crate) delay: f32,
 }
@@ -120,11 +117,9 @@ impl Interpolable for AnimatedU8 {
     }
 }
 
-pub fn rect(id: String) -> Rect {
-    let mut hasher = DefaultHasher::new();
-    id.hash(&mut hasher);
+pub fn rect(id: u64) -> Rect {
     Rect {
-        id: hasher.finish(),
+        id,
         fill: None,
         radius: 0.,
         stroke: None,
@@ -159,28 +154,14 @@ impl Rect {
     }
 }
 
-impl<State> TransitionDrawable<RcUi<State>> for Rect {
-    fn draw_interpolated(
+impl Rect {
+    pub(crate) fn draw<State>(
         &mut self,
         area: Area,
         state: &mut RcUi<State>,
         visible: bool,
         visible_amount: f32,
     ) {
-        // state.ui.borrow_mut().cx.as_mut().unwrap().scene.fill(
-        //     Fill::EvenOdd,
-        //     Affine::IDENTITY,
-        //     Color::RED,
-        //     None,
-        //     &RoundedRect::from_rect(
-        //         vello::kurbo::Rect::from_origin_size(
-        //             vello::kurbo::Point::new(0. as f64, 0. as f64),
-        //             vello::kurbo::Size::new(100. as f64, 100. as f64),
-        //         ),
-        //         1.4,
-        //     )
-        //     .to_path(0.01),
-        // );
         if !visible && visible_amount == 0. {
             return;
         }
@@ -249,64 +230,19 @@ impl<State> TransitionDrawable<RcUi<State>> for Rect {
             .cx()
             .view_state
             .insert(self.id, AnimatedView::Rect(animated));
-
-        // let path = RoundedRect::from_rect(
-        //     vello::kurbo::Rect::from_origin_size(
-        //         vello::kurbo::Point::new(area.x as f64, area.y as f64),
-        //         vello::kurbo::Size::new(area.width as f64, area.height as f64),
-        //     ),
-        //     self.radius as f64,
-        // )
-        // .to_path(0.01);
-        // if self.fill.is_none() && self.stroke.is_none() {
-        //     state.scene.fill(
-        //         Fill::EvenOdd,
-        //         Affine::IDENTITY,
-        //         Color::BLACK.multiply_alpha(visible_amount),
-        //         None,
-        //         &path,
-        //     )
-        // } else {
-        //     if let Some(fill) = self.fill {
-        //         state.scene.fill(
-        //             Fill::EvenOdd,
-        //             Affine::IDENTITY,
-        //             fill.multiply_alpha(visible_amount),
-        //             None,
-        //             &path,
-        //         )
-        //     }
-        //     if let Some((stroke, width)) = self.stroke {
-        //         state.scene.stroke(
-        //             &Stroke::new(width as f64),
-        //             Affine::IDENTITY,
-        //             &Brush::Solid(stroke.multiply_alpha(visible_amount)),
-        //             None,
-        //             &path,
-        //         );
-        //     }
-        // }
     }
-    fn id(&self) -> &u64 {
-        &self.id
-    }
-    fn easing(&self) -> backer::Easing {
-        self.easing.unwrap_or(backer::Easing::EaseOut)
-    }
-    fn duration(&self) -> f32 {
-        self.duration.unwrap_or(200.)
-    }
-    fn delay(&self) -> f32 {
-        self.delay
-    }
-
-    fn constraints(
-        &self,
-        _available_area: Area,
-        _state: &mut RcUi<State>,
-    ) -> Option<SizeConstraints> {
-        todo!()
-    }
+    // fn id(&self) -> &u64 {
+    //     &self.id
+    // }
+    // fn easing(&self) -> backer::Easing {
+    //     self.easing.unwrap_or(backer::Easing::EaseOut)
+    // }
+    // fn duration(&self) -> f32 {
+    //     self.duration.unwrap_or(200.)
+    // }
+    // fn delay(&self) -> f32 {
+    //     self.delay
+    // }
 }
 
 impl<'s, State> ViewTrait<'s, State> for Rect {

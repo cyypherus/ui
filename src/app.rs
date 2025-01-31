@@ -1,24 +1,20 @@
-use crate::ui::{Ui, UiCx};
+use crate::ui::{AnimationBank, Ui, UiCx};
 use crate::{area_contains, ClickState, DragState, GestureHandler, Point, RcUi};
 use crate::{event, ui::RenderState, Area, GestureState, Layout, RUBIK_FONT};
-pub use backer::transitions::AnimationBank;
 use backer::Node;
-
 use parley::{FontContext, LayoutContext};
-use std::borrow::Borrow;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::{num::NonZeroUsize, sync::Arc};
-use vello::kurbo::{Affine, RoundedRect, Shape};
-use vello::peniko::{Color, Fill};
+use vello::peniko::Color;
 use vello::{util::RenderContext, Renderer, RendererOptions, Scene};
 use winit::{application::ApplicationHandler, event_loop::EventLoop, window::Window};
 use winit::{dpi::LogicalSize, event::MouseButton};
 
 pub struct App<'s, 'n, State: Clone> {
     state: State,
-    view: Node<'n, RcUi<State>>,
+    view: Layout<'n, RcUi<State>>,
     pub(crate) cursor_position: Option<Point>,
     pub(crate) gesture_state: GestureState,
     pub gesture_handlers: Option<Vec<(u64, Area, GestureHandler<State>)>>,
@@ -36,7 +32,7 @@ impl<'s, 'n, State: Clone> App<'s, 'n, State> {
         let mut render_cx = RenderContext::new();
         #[cfg(not(target_arch = "wasm32"))]
         {
-            Self::run(state, event_loop, render_cx, view);
+            Self::run(state, event_loop, render_cx, Layout::new(view));
         }
     }
     fn run(
@@ -44,7 +40,7 @@ impl<'s, 'n, State: Clone> App<'s, 'n, State> {
         event_loop: EventLoop<()>,
         render_cx: RenderContext,
         #[cfg(target_arch = "wasm32")] render_state: RenderState,
-        view: Node<'n, RcUi<State>>,
+        view: Layout<'n, RcUi<State>>,
     ) {
         #[allow(unused_mut)]
         let mut renderers: Vec<Option<Renderer>> = vec![];
@@ -109,20 +105,6 @@ impl<'s, 'n, State: Clone> App<'s, 'n, State> {
                 &mut RefCell::borrow_mut(&ui.ui).gesture_handlers,
             ));
             self.cx = RefCell::borrow_mut(&ui.ui).cx.take();
-            // self.cx.as_mut().unwrap().scene.fill(
-            //     Fill::EvenOdd,
-            //     Affine::IDENTITY,
-            //     Color::RED,
-            //     None,
-            //     &RoundedRect::from_rect(
-            //         vello::kurbo::Rect::from_origin_size(
-            //             vello::kurbo::Point::new(0. as f64, 0. as f64),
-            //             vello::kurbo::Size::new(100. as f64, 100. as f64),
-            //         ),
-            //         1.4,
-            //     )
-            //     .to_path(0.01),
-            // )
         }
         let Self {
             context,
