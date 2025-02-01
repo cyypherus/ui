@@ -1,12 +1,13 @@
 use crate::{
+    rect::{AnimatedColor, AnimatedU8},
     ui::RcUi,
-    view::{View, ViewTrait, ViewType},
-    GestureHandler,
+    view::{AnimatedView, View, ViewTrait, ViewType},
+    GestureHandler, DEFAULT_DURATION, DEFAULT_EASING,
 };
 use backer::{models::*, Node};
-use lilt::Easing;
+use lilt::{Animated, Easing};
 use parley::{FontStack, PositionedLayoutItem, TextStyle};
-use std::cell::RefCell;
+use std::{cell::RefCell, time::Instant};
 use vello::{
     kurbo::Affine,
     peniko::{Color, Fill},
@@ -18,7 +19,7 @@ pub fn text(id: u64, text: impl AsRef<str> + 'static) -> Text {
         text: text.as_ref().to_owned(),
         font_size: 40,
         // font: None,
-        fill: None,
+        fill: Color::BLACK,
         easing: None,
         duration: None,
         delay: 0.,
@@ -29,7 +30,7 @@ pub fn text(id: u64, text: impl AsRef<str> + 'static) -> Text {
 pub struct Text {
     pub(crate) id: u64,
     text: String,
-    fill: Option<Color>,
+    fill: Color,
     font_size: u32,
     // font: Option<font::Id>,
     pub(crate) easing: Option<Easing>,
@@ -39,7 +40,7 @@ pub struct Text {
 
 impl Text {
     pub fn fill(mut self, color: Color) -> Self {
-        self.fill = Some(color);
+        self.fill = color;
         self
     }
     pub fn font_size(mut self, size: u32) -> Self {
@@ -62,6 +63,37 @@ impl Text {
     }
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct AnimatedText {
+    pub(crate) fill: AnimatedColor,
+}
+
+impl AnimatedText {
+    pub(crate) fn update(now: Instant, from: &Text, existing: &mut AnimatedText) {
+        existing.fill.r.transition(AnimatedU8(from.fill.r), now);
+        existing.fill.g.transition(AnimatedU8(from.fill.g), now);
+        existing.fill.b.transition(AnimatedU8(from.fill.b), now);
+    }
+    pub(crate) fn new_from(from: &Text) -> Self {
+        AnimatedText {
+            fill: AnimatedColor {
+                r: Animated::new(AnimatedU8(from.fill.r))
+                    .easing(from.easing.unwrap_or(DEFAULT_EASING))
+                    .duration(from.duration.unwrap_or(DEFAULT_DURATION))
+                    .delay(from.delay),
+                g: Animated::new(AnimatedU8(from.fill.g))
+                    .easing(from.easing.unwrap_or(DEFAULT_EASING))
+                    .duration(from.duration.unwrap_or(DEFAULT_DURATION))
+                    .delay(from.delay),
+                b: Animated::new(AnimatedU8(from.fill.b))
+                    .easing(from.easing.unwrap_or(DEFAULT_EASING))
+                    .duration(from.duration.unwrap_or(DEFAULT_DURATION))
+                    .delay(from.delay),
+            },
+        }
+    }
+}
+
 impl Text {
     pub(crate) fn draw<State>(
         &mut self,
@@ -73,7 +105,18 @@ impl Text {
         if !visible && visible_amount == 0. {
             return;
         }
-
+        let now = Instant::now();
+        let AnimatedView::Text(mut animated) = state
+            .ui
+            .borrow_mut()
+            .cx()
+            .view_state
+            .remove(&self.id)
+            .unwrap_or(AnimatedView::Text(Box::new(AnimatedText::new_from(self))))
+        else {
+            return;
+        };
+        AnimatedText::update(now, self, &mut animated);
         let mut layout =
             RefCell::borrow_mut(&state.ui)
                 .cx()
@@ -97,6 +140,13 @@ impl Text {
         layout.break_all_lines(None);
         layout.align(None, parley::Alignment::Middle);
 
+        let anim_fill = Color::rgba8(
+            animated.fill.r.animate_wrapped(now).0,
+            animated.fill.g.animate_wrapped(now).0,
+            animated.fill.b.animate_wrapped(now).0,
+            255,
+        )
+        .multiply_alpha(visible_amount);
         let transform = Affine::translate((area.x as f64, area.y as f64));
         for line in layout.lines() {
             for item in line.items() {
@@ -121,11 +171,7 @@ impl Text {
                     .cx()
                     .scene
                     .draw_glyphs(font)
-                    .brush(
-                        self.fill
-                            .unwrap_or(Color::BLACK)
-                            .multiply_alpha(visible_amount),
-                    )
+                    .brush(anim_fill)
                     .hint(true)
                     .transform(transform)
                     .glyph_transform(glyph_xform)
@@ -146,6 +192,12 @@ impl Text {
                     );
             }
         }
+        state
+            .ui
+            .borrow_mut()
+            .cx()
+            .view_state
+            .insert(self.id, AnimatedView::Text(animated));
     }
 
     // fn id(&self) -> &u64 {

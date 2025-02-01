@@ -25,7 +25,7 @@ pub struct App<'s, 'n, State: Clone> {
     pub(crate) cx: Option<UiCx>,
 }
 
-impl<'s, 'n, State: Clone> App<'s, 'n, State> {
+impl<'n, State: Clone> App<'_, 'n, State> {
     pub fn start(state: State, view: Node<'n, RcUi<State>>) {
         let event_loop = EventLoop::new().expect("Could not create event loop");
         #[allow(unused_mut)]
@@ -158,7 +158,7 @@ impl<'s, 'n, State: Clone> App<'s, 'n, State> {
     }
 }
 
-impl<'s, 'n, State: Clone> ApplicationHandler for App<'s, 'n, State> {
+impl<State: Clone> ApplicationHandler for App<'_, '_, State> {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         let Option::None = self.render_state else {
             return;
@@ -251,7 +251,7 @@ impl<'s, 'n, State: Clone> ApplicationHandler for App<'s, 'n, State> {
         }
     }
 }
-impl<'s, 'n, State: Clone> App<'s, 'n, State> {
+impl<State: Clone> App<'_, '_, State> {
     pub(crate) fn mouse_moved(&mut self, pos: Point) {
         self.cursor_position = Some(pos);
         self.gesture_handlers

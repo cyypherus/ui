@@ -28,8 +28,12 @@ pub enum ClickState {
     Completed,
 }
 
+pub(crate) type ClickHandler<State> = Box<dyn Fn(&mut State, ClickState)>;
+pub(crate) type DragHandler<State> = Box<dyn Fn(&mut State, DragState)>;
+pub(crate) type HoverHandler<State> = Box<dyn Fn(&mut State, bool)>;
+
 pub struct GestureHandler<State> {
-    pub on_click: Option<Box<dyn Fn(&mut State, ClickState)>>,
-    pub on_drag: Option<Box<dyn Fn(&mut State, DragState)>>,
-    pub on_hover: Option<Box<dyn Fn(&mut State, bool)>>,
+    pub on_click: Option<ClickHandler<State>>,
+    pub on_drag: Option<DragHandler<State>>,
+    pub on_hover: Option<HoverHandler<State>>,
 }

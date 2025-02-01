@@ -139,7 +139,7 @@ impl WindowEvent {
             winit::event::WindowEvent::HoveredFileCancelled => HoveredFileCancelled,
 
             winit::event::WindowEvent::Focused(b) => {
-                if b.clone() {
+                if b {
                     Focused
                 } else {
                     Unfocused
@@ -155,13 +155,11 @@ impl WindowEvent {
 
             winit::event::WindowEvent::CursorLeft { .. } => MouseExited,
 
-            winit::event::WindowEvent::MouseWheel { delta, phase, .. } => {
-                MouseWheel(delta.clone(), phase.clone())
-            }
+            winit::event::WindowEvent::MouseWheel { delta, phase, .. } => MouseWheel(delta, phase),
 
             winit::event::WindowEvent::MouseInput { state, button, .. } => match state {
-                ElementState::Pressed => MousePressed(button.clone()),
-                ElementState::Released => MouseReleased(button.clone()),
+                ElementState::Pressed => MousePressed(button),
+                ElementState::Released => MouseReleased(button),
             },
 
             winit::event::WindowEvent::Touch(winit::event::Touch {
@@ -175,9 +173,9 @@ impl WindowEvent {
                     y: location.y as f32,
                 };
                 let touch = TouchEvent {
-                    phase: phase.clone(),
+                    phase,
                     position,
-                    id: id.clone(),
+                    id,
                 };
                 WindowEvent::Touch(touch)
             }
@@ -187,9 +185,9 @@ impl WindowEvent {
                 pressure,
                 stage,
             } => TouchPressure(TouchpadPressure {
-                device_id: device_id.clone(),
-                pressure: pressure.clone(),
-                stage: stage.clone(),
+                device_id,
+                pressure,
+                stage,
             }),
 
             winit::event::WindowEvent::KeyboardInput { event, .. } => match event.state {

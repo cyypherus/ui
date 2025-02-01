@@ -1,5 +1,5 @@
 use crate::rect::{AnimatedRect, Rect};
-use crate::text::Text;
+use crate::text::{AnimatedText, Text};
 use crate::ui::{AnimArea, RcUi};
 use crate::{ClickState, DragState, GestureHandler};
 use backer::nodes::{draw_object, dynamic};
@@ -83,6 +83,7 @@ pub(crate) trait ViewTrait<'s, State>: Sized {
 #[derive(Debug)]
 pub(crate) enum AnimatedView {
     Rect(AnimatedRect),
+    Text(Box<AnimatedText>),
 }
 
 impl<State> View<State> {

@@ -1,8 +1,6 @@
 use crate::ui::RcUi;
 use crate::view::{AnimatedView, View, ViewTrait, ViewType};
-use crate::GestureHandler;
-// use backer::transitions::TransitionDrawable;
-// use backer::SizeConstraints;
+use crate::{GestureHandler, DEFAULT_DURATION, DEFAULT_EASING};
 use backer::{models::Area, Node};
 use lilt::{Animated, Easing, FloatRepresentable, Interpolable};
 use std::time::Instant;
@@ -50,41 +48,41 @@ impl AnimatedRect {
         AnimatedRect {
             fill: from.fill.map(|fill| AnimatedColor {
                 r: Animated::new(AnimatedU8(fill.r))
-                    .easing(from.easing.unwrap_or(Easing::EaseOut))
-                    .duration(from.duration.unwrap_or(200.))
+                    .easing(from.easing.unwrap_or(DEFAULT_EASING))
+                    .duration(from.duration.unwrap_or(DEFAULT_DURATION))
                     .delay(from.delay),
                 g: Animated::new(AnimatedU8(fill.g))
-                    .easing(from.easing.unwrap_or(Easing::EaseOut))
-                    .duration(from.duration.unwrap_or(200.))
+                    .easing(from.easing.unwrap_or(DEFAULT_EASING))
+                    .duration(from.duration.unwrap_or(DEFAULT_DURATION))
                     .delay(from.delay),
                 b: Animated::new(AnimatedU8(fill.b))
-                    .easing(from.easing.unwrap_or(Easing::EaseOut))
-                    .duration(from.duration.unwrap_or(200.))
+                    .easing(from.easing.unwrap_or(DEFAULT_EASING))
+                    .duration(from.duration.unwrap_or(DEFAULT_DURATION))
                     .delay(from.delay),
             }),
             radius: Animated::new(from.radius)
-                .easing(from.easing.unwrap_or(Easing::EaseOut))
-                .duration(from.duration.unwrap_or(200.))
+                .easing(from.easing.unwrap_or(DEFAULT_EASING))
+                .duration(from.duration.unwrap_or(DEFAULT_DURATION))
                 .delay(from.delay),
             stroke: from.stroke.map(|(color, width)| {
                 (
                     AnimatedColor {
                         r: Animated::new(AnimatedU8(color.r))
-                            .easing(from.easing.unwrap_or(Easing::EaseOut))
-                            .duration(from.duration.unwrap_or(200.))
+                            .easing(from.easing.unwrap_or(DEFAULT_EASING))
+                            .duration(from.duration.unwrap_or(DEFAULT_DURATION))
                             .delay(from.delay),
                         g: Animated::new(AnimatedU8(color.g))
-                            .easing(from.easing.unwrap_or(Easing::EaseOut))
-                            .duration(from.duration.unwrap_or(200.))
+                            .easing(from.easing.unwrap_or(DEFAULT_EASING))
+                            .duration(from.duration.unwrap_or(DEFAULT_DURATION))
                             .delay(from.delay),
                         b: Animated::new(AnimatedU8(color.b))
-                            .easing(from.easing.unwrap_or(Easing::EaseOut))
-                            .duration(from.duration.unwrap_or(200.))
+                            .easing(from.easing.unwrap_or(DEFAULT_EASING))
+                            .duration(from.duration.unwrap_or(DEFAULT_DURATION))
                             .delay(from.delay),
                     },
                     Animated::new(width)
-                        .easing(from.easing.unwrap_or(Easing::EaseOut))
-                        .duration(from.duration.unwrap_or(200.))
+                        .easing(from.easing.unwrap_or(DEFAULT_EASING))
+                        .duration(from.duration.unwrap_or(DEFAULT_DURATION))
                         .delay(from.delay),
                 )
             }),
@@ -171,7 +169,10 @@ impl Rect {
             .cx()
             .view_state
             .remove(&self.id)
-            .unwrap_or(AnimatedView::Rect(AnimatedRect::new_from(self)));
+            .unwrap_or(AnimatedView::Rect(AnimatedRect::new_from(self)))
+        else {
+            return;
+        };
         AnimatedRect::update(self, &mut animated);
         let now = Instant::now();
         let path = RoundedRect::from_rect(

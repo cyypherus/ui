@@ -1,9 +1,12 @@
-use crate::{view::AnimatedView, ClickState, DragState, GestureHandler};
+use crate::{
+    gestures::{ClickHandler, DragHandler, HoverHandler},
+    view::AnimatedView,
+    ClickState, DragState, GestureHandler,
+};
 pub use backer::models::*;
 use lilt::Animated;
 use parley::{FontContext, LayoutContext};
 use std::{
-    borrow::BorrowMut,
     cell::{Cell, Ref, RefCell},
     sync::Arc,
     time::Instant,
@@ -36,7 +39,7 @@ impl AnimationBank {
         }
     }
     /// Checks if any animations are currently in progress
-    pub fn in_progress(&self, time: Instant) -> bool {
+    pub(crate) fn in_progress(&self, time: Instant) -> bool {
         for value in self.animations.values() {
             if value.visible.in_progress(time)
                 || value.x.in_progress(time)
@@ -82,7 +85,7 @@ impl<State> RcUi<State> {
 //     )
 // }
 
-impl<'s, State: 'static> RcUi<State> {
+impl<State: 'static> RcUi<State> {
     pub fn embed_ui<T: Clone + 'static>(
         &mut self,
         scope: impl Fn(&mut State) -> &mut T + 'static + Copy,
@@ -98,28 +101,25 @@ impl<'s, State: 'static> RcUi<State> {
                         h.1,
                         GestureHandler {
                             on_click: h.2.on_click.map(|o_c| {
-                                let r: Box<dyn Fn(&mut State, ClickState)> =
-                                    Box::new(move |state, click_state| {
-                                        let mut scoped = scope(state);
-                                        (o_c)(&mut scoped, click_state);
-                                    });
+                                let r: ClickHandler<State> = Box::new(move |state, click_state| {
+                                    let scoped = scope(state);
+                                    (o_c)(scoped, click_state);
+                                });
                                 r
                             }),
 
                             on_drag: h.2.on_drag.map(|o_c| {
-                                let r: Box<dyn Fn(&mut State, DragState)> =
-                                    Box::new(move |state, drag_state| {
-                                        let mut scoped = scope(state);
-                                        (o_c)(&mut scoped, drag_state);
-                                    });
+                                let r: DragHandler<State> = Box::new(move |state, drag_state| {
+                                    let scoped = scope(state);
+                                    (o_c)(scoped, drag_state);
+                                });
                                 r
                             }),
                             on_hover: h.2.on_hover.map(|o_c| {
-                                let r: Box<dyn Fn(&mut State, bool)> =
-                                    Box::new(move |state, on_hover| {
-                                        let mut scoped = scope(state);
-                                        (o_c)(&mut scoped, on_hover);
-                                    });
+                                let r: HoverHandler<State> = Box::new(move |state, on_hover| {
+                                    let scoped = scope(state);
+                                    (o_c)(scoped, on_hover);
+                                });
                                 r
                             }),
                         },
