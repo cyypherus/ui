@@ -1,13 +1,13 @@
 use crate::{
     gestures::{ClickHandler, DragHandler, HoverHandler},
     view::AnimatedView,
-    ClickState, DragState, GestureHandler,
+    GestureHandler,
 };
 pub use backer::models::*;
 use lilt::Animated;
 use parley::{FontContext, LayoutContext};
 use std::{
-    cell::{Cell, Ref, RefCell},
+    cell::{Cell, Ref, RefCell, RefMut},
     sync::Arc,
     time::Instant,
 };
@@ -67,21 +67,36 @@ pub struct RcUi<State> {
     pub ui: Rc<RefCell<Ui<State>>>,
 }
 
-impl<State> RcUi<State> {
-    pub fn borrow_state(&self) -> Ref<State> {
-        Ref::map(RefCell::borrow(&self.ui), |ui| &ui.state)
-    }
-}
+// impl<State> RcUi<State> {
+//     pub fn borrow_state(&self) -> Ref<State> {
+//         Ref::map(RefCell::borrow(&self.ui), |ui| &ui.state)
+//     }
+//     pub fn borrow_state_mut(&mut self) -> RefMut<State> {
+//         RefMut::map(RefCell::borrow_mut(&self.ui), |ui| &mut ui.state)
+//     }
+// }
 
-// pub fn scoper<'a, State: 'a + 'static, T: Clone + 'a + 'static>(
-//     scope: impl Fn(&mut State) -> T + 'static + Copy,
-//     embed: impl Fn(&mut State, T) + 'static + Copy,
-//     tree: impl Fn(&mut RcUi<T>) -> Node<'a, RcUi<T>> + 'static,
-// ) -> Node<'a, RcUi<State>> {
+// i'm gonna keep it real idk how to implement this
+// pub fn scoper<'nodes, State, Scoped: 'nodes>(
+//     scope: impl Fn(ScopeCtx<'_, '_, RcUi<Scoped>>, &mut State) -> ScopeCtxResult + 'nodes,
+//     node: Node<'nodes, RcUi<Scoped>>,
+// ) -> Node<'nodes, RcUi<State>> {
 //     backer::nodes::scope(
-//         move |ui: &mut RcUi<State>| ui.scope_ui(scope),
-//         move |ui: &mut RcUi<State>, embed_ui: RcUi<T>| ui.embed_ui(scope, embed, embed_ui),
-//         tree,
+//         |ctx: ScopeCtx<RcUi<Scoped>>, ui: &mut RcUi<State>| {
+//             let child_cx = RefCell::borrow_mut(&mut ui.ui).cx.take();
+//             RcUi {
+//                 ui: Rc::new(RefCell::new(Ui {
+//                     state: scope(&mut RefCell::borrow_mut(&self.ui).state),
+//                     gesture_handlers: Vec::new(),
+//                     cx: child_cx,
+//                 })),
+//             };
+// let result = ctx.with_scoped(&mut scoped);
+// ui.embed_ui(|state| &mut state.button[0], scoped);
+// result
+//             ctx.empty()
+//         },
+//         node,
 //     )
 // }
 
@@ -107,7 +122,6 @@ impl<State: 'static> RcUi<State> {
                                 });
                                 r
                             }),
-
                             on_drag: h.2.on_drag.map(|o_c| {
                                 let r: DragHandler<State> = Box::new(move |state, drag_state| {
                                     let scoped = scope(state);
