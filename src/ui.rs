@@ -9,13 +9,15 @@ use lilt::Animated;
 use parley::{FontContext, LayoutContext};
 use std::{cell::Cell, sync::Arc, time::Instant};
 use std::{collections::HashMap, rc::Rc};
-use vello::{util::RenderSurface, Scene};
+use vello_svg::vello::util::RenderSurface;
+use vello_svg::vello::Scene;
 use winit::window::Window;
 
 pub struct Ui<State> {
     pub state: State,
     pub gesture_handlers: Vec<(u64, Area, GestureHandler<State>)>,
     pub cx: Option<UiCx>,
+    pub(crate) images: HashMap<String, Area>,
 }
 
 #[derive(Debug, Clone)]
@@ -76,6 +78,7 @@ pub fn scoper<'n, State, Scoped: 'n + 'static>(
                     state: scope(&mut ui.ui.state),
                     gesture_handlers: Vec::new(),
                     cx: child_cx,
+                    images: HashMap::new(),
                 },
             }
         },
@@ -121,64 +124,11 @@ pub fn scoper<'n, State, Scoped: 'n + 'static>(
                     })
                     .collect::<Vec<_>>(),
             );
+            ui.ui.images = std::mem::take(&mut embedded.ui.images);
             embed(&mut ui.ui.state, embedded.ui.state)
         },
         node,
     )
-}
-
-impl<State: 'static> RcUi<State> {
-    pub fn embed_ui<T: Clone + 'static>(
-        &mut self,
-        scope: impl Fn(&mut State) -> T + 'static + Copy,
-        mut embed: RcUi<T>,
-    ) {
-        self.ui.cx = embed.ui.cx.take();
-        self.ui.gesture_handlers.append(
-            &mut std::mem::take(&mut embed.ui.gesture_handlers)
-                .into_iter()
-                .map(|h| {
-                    (
-                        h.0,
-                        h.1,
-                        GestureHandler {
-                            on_click: h.2.on_click.map(|o_c| {
-                                let r: ClickHandler<State> = Box::new(move |state, click_state| {
-                                    let mut scoped = scope(state);
-                                    (o_c)(&mut scoped, click_state);
-                                });
-                                r
-                            }),
-                            on_drag: h.2.on_drag.map(|o_c| {
-                                let r: DragHandler<State> = Box::new(move |state, drag_state| {
-                                    let mut scoped = scope(state);
-                                    (o_c)(&mut scoped, drag_state);
-                                });
-                                r
-                            }),
-                            on_hover: h.2.on_hover.map(|o_c| {
-                                let r: HoverHandler<State> = Box::new(move |state, on_hover| {
-                                    let mut scoped = scope(state);
-                                    (o_c)(&mut scoped, on_hover);
-                                });
-                                r
-                            }),
-                        },
-                    )
-                })
-                .collect::<Vec<_>>(),
-        );
-    }
-    pub fn scope_ui<T>(&mut self, scope: impl Fn(&mut State) -> T + 'static + Copy) -> RcUi<T> {
-        let child_cx = self.ui.cx.take();
-        RcUi {
-            ui: Ui {
-                state: scope(&mut self.ui.state),
-                gesture_handlers: Vec::new(),
-                cx: child_cx,
-            },
-        }
-    }
 }
 
 impl<State> Ui<State> {

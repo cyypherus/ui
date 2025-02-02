@@ -15,7 +15,7 @@ use lilt::Easing;
 pub use rect::rect;
 pub use text::text;
 pub use ui::{scoper, RcUi, Ui};
-pub use vello::peniko::Color;
+pub use vello_svg::vello::peniko::Color;
 pub use view::const_hash;
 pub use view::{dynamic_node, dynamic_view, view};
 

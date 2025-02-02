@@ -8,7 +8,7 @@ use backer::{models::*, Node};
 use lilt::{Animated, Easing};
 use parley::{FontStack, PositionedLayoutItem, TextStyle};
 use std::time::Instant;
-use vello::{
+use vello_svg::vello::{
     kurbo::Affine,
     peniko::{Color, Fill},
 };
@@ -70,22 +70,31 @@ pub(crate) struct AnimatedText {
 
 impl AnimatedText {
     pub(crate) fn update(now: Instant, from: &Text, existing: &mut AnimatedText) {
-        existing.fill.r.transition(AnimatedU8(from.fill.r), now);
-        existing.fill.g.transition(AnimatedU8(from.fill.g), now);
-        existing.fill.b.transition(AnimatedU8(from.fill.b), now);
+        existing
+            .fill
+            .r
+            .transition(AnimatedU8(from.fill.to_rgba8().r), now);
+        existing
+            .fill
+            .g
+            .transition(AnimatedU8(from.fill.to_rgba8().g), now);
+        existing
+            .fill
+            .b
+            .transition(AnimatedU8(from.fill.to_rgba8().b), now);
     }
     pub(crate) fn new_from(from: &Text) -> Self {
         AnimatedText {
             fill: AnimatedColor {
-                r: Animated::new(AnimatedU8(from.fill.r))
+                r: Animated::new(AnimatedU8(from.fill.to_rgba8().r))
                     .easing(from.easing.unwrap_or(DEFAULT_EASING))
                     .duration(from.duration.unwrap_or(DEFAULT_DURATION))
                     .delay(from.delay),
-                g: Animated::new(AnimatedU8(from.fill.g))
+                g: Animated::new(AnimatedU8(from.fill.to_rgba8().g))
                     .easing(from.easing.unwrap_or(DEFAULT_EASING))
                     .duration(from.duration.unwrap_or(DEFAULT_DURATION))
                     .delay(from.delay),
-                b: Animated::new(AnimatedU8(from.fill.b))
+                b: Animated::new(AnimatedU8(from.fill.to_rgba8().b))
                     .easing(from.easing.unwrap_or(DEFAULT_EASING))
                     .duration(from.duration.unwrap_or(DEFAULT_DURATION))
                     .delay(from.delay),
@@ -134,9 +143,9 @@ impl Text {
         });
 
         layout.break_all_lines(None);
-        layout.align(None, parley::Alignment::Middle);
+        layout.align(None, parley::Alignment::Middle, true);
 
-        let anim_fill = Color::rgba8(
+        let anim_fill = Color::from_rgba8(
             animated.fill.r.animate_wrapped(now).0,
             animated.fill.g.animate_wrapped(now).0,
             animated.fill.b.animate_wrapped(now).0,
@@ -158,11 +167,6 @@ impl Text {
                 let glyph_xform = synthesis
                     .skew()
                     .map(|angle| Affine::skew(angle.to_radians().tan() as f64, 0.0));
-                let coords = run
-                    .normalized_coords()
-                    .iter()
-                    .map(|coord| vello::skrifa::instance::NormalizedCoord::from_bits(*coord))
-                    .collect::<Vec<_>>();
                 state
                     .ui
                     .cx()
@@ -173,14 +177,14 @@ impl Text {
                     .transform(transform)
                     .glyph_transform(glyph_xform)
                     .font_size(font_size)
-                    .normalized_coords(&coords)
+                    .normalized_coords(run.normalized_coords())
                     .draw(
                         Fill::NonZero,
                         glyph_run.glyphs().map(|glyph| {
                             let gx = x + glyph.x;
                             let gy = y - glyph.y;
                             x += glyph.advance;
-                            vello::Glyph {
+                            vello_svg::vello::Glyph {
                                 id: glyph.id as _,
                                 x: gx,
                                 y: gy,
@@ -229,7 +233,7 @@ impl<'s, State> ViewTrait<'s, State> for Text {
             builder.build().0
         });
         layout.break_all_lines(None);
-        layout.align(None, parley::Alignment::Middle);
+        layout.align(None, parley::Alignment::Middle, true);
         node.width(layout.full_width()).height(layout.height())
     }
 }

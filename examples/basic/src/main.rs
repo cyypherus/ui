@@ -68,18 +68,18 @@ fn button<'n, F: 'n>(id: u64) -> Node<'n, RcUi<ButtonState<F>>> {
             .stroke(
                 {
                     match (ui.depressed, ui.hovered) {
-                        (_, true) => Color::rgb(0.9, 0.9, 0.9),
-                        (true, false) => Color::rgb(0.8, 0.3, 0.3),
-                        (false, false) => Color::rgb(0.1, 0.1, 0.1),
+                        (_, true) => Color::from_rgb8(90, 90, 90),
+                        (true, false) => Color::from_rgb8(80, 30, 30),
+                        (false, false) => Color::from_rgb8(10, 10, 10),
                     }
                 },
                 1.,
             )
             .fill(match (ui.depressed, ui.hovered) {
-                (true, true) => Color::rgb(0.6, 0.05, 0.05),
-                (false, true) => Color::rgb(0.9, 0.2, 0.2),
-                (true, false) => Color::rgb(0.3, 0.3, 0.3),
-                (false, false) => Color::rgb(0.1, 0.1, 0.1),
+                (true, true) => Color::from_rgb8(60, 5, 5),
+                (false, true) => Color::from_rgb8(90, 20, 20),
+                (true, false) => Color::from_rgb8(30, 30, 30),
+                (false, false) => Color::from_rgb8(10, 10, 10),
             })
             .corner_rounding(if ui.hovered { 10. } else { 5. })
             .finish()

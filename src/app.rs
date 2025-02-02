@@ -7,8 +7,9 @@ use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::{num::NonZeroUsize, sync::Arc};
-use vello::peniko::Color;
-use vello::{util::RenderContext, Renderer, RendererOptions, Scene};
+use vello_svg::vello::peniko::Color;
+use vello_svg::vello::util::RenderContext;
+use vello_svg::vello::{Renderer, RendererOptions, Scene};
 use winit::{application::ApplicationHandler, event_loop::EventLoop, window::Window};
 use winit::{dpi::LogicalSize, event::MouseButton};
 
@@ -23,6 +24,7 @@ pub struct App<'s, 'n, State: Clone> {
     pub(crate) render_state: Option<RenderState<'s>>,
     pub(crate) cached_window: Option<Arc<Window>>,
     pub(crate) cx: Option<UiCx>,
+    pub(crate) images: HashMap<String, Vec<u8>>,
 }
 
 impl<'n, State: Clone> App<'_, 'n, State> {
@@ -66,6 +68,7 @@ impl<'n, State: Clone> App<'_, 'n, State> {
             }),
             view,
             gesture_handlers: Some(Vec::new()),
+            images: HashMap::new(),
         };
         event_loop.run_app(&mut app).expect("run to completion");
     }
@@ -88,6 +91,7 @@ impl<'n, State: Clone> App<'_, 'n, State> {
                     state: self.state.clone(),
                     gesture_handlers: self.gesture_handlers.take().unwrap(),
                     cx: self.cx.take(),
+                    images: HashMap::new(),
                 },
             };
 
@@ -103,6 +107,18 @@ impl<'n, State: Clone> App<'_, 'n, State> {
             self.state = ui.ui.state.clone();
             self.gesture_handlers = Some(std::mem::take(&mut ui.ui.gesture_handlers));
             self.cx = ui.ui.cx.take();
+            let file_path = "assets/user.svg".to_string();
+            if self.images.get_mut(&file_path).is_none() {
+                self.images
+                    .insert(file_path.clone(), std::fs::read(file_path.clone()).unwrap());
+            }
+            let image_data = self.images.get(&file_path).unwrap();
+            vello_svg::append(
+                &mut self.cx.as_mut().unwrap().scene,
+                &String::from_utf8(image_data.clone()).unwrap(),
+            )
+            .unwrap();
+            for (file_path, area) in ui.ui.images {}
         }
         let Self {
             context,
@@ -124,11 +140,11 @@ impl<'n, State: Clone> App<'_, 'n, State> {
 
         window.set_title("haven-ui");
 
-        let render_params = vello::RenderParams {
+        let render_params = vello_svg::vello::RenderParams {
             base_color: Color::BLACK,
             width,
             height,
-            antialiasing_method: vello::AaConfig::Area,
+            antialiasing_method: vello_svg::vello::AaConfig::Area,
         };
 
         let surface_texture = surface
@@ -151,7 +167,9 @@ impl<'n, State: Clone> App<'_, 'n, State> {
             .expect("failed to render to surface");
 
         surface_texture.present();
-        device_handle.device.poll(vello::wgpu::Maintain::Wait);
+        device_handle
+            .device
+            .poll(vello_svg::vello::wgpu::Maintain::Wait);
         self.cx.as_mut().unwrap().scene.reset();
     }
 }
@@ -177,7 +195,7 @@ impl<State: Clone> ApplicationHandler for App<'_, '_, State> {
             window.clone(),
             size.width,
             size.height,
-            vello::wgpu::PresentMode::Immediate,
+            vello_svg::vello::wgpu::PresentMode::Immediate,
         );
         let surface = pollster::block_on(surface_future).expect("Error creating surface");
         let render_state = RenderState { window, surface };
@@ -195,7 +213,7 @@ impl<State: Clone> ApplicationHandler for App<'_, '_, State> {
                     RendererOptions {
                         surface_format: Some(render_state.surface.format),
                         use_cpu: false,
-                        antialiasing_support: vello::AaSupport {
+                        antialiasing_support: vello_svg::vello::AaSupport {
                             area: true,
                             msaa8: false,
                             msaa16: false,

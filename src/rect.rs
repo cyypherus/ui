@@ -4,9 +4,9 @@ use crate::{GestureHandler, DEFAULT_DURATION, DEFAULT_EASING};
 use backer::{models::Area, Node};
 use lilt::{Animated, Easing, FloatRepresentable, Interpolable};
 use std::time::Instant;
-use vello::kurbo::{RoundedRect, Shape, Stroke};
-use vello::peniko::{Brush, Fill};
-use vello::{kurbo::Affine, peniko::Color};
+use vello_svg::vello::kurbo::{RoundedRect, Shape, Stroke};
+use vello_svg::vello::peniko::{Brush, Fill};
+use vello_svg::vello::{kurbo::Affine, peniko::Color};
 
 #[derive(Debug, Clone)]
 pub struct Rect {
@@ -30,32 +30,44 @@ impl AnimatedRect {
     pub(crate) fn update(from: &Rect, existing: &mut AnimatedRect) {
         let now = Instant::now();
         if let (Some(existing_fill), Some(new_fill)) = (&mut existing.fill, from.fill) {
-            existing_fill.r.transition(AnimatedU8(new_fill.r), now);
-            existing_fill.g.transition(AnimatedU8(new_fill.g), now);
-            existing_fill.b.transition(AnimatedU8(new_fill.b), now);
+            existing_fill
+                .r
+                .transition(AnimatedU8(new_fill.to_rgba8().r), now);
+            existing_fill
+                .g
+                .transition(AnimatedU8(new_fill.to_rgba8().g), now);
+            existing_fill
+                .b
+                .transition(AnimatedU8(new_fill.to_rgba8().b), now);
         }
         existing.radius.transition(from.radius, now);
         if let (Some((existing_stroke, existing_width)), Some((new_stroke, new_width))) =
             (&mut existing.stroke, from.stroke)
         {
-            existing_stroke.r.transition(AnimatedU8(new_stroke.r), now);
-            existing_stroke.g.transition(AnimatedU8(new_stroke.g), now);
-            existing_stroke.b.transition(AnimatedU8(new_stroke.b), now);
+            existing_stroke
+                .r
+                .transition(AnimatedU8(new_stroke.to_rgba8().r), now);
+            existing_stroke
+                .g
+                .transition(AnimatedU8(new_stroke.to_rgba8().g), now);
+            existing_stroke
+                .b
+                .transition(AnimatedU8(new_stroke.to_rgba8().b), now);
             existing_width.transition(new_width, now);
         }
     }
     pub(crate) fn new_from(from: &Rect) -> Self {
         AnimatedRect {
             fill: from.fill.map(|fill| AnimatedColor {
-                r: Animated::new(AnimatedU8(fill.r))
+                r: Animated::new(AnimatedU8(fill.to_rgba8().r))
                     .easing(from.easing.unwrap_or(DEFAULT_EASING))
                     .duration(from.duration.unwrap_or(DEFAULT_DURATION))
                     .delay(from.delay),
-                g: Animated::new(AnimatedU8(fill.g))
+                g: Animated::new(AnimatedU8(fill.to_rgba8().g))
                     .easing(from.easing.unwrap_or(DEFAULT_EASING))
                     .duration(from.duration.unwrap_or(DEFAULT_DURATION))
                     .delay(from.delay),
-                b: Animated::new(AnimatedU8(fill.b))
+                b: Animated::new(AnimatedU8(fill.to_rgba8().b))
                     .easing(from.easing.unwrap_or(DEFAULT_EASING))
                     .duration(from.duration.unwrap_or(DEFAULT_DURATION))
                     .delay(from.delay),
@@ -67,15 +79,15 @@ impl AnimatedRect {
             stroke: from.stroke.map(|(color, width)| {
                 (
                     AnimatedColor {
-                        r: Animated::new(AnimatedU8(color.r))
+                        r: Animated::new(AnimatedU8(color.to_rgba8().r))
                             .easing(from.easing.unwrap_or(DEFAULT_EASING))
                             .duration(from.duration.unwrap_or(DEFAULT_DURATION))
                             .delay(from.delay),
-                        g: Animated::new(AnimatedU8(color.g))
+                        g: Animated::new(AnimatedU8(color.to_rgba8().g))
                             .easing(from.easing.unwrap_or(DEFAULT_EASING))
                             .duration(from.duration.unwrap_or(DEFAULT_DURATION))
                             .delay(from.delay),
-                        b: Animated::new(AnimatedU8(color.b))
+                        b: Animated::new(AnimatedU8(color.to_rgba8().b))
                             .easing(from.easing.unwrap_or(DEFAULT_EASING))
                             .duration(from.duration.unwrap_or(DEFAULT_DURATION))
                             .delay(from.delay),
@@ -175,9 +187,9 @@ impl Rect {
         AnimatedRect::update(self, &mut animated);
         let now = Instant::now();
         let path = RoundedRect::from_rect(
-            vello::kurbo::Rect::from_origin_size(
-                vello::kurbo::Point::new(area.x as f64, area.y as f64),
-                vello::kurbo::Size::new(area.width as f64, area.height as f64),
+            vello_svg::vello::kurbo::Rect::from_origin_size(
+                vello_svg::vello::kurbo::Point::new(area.x as f64, area.y as f64),
+                vello_svg::vello::kurbo::Size::new(area.width as f64, area.height as f64),
             ),
             animated.radius.animate_wrapped(now) as f64,
         )
@@ -195,7 +207,7 @@ impl Rect {
                 state.ui.cx.as_mut().unwrap().scene.fill(
                     Fill::EvenOdd,
                     Affine::IDENTITY,
-                    Color::rgba8(
+                    Color::from_rgba8(
                         fill.r.animate_wrapped(now).0,
                         fill.g.animate_wrapped(now).0,
                         fill.b.animate_wrapped(now).0,
@@ -211,7 +223,7 @@ impl Rect {
                     &Stroke::new(width.animate_wrapped(now) as f64),
                     Affine::IDENTITY,
                     &Brush::Solid(
-                        Color::rgba8(
+                        Color::from_rgba8(
                             stroke.r.animate_wrapped(now).0,
                             stroke.g.animate_wrapped(now).0,
                             stroke.b.animate_wrapped(now).0,
