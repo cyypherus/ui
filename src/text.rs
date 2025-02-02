@@ -7,7 +7,7 @@ use crate::{
 use backer::{models::*, Node};
 use lilt::{Animated, Easing};
 use parley::{FontStack, PositionedLayoutItem, TextStyle};
-use std::{cell::RefCell, time::Instant};
+use std::time::Instant;
 use vello::{
     kurbo::Affine,
     peniko::{Color, Fill},
@@ -108,7 +108,6 @@ impl Text {
         let now = Instant::now();
         let AnimatedView::Text(mut animated) = state
             .ui
-            .borrow_mut()
             .cx()
             .view_state
             .remove(&self.id)
@@ -117,25 +116,22 @@ impl Text {
             return;
         };
         AnimatedText::update(now, self, &mut animated);
-        let mut layout =
-            RefCell::borrow_mut(&state.ui)
-                .cx()
-                .with_font_layout_ctx(|layout_cx, font_cx| {
-                    let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
-                    let mut builder = layout_cx.tree_builder(
-                        font_cx,
-                        1.,
-                        &TextStyle {
-                            brush: [255, 0, 0, 0],
-                            font_stack,
-                            line_height: 1.3,
-                            font_size: 16.0,
-                            ..Default::default()
-                        },
-                    );
-                    builder.push_text(&self.text);
-                    builder.build().0
-                });
+        let mut layout = state.ui.cx().with_font_layout_ctx(|layout_cx, font_cx| {
+            let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
+            let mut builder = layout_cx.tree_builder(
+                font_cx,
+                1.,
+                &TextStyle {
+                    brush: [255, 0, 0, 0],
+                    font_stack,
+                    line_height: 1.3,
+                    font_size: 16.0,
+                    ..Default::default()
+                },
+            );
+            builder.push_text(&self.text);
+            builder.build().0
+        });
 
         layout.break_all_lines(None);
         layout.align(None, parley::Alignment::Middle);
@@ -167,7 +163,8 @@ impl Text {
                     .iter()
                     .map(|coord| vello::skrifa::instance::NormalizedCoord::from_bits(*coord))
                     .collect::<Vec<_>>();
-                RefCell::borrow_mut(&state.ui)
+                state
+                    .ui
                     .cx()
                     .scene
                     .draw_glyphs(font)
@@ -194,7 +191,6 @@ impl Text {
         }
         state
             .ui
-            .borrow_mut()
             .cx()
             .view_state
             .insert(self.id, AnimatedView::Text(animated));
@@ -216,25 +212,22 @@ impl Text {
 
 impl<'s, State> ViewTrait<'s, State> for Text {
     fn view(self, ui: &mut RcUi<State>, node: Node<'s, RcUi<State>>) -> Node<'s, RcUi<State>> {
-        let mut layout =
-            RefCell::borrow_mut(&ui.ui)
-                .cx()
-                .with_font_layout_ctx(|layout_cx, font_cx| {
-                    let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
-                    let mut builder = layout_cx.tree_builder(
-                        font_cx,
-                        1.,
-                        &TextStyle {
-                            brush: [255, 0, 0, 0],
-                            font_stack,
-                            line_height: 1.3,
-                            font_size: 16.0,
-                            ..Default::default()
-                        },
-                    );
-                    builder.push_text(&self.text);
-                    builder.build().0
-                });
+        let mut layout = ui.ui.cx().with_font_layout_ctx(|layout_cx, font_cx| {
+            let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
+            let mut builder = layout_cx.tree_builder(
+                font_cx,
+                1.,
+                &TextStyle {
+                    brush: [255, 0, 0, 0],
+                    font_stack,
+                    line_height: 1.3,
+                    font_size: 16.0,
+                    ..Default::default()
+                },
+            );
+            builder.push_text(&self.text);
+            builder.build().0
+        });
         layout.break_all_lines(None);
         layout.align(None, parley::Alignment::Middle);
         node.width(layout.full_width()).height(layout.height())

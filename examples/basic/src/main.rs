@@ -1,8 +1,8 @@
 use haven::{
-    column, column_spaced, dynamic, dynamic_node, dynamic_view, id, rect, scope, space, stack,
-    text, view, App, ClickState, Color, Node, RcUi,
+    column, column_spaced, dynamic, dynamic_node, dynamic_view, id, rect, scope, scoper, space,
+    stack, text, view, App, ClickState, Color, Node, RcUi, Ui,
 };
-use std::{borrow::BorrowMut, cell::RefMut};
+use std::borrow::BorrowMut;
 
 #[derive(Clone)]
 struct UserState {
@@ -11,48 +11,50 @@ struct UserState {
 }
 
 fn main() {
-    let s = scope(
-        |ctx: backer::ScopeCtx<RcUi<ButtonState<UserState>>>, ui: &mut RcUi<UserState>| {
-            let mut scoped = ui.scope_ui(|state| state.button[0].clone());
-            let result = ctx.with_scoped(&mut scoped);
-            ui.embed_ui(|state| &mut state.button[0], scoped);
-            result
-        },
-        button(id!()),
-    );
     App::start(
         UserState {
             count: 0,
-            button: vec![ButtonState::new(|mut state| state.borrow_mut().count += 1); 100],
+            button: vec![ButtonState::new(|state| state.borrow_mut().count += 1); 100],
         },
-        column_spaced(
-            10.,
-            vec![
-                dynamic_view(|st: RefMut<'_, UserState>| {
-                    text(id!(), "hiiiiii")
-                        .fill(if st.button[0].depressed {
-                            Color::WHITE
-                        } else {
-                            Color::BLACK
-                        })
-                        .finish()
-                }),
-                dynamic_node(|st: RefMut<'_, UserState>| {
-                    scope(
-                        |ctx: backer::ScopeCtx<RcUi<ButtonState<UserState>>>,
-                         ui: &mut RcUi<UserState>| {
-                            let mut scoped = ui.scope_ui(|state| state.button[0].clone());
-                            let result = ctx.with_scoped(&mut scoped);
-                            ui.embed_ui(|state| &mut state.button[0], scoped);
-                            result
-                        },
-                        button(id!()),
-                    )
-                    .height(if st.button[0].depressed { 100. } else { 200. })
-                    .width(100.)
-                }),
-            ],
-        ),
+        scoper(
+            |st: &mut UserState| st.button[0].clone(),
+            |st: &mut UserState, b: ButtonState<UserState>| st.button[0] = b,
+            button(id!()),
+        )
+        .width(100.)
+        .aspect(1.),
+        // column_spaced(
+        //     10.,
+        //     vec![
+        //         dynamic_view(|st: &mut UserState| {
+        //             text(id!(), "hiiiiii")
+        //                 .fill(if st.button[0].depressed {
+        //                     Color::WHITE
+        //                 } else {
+        //                     Color::BLACK
+        //                 })
+        //                 .finish()
+        //         }),
+        //         dynamic_node(|st: &UserState| {
+        //             scoper(
+        //                 |ui: &mut UserState| ui.button.get_mut(0).unwrap(),
+        //                 // |ctx: backer::ScopeCtx<RcUi<ButtonState<UserState>>>,
+        //                 //  ui: &mut RcUi<UserState>| {
+        //                 //     let mut scoped = ui.scope_ui(|state| state.button[0].clone());
+        //                 //     let result = ctx.with_scoped(&mut scoped);
+        //                 //     if ui.ui.state.button[0].clicked {
+        //                 //         (ui.ui.state.button[0].action)(&mut ui.ui.state);
+        //                 //     }
+        //                 //     ui.embed_ui(|state| &mut state.button[0], scoped);
+        //                 //     result
+        //                 // },
+        //                 button(id!()),
+        //             )
+        //             .height(if st.button[0].depressed { 100. } else { 200. })
+        //             .width(100.)
+        //         }),
+        //     ],
+        // ),
     )
 }
 
@@ -61,11 +63,11 @@ struct ButtonState<F> {
     hovered: bool,
     depressed: bool,
     clicked: bool,
-    action: fn(RefMut<F>),
+    action: fn(&mut F),
 }
 
 impl<F> ButtonState<F> {
-    fn new(action: fn(RefMut<F>)) -> Self {
+    fn new(action: fn(&mut F)) -> Self {
         Self {
             hovered: false,
             depressed: false,
@@ -76,8 +78,8 @@ impl<F> ButtonState<F> {
 }
 
 fn button<'n, F: 'n>(id: u64) -> Node<'n, RcUi<ButtonState<F>>> {
-    dynamic_node(move |ui: RefMut<ButtonState<F>>| {
-        stack(vec![dynamic_view(move |ui: RefMut<ButtonState<F>>| {
+    dynamic_node(move |ui: &ButtonState<F>| {
+        stack(vec![dynamic_view(move |ui: &mut ButtonState<F>| {
             rect(id!(id))
                 .stroke(
                     {

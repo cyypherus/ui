@@ -165,11 +165,10 @@ impl Rect {
         }
         let AnimatedView::Rect(mut animated) = state
             .ui
-            .borrow_mut()
             .cx()
             .view_state
             .remove(&self.id)
-            .unwrap_or(AnimatedView::Rect(AnimatedRect::new_from(self)))
+            .unwrap_or(AnimatedView::Rect(Box::new(AnimatedRect::new_from(self))))
         else {
             return;
         };
@@ -184,7 +183,7 @@ impl Rect {
         )
         .to_path(0.01);
         if animated.fill.is_none() && animated.stroke.is_none() {
-            state.ui.borrow_mut().cx().scene.fill(
+            state.ui.cx().scene.fill(
                 Fill::EvenOdd,
                 Affine::IDENTITY,
                 Color::BLACK.multiply_alpha(visible_amount),
@@ -193,7 +192,7 @@ impl Rect {
             )
         } else {
             if let Some(fill) = &animated.fill {
-                state.ui.borrow_mut().cx.as_mut().unwrap().scene.fill(
+                state.ui.cx.as_mut().unwrap().scene.fill(
                     Fill::EvenOdd,
                     Affine::IDENTITY,
                     Color::rgba8(
@@ -208,7 +207,7 @@ impl Rect {
                 )
             }
             if let Some((stroke, width)) = &animated.stroke {
-                state.ui.borrow_mut().cx().scene.stroke(
+                state.ui.cx().scene.stroke(
                     &Stroke::new(width.animate_wrapped(now) as f64),
                     Affine::IDENTITY,
                     &Brush::Solid(
@@ -227,7 +226,6 @@ impl Rect {
         }
         state
             .ui
-            .borrow_mut()
             .cx()
             .view_state
             .insert(self.id, AnimatedView::Rect(animated));

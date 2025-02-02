@@ -3,7 +3,7 @@ use crate::{area_contains, ClickState, DragState, GestureHandler, Point, RcUi};
 use crate::{event, ui::RenderState, Area, GestureState, Layout, RUBIK_FONT};
 use backer::Node;
 use parley::{FontContext, LayoutContext};
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::{num::NonZeroUsize, sync::Arc};
@@ -84,11 +84,11 @@ impl<'n, State: Clone> App<'_, 'n, State> {
                 context.resize_surface(surface, width, height);
             }
             let mut ui = RcUi {
-                ui: Rc::new(RefCell::new(Ui {
+                ui: Ui {
                     state: self.state.clone(),
                     gesture_handlers: self.gesture_handlers.take().unwrap(),
                     cx: self.cx.take(),
-                })),
+                },
             };
 
             self.view.draw(
@@ -100,11 +100,9 @@ impl<'n, State: Clone> App<'_, 'n, State> {
                 },
                 &mut ui,
             );
-            self.state = RefCell::borrow(&ui.ui).state.clone();
-            self.gesture_handlers = Some(std::mem::take(
-                &mut RefCell::borrow_mut(&ui.ui).gesture_handlers,
-            ));
-            self.cx = RefCell::borrow_mut(&ui.ui).cx.take();
+            self.state = ui.ui.state.clone();
+            self.gesture_handlers = Some(std::mem::take(&mut ui.ui.gesture_handlers));
+            self.cx = ui.ui.cx.take();
         }
         let Self {
             context,

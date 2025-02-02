@@ -4,13 +4,10 @@ use crate::{
     GestureHandler,
 };
 pub use backer::models::*;
+use backer::Node;
 use lilt::Animated;
 use parley::{FontContext, LayoutContext};
-use std::{
-    cell::{Cell, Ref, RefCell, RefMut},
-    sync::Arc,
-    time::Instant,
-};
+use std::{cell::Cell, sync::Arc, time::Instant};
 use std::{collections::HashMap, rc::Rc};
 use vello::{util::RenderSurface, Scene};
 use winit::window::Window;
@@ -38,20 +35,20 @@ impl AnimationBank {
             animations: HashMap::new(),
         }
     }
-    /// Checks if any animations are currently in progress
-    pub(crate) fn in_progress(&self, time: Instant) -> bool {
-        for value in self.animations.values() {
-            if value.visible.in_progress(time)
-                || value.x.in_progress(time)
-                || value.y.in_progress(time)
-                || value.width.in_progress(time)
-                || value.height.in_progress(time)
-            {
-                return true;
-            }
-        }
-        false
-    }
+    ///// Checks if any animations are currently in progress
+    // pub(crate) fn in_progress(&self, time: Instant) -> bool {
+    //     for value in self.animations.values() {
+    //         if value.visible.in_progress(time)
+    //             || value.x.in_progress(time)
+    //             || value.y.in_progress(time)
+    //             || value.width.in_progress(time)
+    //             || value.height.in_progress(time)
+    //         {
+    //             return true;
+    //         }
+    //     }
+    //     false
+    // }
 }
 #[derive(Debug, Clone)]
 pub(crate) struct AnimArea {
@@ -62,53 +59,83 @@ pub(crate) struct AnimArea {
     pub(crate) height: Animated<f32, Instant>,
 }
 
-#[derive(Clone)]
 pub struct RcUi<State> {
-    pub ui: Rc<RefCell<Ui<State>>>,
+    pub ui: Ui<State>,
 }
 
-// impl<State> RcUi<State> {
-//     pub fn borrow_state(&self) -> Ref<State> {
-//         Ref::map(RefCell::borrow(&self.ui), |ui| &ui.state)
-//     }
-//     pub fn borrow_state_mut(&mut self) -> RefMut<State> {
-//         RefMut::map(RefCell::borrow_mut(&self.ui), |ui| &mut ui.state)
-//     }
-// }
-
-// i'm gonna keep it real idk how to implement this
-// pub fn scoper<'nodes, State, Scoped: 'nodes>(
-//     scope: impl Fn(ScopeCtx<'_, '_, RcUi<Scoped>>, &mut State) -> ScopeCtxResult + 'nodes,
-//     node: Node<'nodes, RcUi<Scoped>>,
-// ) -> Node<'nodes, RcUi<State>> {
-//     backer::nodes::scope(
-//         |ctx: ScopeCtx<RcUi<Scoped>>, ui: &mut RcUi<State>| {
-//             let child_cx = RefCell::borrow_mut(&mut ui.ui).cx.take();
-//             RcUi {
-//                 ui: Rc::new(RefCell::new(Ui {
-//                     state: scope(&mut RefCell::borrow_mut(&self.ui).state),
-//                     gesture_handlers: Vec::new(),
-//                     cx: child_cx,
-//                 })),
-//             };
-// let result = ctx.with_scoped(&mut scoped);
-// ui.embed_ui(|state| &mut state.button[0], scoped);
-// result
-//             ctx.empty()
-//         },
-//         node,
-//     )
-// }
+pub fn scoper<'n, State, Scoped: 'n + 'static>(
+    scope: impl Fn(&mut State) -> Scoped + 'static + Copy,
+    embed: impl Fn(&mut State, Scoped) + 'static + Copy,
+    node: Node<'n, RcUi<Scoped>>,
+) -> Node<'n, RcUi<State>> {
+    backer::nodes::scope_owned(
+        move |ui: &mut RcUi<State>| {
+            let child_cx = ui.ui.cx.take();
+            RcUi {
+                ui: Ui {
+                    state: scope(&mut ui.ui.state),
+                    gesture_handlers: Vec::new(),
+                    cx: child_cx,
+                },
+            }
+        },
+        move |ui: &mut RcUi<State>, mut embedded: RcUi<Scoped>| {
+            ui.ui.cx = embedded.ui.cx.take();
+            ui.ui.gesture_handlers.append(
+                &mut std::mem::take(&mut embedded.ui.gesture_handlers)
+                    .into_iter()
+                    .map(|h| {
+                        (
+                            h.0,
+                            h.1,
+                            GestureHandler {
+                                on_click: h.2.on_click.map(|o_c| {
+                                    let r: ClickHandler<State> =
+                                        Box::new(move |state, click_state| {
+                                            let mut scoped = scope(state);
+                                            (o_c)(&mut scoped, click_state);
+                                            embed(state, scoped);
+                                        });
+                                    r
+                                }),
+                                on_drag: h.2.on_drag.map(|o_c| {
+                                    let r: DragHandler<State> =
+                                        Box::new(move |state, drag_state| {
+                                            let mut scoped = scope(state);
+                                            (o_c)(&mut scoped, drag_state);
+                                            embed(state, scoped);
+                                        });
+                                    r
+                                }),
+                                on_hover: h.2.on_hover.map(|o_c| {
+                                    let r: HoverHandler<State> =
+                                        Box::new(move |state, on_hover| {
+                                            let mut scoped = scope(state);
+                                            (o_c)(&mut scoped, on_hover);
+                                            embed(state, scoped);
+                                        });
+                                    r
+                                }),
+                            },
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            );
+            embed(&mut ui.ui.state, embedded.ui.state)
+        },
+        node,
+    )
+}
 
 impl<State: 'static> RcUi<State> {
     pub fn embed_ui<T: Clone + 'static>(
         &mut self,
-        scope: impl Fn(&mut State) -> &mut T + 'static + Copy,
-        embed: RcUi<T>,
+        scope: impl Fn(&mut State) -> T + 'static + Copy,
+        mut embed: RcUi<T>,
     ) {
-        RefCell::borrow_mut(&self.ui).cx = RefCell::borrow_mut(&embed.ui).cx.take();
-        RefCell::borrow_mut(&self.ui).gesture_handlers.append(
-            &mut std::mem::take(&mut RefCell::borrow_mut(&embed.ui).gesture_handlers)
+        self.ui.cx = embed.ui.cx.take();
+        self.ui.gesture_handlers.append(
+            &mut std::mem::take(&mut embed.ui.gesture_handlers)
                 .into_iter()
                 .map(|h| {
                     (
@@ -117,22 +144,22 @@ impl<State: 'static> RcUi<State> {
                         GestureHandler {
                             on_click: h.2.on_click.map(|o_c| {
                                 let r: ClickHandler<State> = Box::new(move |state, click_state| {
-                                    let scoped = scope(state);
-                                    (o_c)(scoped, click_state);
+                                    let mut scoped = scope(state);
+                                    (o_c)(&mut scoped, click_state);
                                 });
                                 r
                             }),
                             on_drag: h.2.on_drag.map(|o_c| {
                                 let r: DragHandler<State> = Box::new(move |state, drag_state| {
-                                    let scoped = scope(state);
-                                    (o_c)(scoped, drag_state);
+                                    let mut scoped = scope(state);
+                                    (o_c)(&mut scoped, drag_state);
                                 });
                                 r
                             }),
                             on_hover: h.2.on_hover.map(|o_c| {
                                 let r: HoverHandler<State> = Box::new(move |state, on_hover| {
-                                    let scoped = scope(state);
-                                    (o_c)(scoped, on_hover);
+                                    let mut scoped = scope(state);
+                                    (o_c)(&mut scoped, on_hover);
                                 });
                                 r
                             }),
@@ -143,13 +170,13 @@ impl<State: 'static> RcUi<State> {
         );
     }
     pub fn scope_ui<T>(&mut self, scope: impl Fn(&mut State) -> T + 'static + Copy) -> RcUi<T> {
-        let child_cx = RefCell::borrow_mut(&self.ui).cx.take();
+        let child_cx = self.ui.cx.take();
         RcUi {
-            ui: Rc::new(RefCell::new(Ui {
-                state: scope(&mut RefCell::borrow_mut(&self.ui).state),
+            ui: Ui {
+                state: scope(&mut self.ui.state),
                 gesture_handlers: Vec::new(),
                 cx: child_cx,
-            })),
+            },
         }
     }
 }

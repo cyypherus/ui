@@ -6,8 +6,7 @@ use backer::nodes::{draw_object, dynamic};
 use backer::traits::Drawable;
 use backer::{models::Area, Node};
 use lilt::{Animated, Easing};
-use std::cell::{Ref, RefCell, RefMut};
-use std::hash::DefaultHasher;
+
 use std::time::Instant;
 
 // A simple const FNV-1a hash for our purposes
@@ -46,19 +45,15 @@ macro_rules! id {
 }
 
 pub fn dynamic_view<'a, State: 'a>(
-    view: impl Fn(RefMut<State>) -> View<State> + 'a,
+    view: impl Fn(&mut State) -> View<State> + 'a,
 ) -> Node<'a, RcUi<State>> {
-    dynamic(move |ui: &mut RcUi<State>| {
-        view(RefMut::map(RefCell::borrow_mut(&ui.ui), |ui| &mut ui.state)).view(ui)
-    })
+    dynamic(move |ui: &mut RcUi<State>| view(&mut ui.ui.state).view(ui))
 }
 
 pub fn dynamic_node<'a, State: 'a>(
-    view: impl Fn(RefMut<State>) -> Node<'a, RcUi<State>> + 'a,
+    view: impl Fn(&State) -> Node<'a, RcUi<State>> + 'a,
 ) -> Node<'a, RcUi<State>> {
-    dynamic(move |ui: &mut RcUi<State>| {
-        view(RefMut::map(RefCell::borrow_mut(&ui.ui), |ui| &mut ui.state))
-    })
+    dynamic(move |ui: &mut RcUi<State>| view(&ui.ui.state))
 }
 
 pub fn view<'a, State: 'a>(view: impl Fn() -> View<State> + 'a) -> Node<'a, RcUi<State>> {
@@ -82,7 +77,7 @@ pub(crate) trait ViewTrait<'s, State>: Sized {
 
 #[derive(Debug)]
 pub(crate) enum AnimatedView {
-    Rect(AnimatedRect),
+    Rect(Box<AnimatedRect>),
     Text(Box<AnimatedText>),
 }
 
@@ -165,7 +160,6 @@ impl<State> Drawable<RcUi<State>> for View<State> {
         let now = Instant::now();
         let mut anim = state
             .ui
-            .borrow_mut()
             .cx
             .as_mut()
             .unwrap()
@@ -210,7 +204,7 @@ impl<State> Drawable<RcUi<State>> for View<State> {
             if !visible || visibility == 0. {
                 return;
             }
-            RefCell::borrow_mut(&state.ui).gesture_handlers.push((
+            state.ui.gesture_handlers.push((
                 self.id(),
                 area,
                 GestureHandler {
@@ -226,7 +220,6 @@ impl<State> Drawable<RcUi<State>> for View<State> {
         }
         state
             .ui
-            .borrow_mut()
             .cx
             .as_mut()
             .unwrap()
