@@ -1,45 +1,47 @@
-use haven::{
-    dynamic, dynamic_node, dynamic_view, id, rect, row_spaced, scoper, stack, text, App,
-    ClickState, Color, Node, RcUi,
-};
+use haven::*;
+// use haven::{
+//     dynamic, dynamic_node, dynamic_view, id, rect, row_spaced, scoper, stack, svg, text, view, App,
+//     ClickState, Color, Node, RcUi,
+// };
 
-#[derive(Clone)]
-struct UserState {
-    button: Vec<ButtonState<i32>>,
+#[derive(Clone, Default)]
+struct AppState {
+    hovered: bool,
 }
 
 fn main() {
     App::start(
-        UserState {
-            button: vec![ButtonState::new(0, |state| *state += 1); 100],
-        },
-        dynamic(|_| {
-            row_spaced(
-                10.,
-                (0..30)
-                    .map(|i| {
-                        dynamic_node(move |st: &UserState| {
-                            stack(vec![
-                                scoper(
-                                    move |st: &mut UserState| st.button[i].clone(),
-                                    move |st: &mut UserState, b: ButtonState<i32>| st.button[i] = b,
-                                    button(id!(i as u64)),
-                                ),
-                                dynamic_view(move |st: &mut UserState| {
-                                    text(id!(i as u64), st.button[i].state.to_string())
-                                        .fill(Color::WHITE)
-                                        .finish()
-                                }),
-                            ])
-                            .width((10 * (st.button[i].state + 3)) as f32)
-                        })
-                    })
-                    .collect::<Vec<_>>(),
-            )
-            .height(100.)
+        AppState::default(),
+        dynamic_node(|s: &mut AppState| {
+            view(|| {
+                svg(id!(), || std::fs::read("assets/tiger.svg").unwrap())
+                    .finish()
+                    .on_hover(|s: &mut AppState, hovered| s.hovered = hovered)
+            })
+            .width(if s.hovered { 550. } else { 500. })
+            .height(if s.hovered { 550. } else { 500. })
+            .attach_under(dynamic_view(|s: &mut AppState| {
+                rect(id!())
+                    .stroke(
+                        if s.hovered {
+                            Color::from_rgb8(200, 200, 200)
+                        } else {
+                            Color::from_rgb8(100, 100, 100)
+                        },
+                        if s.hovered { 9. } else { 3. },
+                    )
+                    .corner_rounding(30.)
+                    .finish()
+            }))
         }),
     )
 }
+
+// scoper(
+//     move |st: &mut UserState| st.button[i].clone(),
+//     move |st: &mut UserState, b: ButtonState<i32>| st.button[i] = b,
+//     button(id!(i as u64)),
+// ),
 
 #[derive(Debug, Clone)]
 struct ButtonState<F> {

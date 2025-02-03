@@ -13,11 +13,14 @@ use vello_svg::vello::util::RenderSurface;
 use vello_svg::vello::Scene;
 use winit::window::Window;
 
+type ImageData = HashMap<u64, (Area, fn() -> Vec<u8>)>;
+
 pub struct Ui<State> {
     pub state: State,
     pub gesture_handlers: Vec<(u64, Area, GestureHandler<State>)>,
     pub cx: Option<UiCx>,
-    pub(crate) images: HashMap<String, Area>,
+    pub(crate) images: ImageData,
+    pub(crate) now: Instant,
 }
 
 #[derive(Debug, Clone)]
@@ -79,6 +82,7 @@ pub fn scoper<'n, State, Scoped: 'n + 'static>(
                     gesture_handlers: Vec::new(),
                     cx: child_cx,
                     images: HashMap::new(),
+                    now: ui.ui.now,
                 },
             }
         },
@@ -124,7 +128,7 @@ pub fn scoper<'n, State, Scoped: 'n + 'static>(
                     })
                     .collect::<Vec<_>>(),
             );
-            ui.ui.images = std::mem::take(&mut embedded.ui.images);
+            ui.ui.images.extend(embedded.ui.images);
             embed(&mut ui.ui.state, embedded.ui.state)
         },
         node,

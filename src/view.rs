@@ -1,4 +1,5 @@
 use crate::rect::{AnimatedRect, Rect};
+use crate::svg::Svg;
 use crate::text::{AnimatedText, Text};
 use crate::ui::{AnimArea, RcUi};
 use crate::{ClickState, DragState, GestureHandler};
@@ -6,8 +7,6 @@ use backer::nodes::{draw_object, dynamic};
 use backer::traits::Drawable;
 use backer::{models::Area, Node};
 use lilt::{Animated, Easing};
-
-use std::time::Instant;
 
 // A simple const FNV-1a hash for our purposes
 const FNV_OFFSET: u64 = 1469598103934665603;
@@ -51,9 +50,9 @@ pub fn dynamic_view<'a, State: 'a>(
 }
 
 pub fn dynamic_node<'a, State: 'a>(
-    view: impl Fn(&State) -> Node<'a, RcUi<State>> + 'a,
+    view: impl Fn(&mut State) -> Node<'a, RcUi<State>> + 'a,
 ) -> Node<'a, RcUi<State>> {
-    dynamic(move |ui: &mut RcUi<State>| view(&ui.ui.state))
+    dynamic(move |ui: &mut RcUi<State>| view(&mut ui.ui.state))
 }
 
 pub fn view<'a, State: 'a>(view: impl Fn() -> View<State> + 'a) -> Node<'a, RcUi<State>> {
@@ -69,6 +68,7 @@ pub struct View<State> {
 pub(crate) enum ViewType {
     Text(Text),
     Rect(Rect),
+    Svg(Svg),
 }
 
 pub(crate) trait ViewTrait<'s, State>: Sized {
@@ -98,6 +98,7 @@ impl<State> View<State> {
         match self.view_type {
             ViewType::Text(ref mut view) => view.easing = Some(easing),
             ViewType::Rect(ref mut view) => view.easing = Some(easing),
+            ViewType::Svg(ref mut view) => view.easing = Some(easing),
         }
         self
     }
@@ -105,6 +106,7 @@ impl<State> View<State> {
         match self.view_type {
             ViewType::Text(ref mut view) => view.duration = Some(duration_ms),
             ViewType::Rect(ref mut view) => view.duration = Some(duration_ms),
+            ViewType::Svg(ref mut view) => view.duration = Some(duration_ms),
         }
         self
     }
@@ -112,6 +114,7 @@ impl<State> View<State> {
         match self.view_type {
             ViewType::Text(ref mut view) => view.delay = delay_ms,
             ViewType::Rect(ref mut view) => view.delay = delay_ms,
+            ViewType::Svg(ref mut view) => view.delay = delay_ms,
         }
         self
     }
@@ -119,12 +122,14 @@ impl<State> View<State> {
         match &self.view_type {
             ViewType::Text(view) => view.id,
             ViewType::Rect(view) => view.id,
+            ViewType::Svg(view) => view.id,
         }
     }
     fn get_easing(&self) -> Easing {
         match &self.view_type {
             ViewType::Text(view) => view.easing,
             ViewType::Rect(view) => view.easing,
+            ViewType::Svg(view) => view.easing,
         }
         .unwrap_or(Easing::EaseOut)
     }
@@ -132,6 +137,7 @@ impl<State> View<State> {
         match &self.view_type {
             ViewType::Text(view) => view.duration,
             ViewType::Rect(view) => view.duration,
+            ViewType::Svg(view) => view.duration,
         }
         .unwrap_or(200.)
     }
@@ -139,6 +145,7 @@ impl<State> View<State> {
         match &self.view_type {
             ViewType::Text(view) => view.delay,
             ViewType::Rect(view) => view.delay,
+            ViewType::Svg(view) => view.delay,
         }
     }
 }
@@ -151,13 +158,13 @@ impl<State> View<State> {
         match self.view_type.clone() {
             ViewType::Text(view) => view.view(ui, draw_object(self)),
             ViewType::Rect(view) => view.view(ui, draw_object(self)),
+            ViewType::Svg(view) => view.view(ui, draw_object(self)),
         }
     }
 }
 
 impl<State> Drawable<RcUi<State>> for View<State> {
     fn draw(&mut self, area: Area, state: &mut RcUi<State>, visible: bool) {
-        let now = Instant::now();
         let mut anim = state
             .ui
             .cx
@@ -188,18 +195,18 @@ impl<State> Drawable<RcUi<State>> for View<State> {
                     .easing(self.get_easing())
                     .delay(self.get_delay()),
             });
-        anim.visible.transition(visible, now);
-        anim.x.transition(area.x, now);
-        anim.y.transition(area.y, now);
-        anim.width.transition(area.width, now);
-        anim.height.transition(area.height, now);
-        if visible || anim.visible.in_progress(now) {
-            let visibility = anim.visible.animate_bool(0., 1., now);
+        anim.visible.transition(visible, state.ui.now);
+        anim.x.transition(area.x, state.ui.now);
+        anim.y.transition(area.y, state.ui.now);
+        anim.width.transition(area.width, state.ui.now);
+        anim.height.transition(area.height, state.ui.now);
+        if visible || anim.visible.in_progress(state.ui.now) {
+            let visibility = anim.visible.animate_bool(0., 1., state.ui.now);
             let area = Area {
-                x: anim.x.animate_wrapped(now),
-                y: anim.y.animate_wrapped(now),
-                width: anim.width.animate_wrapped(now),
-                height: anim.height.animate_wrapped(now),
+                x: anim.x.animate_wrapped(state.ui.now),
+                y: anim.y.animate_wrapped(state.ui.now),
+                width: anim.width.animate_wrapped(state.ui.now),
+                height: anim.height.animate_wrapped(state.ui.now),
             };
             if !visible || visibility == 0. {
                 return;
@@ -216,6 +223,7 @@ impl<State> Drawable<RcUi<State>> for View<State> {
             match &mut self.view_type {
                 ViewType::Text(view) => view.draw(area, state, visible, visibility),
                 ViewType::Rect(view) => view.draw(area, state, visible, visibility),
+                ViewType::Svg(view) => view.draw(area, state, visible, visibility),
             }
         }
         state

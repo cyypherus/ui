@@ -114,7 +114,6 @@ impl Text {
         if !visible && visible_amount == 0. {
             return;
         }
-        let now = Instant::now();
         let AnimatedView::Text(mut animated) = state
             .ui
             .cx()
@@ -124,7 +123,7 @@ impl Text {
         else {
             return;
         };
-        AnimatedText::update(now, self, &mut animated);
+        AnimatedText::update(state.ui.now, self, &mut animated);
         let mut layout = state.ui.cx().with_font_layout_ctx(|layout_cx, font_cx| {
             let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
             let mut builder = layout_cx.tree_builder(
@@ -134,7 +133,7 @@ impl Text {
                     brush: [255, 0, 0, 0],
                     font_stack,
                     line_height: 1.3,
-                    font_size: 16.0,
+                    font_size: self.font_size as f32,
                     ..Default::default()
                 },
             );
@@ -146,9 +145,9 @@ impl Text {
         layout.align(None, parley::Alignment::Middle, true);
 
         let anim_fill = Color::from_rgba8(
-            animated.fill.r.animate_wrapped(now).0,
-            animated.fill.g.animate_wrapped(now).0,
-            animated.fill.b.animate_wrapped(now).0,
+            animated.fill.r.animate_wrapped(state.ui.now).0,
+            animated.fill.g.animate_wrapped(state.ui.now).0,
+            animated.fill.b.animate_wrapped(state.ui.now).0,
             255,
         )
         .multiply_alpha(visible_amount);
@@ -225,7 +224,7 @@ impl<'s, State> ViewTrait<'s, State> for Text {
                     brush: [255, 0, 0, 0],
                     font_stack,
                     line_height: 1.3,
-                    font_size: 16.0,
+                    font_size: self.font_size as f32,
                     ..Default::default()
                 },
             );

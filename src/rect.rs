@@ -27,8 +27,7 @@ pub(crate) struct AnimatedRect {
 }
 
 impl AnimatedRect {
-    pub(crate) fn update(from: &Rect, existing: &mut AnimatedRect) {
-        let now = Instant::now();
+    pub(crate) fn update(now: Instant, from: &Rect, existing: &mut AnimatedRect) {
         if let (Some(existing_fill), Some(new_fill)) = (&mut existing.fill, from.fill) {
             existing_fill
                 .r
@@ -184,14 +183,13 @@ impl Rect {
         else {
             return;
         };
-        AnimatedRect::update(self, &mut animated);
-        let now = Instant::now();
+        AnimatedRect::update(state.ui.now, self, &mut animated);
         let path = RoundedRect::from_rect(
             vello_svg::vello::kurbo::Rect::from_origin_size(
                 vello_svg::vello::kurbo::Point::new(area.x as f64, area.y as f64),
                 vello_svg::vello::kurbo::Size::new(area.width as f64, area.height as f64),
             ),
-            animated.radius.animate_wrapped(now) as f64,
+            animated.radius.animate_wrapped(state.ui.now) as f64,
         )
         .to_path(0.01);
         if animated.fill.is_none() && animated.stroke.is_none() {
@@ -208,9 +206,9 @@ impl Rect {
                     Fill::EvenOdd,
                     Affine::IDENTITY,
                     Color::from_rgba8(
-                        fill.r.animate_wrapped(now).0,
-                        fill.g.animate_wrapped(now).0,
-                        fill.b.animate_wrapped(now).0,
+                        fill.r.animate_wrapped(state.ui.now).0,
+                        fill.g.animate_wrapped(state.ui.now).0,
+                        fill.b.animate_wrapped(state.ui.now).0,
                         255,
                     )
                     .multiply_alpha(visible_amount),
@@ -219,6 +217,7 @@ impl Rect {
                 )
             }
             if let Some((stroke, width)) = &animated.stroke {
+                let now = state.ui.now;
                 state.ui.cx().scene.stroke(
                     &Stroke::new(width.animate_wrapped(now) as f64),
                     Affine::IDENTITY,
