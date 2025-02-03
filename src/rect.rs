@@ -1,8 +1,9 @@
+use crate::animated_color::{AnimatedColor, AnimatedU8};
 use crate::ui::RcUi;
 use crate::view::{AnimatedView, View, ViewTrait, ViewType};
 use crate::{GestureHandler, DEFAULT_DURATION, DEFAULT_EASING};
 use backer::{models::Area, Node};
-use lilt::{Animated, Easing, FloatRepresentable, Interpolable};
+use lilt::{Animated, Easing};
 use std::time::Instant;
 use vello_svg::vello::kurbo::{RoundedRect, Shape, Stroke};
 use vello_svg::vello::peniko::{Brush, Fill};
@@ -29,29 +30,13 @@ pub(crate) struct AnimatedRect {
 impl AnimatedRect {
     pub(crate) fn update(now: Instant, from: &Rect, existing: &mut AnimatedRect) {
         if let (Some(existing_fill), Some(new_fill)) = (&mut existing.fill, from.fill) {
-            existing_fill
-                .r
-                .transition(AnimatedU8(new_fill.to_rgba8().r), now);
-            existing_fill
-                .g
-                .transition(AnimatedU8(new_fill.to_rgba8().g), now);
-            existing_fill
-                .b
-                .transition(AnimatedU8(new_fill.to_rgba8().b), now);
+            existing_fill.transition(now, new_fill);
         }
         existing.radius.transition(from.radius, now);
         if let (Some((existing_stroke, existing_width)), Some((new_stroke, new_width))) =
             (&mut existing.stroke, from.stroke)
         {
-            existing_stroke
-                .r
-                .transition(AnimatedU8(new_stroke.to_rgba8().r), now);
-            existing_stroke
-                .g
-                .transition(AnimatedU8(new_stroke.to_rgba8().g), now);
-            existing_stroke
-                .b
-                .transition(AnimatedU8(new_stroke.to_rgba8().b), now);
+            existing_stroke.transition(now, new_stroke);
             existing_width.transition(new_width, now);
         }
     }
@@ -101,31 +86,6 @@ impl AnimatedRect {
     }
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct AnimatedColor {
-    pub(crate) r: Animated<AnimatedU8, Instant>,
-    pub(crate) g: Animated<AnimatedU8, Instant>,
-    pub(crate) b: Animated<AnimatedU8, Instant>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct AnimatedU8(pub(crate) u8);
-
-impl FloatRepresentable for AnimatedU8 {
-    fn float_value(&self) -> f32 {
-        self.0 as f32
-    }
-}
-
-impl Interpolable for AnimatedU8 {
-    fn interpolated(&self, other: Self, ratio: f32) -> Self {
-        let start = self.0 as f32;
-        let end = other.0 as f32;
-        let result = start + (end - start) * ratio;
-        AnimatedU8(result.round().clamp(0.0, 255.0) as u8)
-    }
-}
-
 pub fn rect(id: u64) -> Rect {
     Rect {
         id,
@@ -151,13 +111,14 @@ impl Rect {
         self.stroke = Some((color, line_width));
         self
     }
-    pub fn finish<State>(self) -> View<State> {
+    pub fn view<State>(self) -> View<State> {
         View {
             view_type: ViewType::Rect(self),
             gesture_handler: GestureHandler {
                 on_click: None,
                 on_drag: None,
                 on_hover: None,
+                on_key: None,
             },
         }
     }
@@ -241,22 +202,14 @@ impl Rect {
             .view_state
             .insert(self.id, AnimatedView::Rect(animated));
     }
-    // fn id(&self) -> &u64 {
-    //     &self.id
-    // }
-    // fn easing(&self) -> backer::Easing {
-    //     self.easing.unwrap_or(backer::Easing::EaseOut)
-    // }
-    // fn duration(&self) -> f32 {
-    //     self.duration.unwrap_or(200.)
-    // }
-    // fn delay(&self) -> f32 {
-    //     self.delay
-    // }
 }
 
 impl<'s, State> ViewTrait<'s, State> for Rect {
-    fn view(self, _ui: &mut RcUi<State>, node: Node<'s, RcUi<State>>) -> Node<'s, RcUi<State>> {
+    fn create_node(
+        self,
+        _ui: &mut RcUi<State>,
+        node: Node<'s, RcUi<State>>,
+    ) -> Node<'s, RcUi<State>> {
         node
     }
 }

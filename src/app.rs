@@ -120,28 +120,35 @@ impl<'n, State: Clone> App<'_, 'n, State> {
                 }
                 let image_data = self.images.get(&id).unwrap();
                 if self.image_scenes.get(&id).is_none() {
-                    let svg = vello_svg::usvg::Tree::from_data(
+                    match vello_svg::usvg::Tree::from_data(
                         image_data,
                         &vello_svg::usvg::Options::default(),
-                    )
-                    .expect("Invalid SVG");
-                    let svg_scene = vello_svg::render_tree(&svg);
-                    let size = svg.size();
-                    self.image_scenes
-                        .insert(id, (svg_scene, size.width(), size.height()));
+                    ) {
+                        Err(err) => {
+                            eprintln!("Loading svg failed: {err}");
+                            self.image_scenes.insert(id, (Scene::new(), 0., 0.));
+                        }
+                        Ok(svg) => {
+                            let svg_scene = vello_svg::render_tree(&svg);
+                            let size = svg.size();
+                            self.image_scenes
+                                .insert(id, (svg_scene, size.width(), size.height()));
+                        }
+                    }
                 }
-                let (svg_scene, width, height) = self.image_scenes.get(&id).unwrap();
-                self.cx.as_mut().unwrap().scene.append(
-                    svg_scene,
-                    Some(
-                        Affine::IDENTITY
-                            .then_scale_non_uniform(
-                                (area.width / width) as f64,
-                                (area.height / height) as f64,
-                            )
-                            .then_translate(Vec2::new(area.x as f64, area.y as f64)),
-                    ),
-                );
+                if let Some((svg_scene, width, height)) = self.image_scenes.get(&id) {
+                    self.cx.as_mut().unwrap().scene.append(
+                        svg_scene,
+                        Some(
+                            Affine::IDENTITY
+                                .then_scale_non_uniform(
+                                    (area.width / width) as f64,
+                                    (area.height / height) as f64,
+                                )
+                                .then_translate(Vec2::new(area.x as f64, area.y as f64)),
+                        ),
+                    );
+                }
             }
         }
         let Self {
@@ -262,7 +269,16 @@ impl<State: Clone> ApplicationHandler for App<'_, '_, State> {
         if let Some(event) = crate::event::WindowEvent::from_winit_window_event(event) {
             match event {
                 event::WindowEvent::Moved(_) => {}
-                event::WindowEvent::KeyPressed(_) => {}
+                event::WindowEvent::KeyPressed(key) => {
+                    let Some(key) = crate::Key::from(key) else {
+                        return;
+                    };
+                    for handler in self.gesture_handlers.as_ref().unwrap().iter() {
+                        if let Some(ref on_key) = handler.2.on_key {
+                            (on_key)(&mut self.state, key.clone());
+                        }
+                    }
+                }
                 event::WindowEvent::KeyReleased(_) => {}
                 event::WindowEvent::MouseMoved(pos) => self.mouse_moved(pos),
                 event::WindowEvent::MousePressed(MouseButton::Left) => self.mouse_pressed(),

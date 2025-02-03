@@ -1,4 +1,6 @@
+mod animated_color;
 mod app;
+mod circle;
 mod custom_view;
 mod event;
 mod gestures;
@@ -11,17 +13,19 @@ mod view;
 
 pub use app::App;
 pub use backer::{models::*, nodes::*, Layout, Node};
+pub use circle::circle;
 pub use gestures::{ClickState, DragState, GestureHandler, GestureState};
 use lilt::Easing;
 pub use rect::rect;
 pub use svg::svg;
-pub use text::text;
+pub use text::{text, TextAlign};
 pub use ui::{scoper, RcUi, Ui};
 pub use vello_svg::vello::peniko::Color;
 pub use view::const_hash;
-pub use view::{dynamic_node, dynamic_view, view};
+pub use view::dynamic_node;
+pub use winit::keyboard::NamedKey;
 
-use primitives::*;
+pub use primitives::*;
 
 const RUBIK_FONT: &[u8] = include_bytes!("../assets/Rubik-VariableFont_wght.ttf");
 const DEFAULT_EASING: Easing = Easing::EaseOut;

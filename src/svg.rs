@@ -4,7 +4,7 @@ use crate::GestureHandler;
 use backer::{models::Area, Node};
 use lilt::Easing;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Svg {
     pub(crate) id: u64,
     pub(crate) source: fn() -> Vec<u8>,
@@ -24,13 +24,14 @@ pub fn svg(id: u64, source: fn() -> Vec<u8>) -> Svg {
 }
 
 impl Svg {
-    pub fn finish<State>(self) -> View<State> {
+    pub fn view<State>(self) -> View<State> {
         View {
             view_type: ViewType::Svg(self),
             gesture_handler: GestureHandler {
                 on_click: None,
                 on_drag: None,
                 on_hover: None,
+                on_key: None,
             },
         }
     }
@@ -52,7 +53,11 @@ impl Svg {
 }
 
 impl<'s, State> ViewTrait<'s, State> for Svg {
-    fn view(self, _ui: &mut RcUi<State>, node: Node<'s, RcUi<State>>) -> Node<'s, RcUi<State>> {
+    fn create_node(
+        self,
+        _ui: &mut RcUi<State>,
+        node: Node<'s, RcUi<State>>,
+    ) -> Node<'s, RcUi<State>> {
         node
     }
 }

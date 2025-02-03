@@ -1,42 +1,42 @@
 use haven::*;
-// use haven::{
-//     dynamic, dynamic_node, dynamic_view, id, rect, row_spaced, scoper, stack, svg, text, view, App,
-//     ClickState, Color, Node, RcUi,
-// };
 
 #[derive(Clone, Default)]
 struct AppState {
-    hovered: bool,
+    text: String,
 }
 
 fn main() {
     App::start(
         AppState::default(),
         dynamic_node(|s: &mut AppState| {
-            view(|| {
-                svg(id!(), || std::fs::read("assets/tiger.svg").unwrap())
-                    .finish()
-                    .on_hover(|s: &mut AppState, hovered| s.hovered = hovered)
-            })
-            .width(if s.hovered { 550. } else { 500. })
-            .height(if s.hovered { 550. } else { 500. })
-            .attach_under(dynamic_view(|s: &mut AppState| {
-                rect(id!())
-                    .stroke(
-                        if s.hovered {
-                            Color::from_rgb8(200, 200, 200)
-                        } else {
-                            Color::from_rgb8(100, 100, 100)
-                        },
-                        if s.hovered { 9. } else { 3. },
-                    )
-                    .corner_rounding(30.)
-                    .finish()
-            }))
+            stack(vec![text(id!(), s.text.clone())
+                .fill(Color::WHITE)
+                .align(TextAlign::Leading)
+                .view()
+                .on_key(|s: &mut AppState, key| match key {
+                    Key::Named(NamedKey::Space) => s.text.push(' '),
+                    Key::Named(NamedKey::Enter) => s.text.push('\n'),
+                    Key::Named(NamedKey::Backspace) => {
+                        s.text.pop();
+                    }
+                    Key::Character(c) => s.text.extend(c.as_str().chars()),
+                    Key::Named(_) => (),
+                })
+                .finish()
+                .width(300.)
+                .attach_under(
+                    rect(id!()).stroke(Color::WHITE, 1.).view().finish(),
+                )])
         }),
     )
 }
 
+// svg(id!(), || std::fs::read("assets/tiger.svg").unwrap())
+//     .view()
+//     .on_hover(|s: &mut AppState, hovered| s.hovered = hovered)
+//     .finish()
+//     .width(if s.hovered { 550. } else { 500. })
+//     .height(if s.hovered { 550. } else { 500. })
 // scoper(
 //     move |st: &mut UserState| st.button[i].clone(),
 //     move |st: &mut UserState, b: ButtonState<i32>| st.button[i] = b,
@@ -65,8 +65,8 @@ impl<F> ButtonState<F> {
 }
 
 fn button<'n, F: 'n>(id: u64) -> Node<'n, RcUi<ButtonState<F>>> {
-    stack(vec![dynamic_view(move |ui: &mut ButtonState<F>| {
-        rect(id!(id))
+    dynamic_node(move |ui: &mut ButtonState<F>| {
+        stack(vec![rect(id!(id))
             .stroke(
                 {
                     match (ui.depressed, ui.hovered) {
@@ -84,7 +84,7 @@ fn button<'n, F: 'n>(id: u64) -> Node<'n, RcUi<ButtonState<F>>> {
                 (false, false) => Color::from_rgb8(10, 10, 10),
             })
             .corner_rounding(if ui.hovered { 10. } else { 5. })
-            .finish()
+            .view()
             .on_hover(|state: &mut ButtonState<F>, hovered| state.hovered = hovered)
             .on_click(
                 move |state: &mut ButtonState<F>, click_state| match click_state {
@@ -97,5 +97,6 @@ fn button<'n, F: 'n>(id: u64) -> Node<'n, RcUi<ButtonState<F>>> {
                     }
                 },
             )
-    })])
+            .finish()])
+    })
 }

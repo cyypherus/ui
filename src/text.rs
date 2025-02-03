@@ -1,5 +1,5 @@
+use crate::animated_color::{AnimatedColor, AnimatedU8};
 use crate::{
-    rect::{AnimatedColor, AnimatedU8},
     ui::RcUi,
     view::{AnimatedView, View, ViewTrait, ViewType},
     GestureHandler, DEFAULT_DURATION, DEFAULT_EASING,
@@ -17,12 +17,13 @@ pub fn text(id: u64, text: impl AsRef<str> + 'static) -> Text {
     Text {
         id,
         text: text.as_ref().to_owned(),
-        font_size: 40,
+        font_size: 20,
         // font: None,
         fill: Color::BLACK,
         easing: None,
         duration: None,
         delay: 0.,
+        alignment: TextAlign::Centered,
     }
 }
 
@@ -32,10 +33,30 @@ pub struct Text {
     text: String,
     fill: Color,
     font_size: u32,
+    alignment: TextAlign,
     // font: Option<font::Id>,
     pub(crate) easing: Option<Easing>,
     pub(crate) duration: Option<f32>,
     pub(crate) delay: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum TextAlign {
+    Leading,
+    Centered,
+    Trailing,
+    Justified,
+}
+
+impl From<TextAlign> for parley::Alignment {
+    fn from(value: TextAlign) -> Self {
+        match value {
+            TextAlign::Leading => parley::Alignment::Start,
+            TextAlign::Centered => parley::Alignment::Middle,
+            TextAlign::Trailing => parley::Alignment::End,
+            TextAlign::Justified => parley::Alignment::Justified,
+        }
+    }
 }
 
 impl Text {
@@ -47,17 +68,22 @@ impl Text {
         self.font_size = size;
         self
     }
+    pub fn align(mut self, align: TextAlign) -> Self {
+        self.alignment = align;
+        self
+    }
     // pub(crate) fn font(mut self, font_id: font::Id) -> Self {
     //     self.font = Some(font_id);
     //     self
     // }
-    pub fn finish<State>(self) -> View<State> {
+    pub fn view<State>(self) -> View<State> {
         View {
             view_type: ViewType::Text(self),
             gesture_handler: GestureHandler {
                 on_click: None,
                 on_drag: None,
                 on_hover: None,
+                on_key: None,
             },
         }
     }
@@ -140,9 +166,8 @@ impl Text {
             builder.push_text(&self.text);
             builder.build().0
         });
-
-        layout.break_all_lines(None);
-        layout.align(None, parley::Alignment::Middle, true);
+        layout.break_all_lines(Some(area.width));
+        layout.align(Some(area.width), self.alignment.into(), true);
 
         let anim_fill = Color::from_rgba8(
             animated.fill.r.animate_wrapped(state.ui.now).0,
@@ -198,41 +223,34 @@ impl Text {
             .view_state
             .insert(self.id, AnimatedView::Text(animated));
     }
-
-    // fn id(&self) -> &u64 {
-    //     &self.id
-    // }
-    // fn easing(&self) -> backer::Easing {
-    //     backer::Easing::EaseOut
-    // }
-    // fn duration(&self) -> f32 {
-    //     0.
-    // }
-    // fn delay(&self) -> f32 {
-    //     0.
-    // }
 }
 
 impl<'s, State> ViewTrait<'s, State> for Text {
-    fn view(self, ui: &mut RcUi<State>, node: Node<'s, RcUi<State>>) -> Node<'s, RcUi<State>> {
-        let mut layout = ui.ui.cx().with_font_layout_ctx(|layout_cx, font_cx| {
-            let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
-            let mut builder = layout_cx.tree_builder(
-                font_cx,
-                1.,
-                &TextStyle {
-                    brush: [255, 0, 0, 0],
-                    font_stack,
-                    line_height: 1.3,
-                    font_size: self.font_size as f32,
-                    ..Default::default()
-                },
-            );
-            builder.push_text(&self.text);
-            builder.build().0
-        });
-        layout.break_all_lines(None);
-        layout.align(None, parley::Alignment::Middle, true);
-        node.width(layout.full_width()).height(layout.height())
+    fn create_node(
+        self,
+        _ui: &mut RcUi<State>,
+        node: Node<'s, RcUi<State>>,
+    ) -> Node<'s, RcUi<State>> {
+        node.dynamic_height(move |width, ui| {
+            let mut layout = ui.ui.cx().with_font_layout_ctx(|layout_cx, font_cx| {
+                let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
+                let mut builder = layout_cx.tree_builder(
+                    font_cx,
+                    1.,
+                    &TextStyle {
+                        brush: [255, 0, 0, 0],
+                        font_stack,
+                        line_height: 1.3,
+                        font_size: self.font_size as f32,
+                        ..Default::default()
+                    },
+                );
+                builder.push_text(&self.text);
+                builder.build().0
+            });
+            layout.break_all_lines(Some(width));
+            layout.align(Some(width), self.alignment.into(), true);
+            layout.height()
+        })
     }
 }

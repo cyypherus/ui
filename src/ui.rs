@@ -1,5 +1,5 @@
 use crate::{
-    gestures::{ClickHandler, DragHandler, HoverHandler},
+    gestures::{ClickHandler, DragHandler, HoverHandler, KeyHandler},
     view::AnimatedView,
     GestureHandler,
 };
@@ -98,7 +98,7 @@ pub fn scoper<'n, State, Scoped: 'n + 'static>(
                             GestureHandler {
                                 on_click: h.2.on_click.map(|o_c| {
                                     let r: ClickHandler<State> =
-                                        Box::new(move |state, click_state| {
+                                        Rc::new(move |state, click_state| {
                                             let mut scoped = scope(state);
                                             (o_c)(&mut scoped, click_state);
                                             embed(state, scoped);
@@ -107,7 +107,7 @@ pub fn scoper<'n, State, Scoped: 'n + 'static>(
                                 }),
                                 on_drag: h.2.on_drag.map(|o_c| {
                                     let r: DragHandler<State> =
-                                        Box::new(move |state, drag_state| {
+                                        Rc::new(move |state, drag_state| {
                                             let mut scoped = scope(state);
                                             (o_c)(&mut scoped, drag_state);
                                             embed(state, scoped);
@@ -115,12 +115,19 @@ pub fn scoper<'n, State, Scoped: 'n + 'static>(
                                     r
                                 }),
                                 on_hover: h.2.on_hover.map(|o_c| {
-                                    let r: HoverHandler<State> =
-                                        Box::new(move |state, on_hover| {
-                                            let mut scoped = scope(state);
-                                            (o_c)(&mut scoped, on_hover);
-                                            embed(state, scoped);
-                                        });
+                                    let r: HoverHandler<State> = Rc::new(move |state, on_hover| {
+                                        let mut scoped = scope(state);
+                                        (o_c)(&mut scoped, on_hover);
+                                        embed(state, scoped);
+                                    });
+                                    r
+                                }),
+                                on_key: h.2.on_key.map(|o_c| {
+                                    let r: KeyHandler<State> = Rc::new(move |state, on_hover| {
+                                        let mut scoped = scope(state);
+                                        (o_c)(&mut scoped, on_hover);
+                                        embed(state, scoped);
+                                    });
                                     r
                                 }),
                             },
