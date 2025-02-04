@@ -118,27 +118,27 @@ impl<State> View<State> {
     pub fn easing(mut self, easing: lilt::Easing) -> Self {
         match self.view_type {
             ViewType::Text(ref mut view) => view.easing = Some(easing),
-            ViewType::Rect(ref mut view) => view.easing = Some(easing),
+            ViewType::Rect(ref mut view) => view.shape.easing = Some(easing),
             ViewType::Svg(ref mut view) => view.easing = Some(easing),
-            ViewType::Circle(ref mut view) => view.easing = Some(easing),
+            ViewType::Circle(ref mut view) => view.shape.easing = Some(easing),
         }
         self
     }
     pub fn transition_duration(mut self, duration_ms: f32) -> Self {
         match self.view_type {
             ViewType::Text(ref mut view) => view.duration = Some(duration_ms),
-            ViewType::Rect(ref mut view) => view.duration = Some(duration_ms),
+            ViewType::Rect(ref mut view) => view.shape.duration = Some(duration_ms),
             ViewType::Svg(ref mut view) => view.duration = Some(duration_ms),
-            ViewType::Circle(ref mut view) => view.duration = Some(duration_ms),
+            ViewType::Circle(ref mut view) => view.shape.duration = Some(duration_ms),
         }
         self
     }
     pub fn transition_delay(mut self, delay_ms: f32) -> Self {
         match self.view_type {
             ViewType::Text(ref mut view) => view.delay = delay_ms,
-            ViewType::Rect(ref mut view) => view.delay = delay_ms,
+            ViewType::Rect(ref mut view) => view.shape.delay = delay_ms,
             ViewType::Svg(ref mut view) => view.delay = delay_ms,
-            ViewType::Circle(ref mut view) => view.delay = delay_ms,
+            ViewType::Circle(ref mut view) => view.shape.delay = delay_ms,
         }
         self
     }
@@ -153,27 +153,27 @@ impl<State> View<State> {
     fn get_easing(&self) -> Easing {
         match &self.view_type {
             ViewType::Text(view) => view.easing,
-            ViewType::Rect(view) => view.easing,
+            ViewType::Rect(view) => view.shape.easing,
             ViewType::Svg(view) => view.easing,
-            ViewType::Circle(view) => view.easing,
+            ViewType::Circle(view) => view.shape.easing,
         }
         .unwrap_or(Easing::EaseOut)
     }
     fn get_duration(&self) -> f32 {
         match &self.view_type {
             ViewType::Text(view) => view.duration,
-            ViewType::Rect(view) => view.duration,
+            ViewType::Rect(view) => view.shape.duration,
             ViewType::Svg(view) => view.duration,
-            ViewType::Circle(view) => view.duration,
+            ViewType::Circle(view) => view.shape.duration,
         }
         .unwrap_or(200.)
     }
     fn get_delay(&self) -> f32 {
         match &self.view_type {
             ViewType::Text(view) => view.delay,
-            ViewType::Rect(view) => view.delay,
+            ViewType::Rect(view) => view.shape.delay,
             ViewType::Svg(view) => view.delay,
-            ViewType::Circle(view) => view.delay,
+            ViewType::Circle(view) => view.shape.delay,
         }
     }
 }

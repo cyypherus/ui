@@ -4,8 +4,9 @@ mod circle;
 mod custom_view;
 mod event;
 mod gestures;
-mod primitives;
+mod models;
 mod rect;
+mod shape;
 mod svg;
 mod text;
 mod ui;
@@ -25,7 +26,7 @@ pub use view::const_hash;
 pub use view::dynamic_node;
 pub use winit::keyboard::NamedKey;
 
-pub use primitives::*;
+pub use models::*;
 
 const RUBIK_FONT: &[u8] = include_bytes!("../assets/Rubik-VariableFont_wght.ttf");
 const DEFAULT_EASING: Easing = Easing::EaseOut;

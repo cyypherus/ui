@@ -10,7 +10,7 @@ pub(crate) struct AnimatedColor {
 }
 
 impl AnimatedColor {
-    pub(crate) fn transition(&mut self, now: Instant, to: AlphaColor<Srgb>) {
+    pub(crate) fn transition(&mut self, to: AlphaColor<Srgb>, now: Instant) {
         self.r.transition(AnimatedU8(to.to_rgba8().r), now);
         self.g.transition(AnimatedU8(to.to_rgba8().g), now);
         self.b.transition(AnimatedU8(to.to_rgba8().b), now);
