@@ -15,6 +15,10 @@ impl AnimatedColor {
         self.g.transition(AnimatedU8(to.to_rgba8().g), now);
         self.b.transition(AnimatedU8(to.to_rgba8().b), now);
     }
+
+    pub(crate) fn in_progress(&self, now: Instant) -> bool {
+        self.r.in_progress(now) || self.g.in_progress(now) || self.b.in_progress(now)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

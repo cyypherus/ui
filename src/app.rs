@@ -30,6 +30,15 @@ pub struct App<'s, 'n, State: Clone> {
     pub(crate) image_scenes: HashMap<u64, (Scene, f32, f32)>,
 }
 
+impl<State: Clone> App<'_, '_, State> {
+    fn request_redraw(&self) {
+        let Some(RenderState { window, .. }) = &self.render_state else {
+            return;
+        };
+        window.request_redraw();
+    }
+}
+
 impl<'n, State: Clone> App<'_, 'n, State> {
     pub fn start(state: State, view: Node<'n, RcUi<State>>) {
         let event_loop = EventLoop::new().expect("Could not create event loop");
@@ -77,6 +86,7 @@ impl<'n, State: Clone> App<'_, 'n, State> {
         event_loop.run_app(&mut app).expect("run to completion");
     }
     fn redraw(&mut self) {
+        let now = Instant::now();
         self.gesture_handlers.as_mut().unwrap().clear();
         if let Self {
             context,
@@ -84,7 +94,6 @@ impl<'n, State: Clone> App<'_, 'n, State> {
             ..
         } = self
         {
-            let now = Instant::now();
             let size = window.inner_size();
             let width = size.width;
             let height = size.height;
@@ -161,7 +170,6 @@ impl<'n, State: Clone> App<'_, 'n, State> {
         else {
             return;
         };
-        window.request_redraw();
 
         let size = window.inner_size();
         let width = size.width;
@@ -202,6 +210,11 @@ impl<'n, State: Clone> App<'_, 'n, State> {
             .device
             .poll(vello_svg::vello::wgpu::Maintain::Wait);
         self.cx.as_mut().unwrap().scene.reset();
+        if self.cx.as_mut().unwrap().animation_bank.in_progress(now)
+            || self.cx.as_ref().unwrap().animations_in_progress(now)
+        {
+            self.request_redraw();
+        }
     }
 }
 
@@ -258,6 +271,7 @@ impl<State: Clone> ApplicationHandler for App<'_, '_, State> {
             Some(render_state)
         };
         self.render_state = render_state;
+        self.request_redraw();
     }
 
     fn window_event(
@@ -270,6 +284,7 @@ impl<State: Clone> ApplicationHandler for App<'_, '_, State> {
             match event {
                 event::WindowEvent::Moved(_) => {}
                 event::WindowEvent::KeyPressed(key) => {
+                    self.request_redraw();
                     let Some(key) = crate::Key::from(key) else {
                         return;
                     };
@@ -280,10 +295,19 @@ impl<State: Clone> ApplicationHandler for App<'_, '_, State> {
                     }
                 }
                 event::WindowEvent::KeyReleased(_) => {}
-                event::WindowEvent::MouseMoved(pos) => self.mouse_moved(pos),
-                event::WindowEvent::MousePressed(MouseButton::Left) => self.mouse_pressed(),
+                event::WindowEvent::MouseMoved(pos) => {
+                    self.request_redraw();
+                    self.mouse_moved(pos)
+                }
+                event::WindowEvent::MousePressed(MouseButton::Left) => {
+                    self.request_redraw();
+                    self.mouse_pressed()
+                }
+                event::WindowEvent::MouseReleased(MouseButton::Left) => {
+                    self.request_redraw();
+                    self.mouse_released()
+                }
                 event::WindowEvent::MousePressed(_) => {}
-                event::WindowEvent::MouseReleased(MouseButton::Left) => self.mouse_released(),
                 event::WindowEvent::MouseReleased(_) => {}
                 event::WindowEvent::MouseEntered => {}
                 event::WindowEvent::MouseExited => {}
@@ -295,10 +319,7 @@ impl<State: Clone> ApplicationHandler for App<'_, '_, State> {
                 event::WindowEvent::Touch(_) => {}
                 event::WindowEvent::TouchPressure(_) => {}
                 event::WindowEvent::Focused => {
-                    let Some(RenderState { window, .. }) = &self.render_state else {
-                        return;
-                    };
-                    window.request_redraw();
+                    self.request_redraw();
                 }
                 event::WindowEvent::Unfocused => {}
                 event::WindowEvent::Closed => event_loop.exit(),

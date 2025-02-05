@@ -23,6 +23,7 @@ pub use text::{text, TextAlign};
 pub use ui::{scoper, RcUi, Ui};
 pub use vello_svg::vello::peniko::Color;
 pub use view::const_hash;
+pub use view::custom_view;
 pub use view::dynamic_node;
 pub use winit::keyboard::NamedKey;
 

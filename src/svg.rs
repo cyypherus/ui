@@ -1,7 +1,7 @@
 use crate::ui::RcUi;
-use crate::view::{View, ViewTrait, ViewType};
+use crate::view::{View, ViewType};
 use crate::GestureHandler;
-use backer::{models::Area, Node};
+use backer::models::Area;
 use lilt::Easing;
 
 #[derive(Debug, Clone, Copy)]
@@ -24,7 +24,7 @@ pub fn svg(id: u64, source: fn() -> Vec<u8>) -> Svg {
 }
 
 impl Svg {
-    pub fn view<State>(self) -> View<State> {
+    pub fn view<State>(self) -> View<State, ()> {
         View {
             view_type: ViewType::Svg(self),
             gesture_handler: GestureHandler {
@@ -49,15 +49,5 @@ impl Svg {
             return;
         }
         state.ui.images.insert(self.id, (area, self.source));
-    }
-}
-
-impl<'s, State> ViewTrait<'s, State> for Svg {
-    fn create_node(
-        self,
-        _ui: &mut RcUi<State>,
-        node: Node<'s, RcUi<State>>,
-    ) -> Node<'s, RcUi<State>> {
-        node
     }
 }

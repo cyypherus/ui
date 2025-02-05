@@ -40,6 +40,17 @@ pub(crate) enum AnimatedShapeType {
 }
 
 impl AnimatedShape {
+    pub(crate) fn in_progress(&self, now: Instant) -> bool {
+        self.fill
+            .as_ref()
+            .map(|f| f.in_progress(now))
+            .unwrap_or(false)
+            || self
+                .stroke
+                .as_ref()
+                .map(|f| f.0.in_progress(now) || f.1.in_progress(now))
+                .unwrap_or(false)
+    }
     pub(crate) fn update(now: Instant, from: &Shape, existing: &mut AnimatedShape) {
         if let (Some(existing_fill), Some(new_fill)) = (&mut existing.fill, from.fill) {
             existing_fill.transition(new_fill, now);

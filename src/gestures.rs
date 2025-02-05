@@ -41,6 +41,17 @@ pub struct GestureHandler<State> {
     pub on_key: Option<KeyHandler<State>>,
 }
 
+impl<State> Default for GestureHandler<State> {
+    fn default() -> Self {
+        GestureHandler {
+            on_click: None,
+            on_drag: None,
+            on_hover: None,
+            on_key: None,
+        }
+    }
+}
+
 impl<State> Clone for GestureHandler<State> {
     fn clone(&self) -> Self {
         Self {

@@ -40,20 +40,20 @@ impl AnimationBank {
             animations: HashMap::new(),
         }
     }
-    ///// Checks if any animations are currently in progress
-    // pub(crate) fn in_progress(&self, time: Instant) -> bool {
-    //     for value in self.animations.values() {
-    //         if value.visible.in_progress(time)
-    //             || value.x.in_progress(time)
-    //             || value.y.in_progress(time)
-    //             || value.width.in_progress(time)
-    //             || value.height.in_progress(time)
-    //         {
-    //             return true;
-    //         }
-    //     }
-    //     false
-    // }
+    /// Checks if any animations are currently in progress
+    pub(crate) fn in_progress(&self, time: Instant) -> bool {
+        for value in self.animations.values() {
+            if value.visible.in_progress(time)
+                || value.x.in_progress(time)
+                || value.y.in_progress(time)
+                || value.width.in_progress(time)
+                || value.height.in_progress(time)
+            {
+                return true;
+            }
+        }
+        false
+    }
 }
 #[derive(Debug, Clone)]
 pub(crate) struct AnimArea {
@@ -167,6 +167,13 @@ impl UiCx {
         self.layout_cx.set(Some(layout_ctx));
         self.font_cx.set(Some(font_cx));
         result
+    }
+    pub(crate) fn animations_in_progress(&self, now: Instant) -> bool {
+        self.view_state.values().any(|v| match v {
+            AnimatedView::Rect(animated_rect) => animated_rect.shape.in_progress(now),
+            AnimatedView::Text(animated_text) => animated_text.fill.in_progress(now),
+            AnimatedView::Circle(animated_circle) => animated_circle.shape.in_progress(now),
+        })
     }
 }
 

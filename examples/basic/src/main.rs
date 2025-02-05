@@ -13,24 +13,21 @@ fn main() {
         dynamic_node(|s: &mut AppState| {
             row(vec![
                 space(),
-                column(vec![
-                    rect(id!()).stroke(Color::WHITE, 1.).view().finish(),
-                    text(id!(), s.text.clone())
-                        .fill(Color::WHITE)
-                        .align(TextAlign::Leading)
-                        .view()
-                        .on_key(|s: &mut AppState, key| match key {
-                            Key::Named(NamedKey::Space) => s.text.push(' '),
-                            Key::Named(NamedKey::Enter) => s.text.push('\n'),
-                            Key::Named(NamedKey::Backspace) => {
-                                s.text.pop();
-                            }
-                            Key::Character(c) => s.text.extend(c.as_str().chars()),
-                            Key::Named(_) => (),
-                        })
-                        .finish(),
-                    rect(id!()).stroke(Color::WHITE, 1.).view().finish(),
-                ]),
+                text(id!(), s.text.clone())
+                    .fill(Color::WHITE)
+                    .align(TextAlign::Leading)
+                    .view()
+                    .on_key(|s: &mut AppState, key| match key {
+                        Key::Named(NamedKey::Space) => s.text.push(' '),
+                        Key::Named(NamedKey::Enter) => s.text.push('\n'),
+                        Key::Named(NamedKey::Backspace) => {
+                            s.text.pop();
+                        }
+                        Key::Character(c) => s.text.extend(c.as_str().chars()),
+                        Key::Named(_) => (),
+                    })
+                    .finish()
+                    .attach_under(rect(id!()).stroke(Color::WHITE, 1.).view().finish()),
                 space(),
             ])
         }),

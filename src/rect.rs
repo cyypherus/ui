@@ -1,8 +1,8 @@
 use crate::shape::{AnimatedShape, Shape, ShapeType};
 use crate::ui::RcUi;
-use crate::view::{AnimatedView, View, ViewTrait, ViewType};
+use crate::view::{AnimatedView, View, ViewType};
 use crate::GestureHandler;
-use backer::{models::Area, Node};
+use backer::models::Area;
 use std::time::Instant;
 use vello_svg::vello::peniko::Color;
 
@@ -59,7 +59,7 @@ impl Rect {
         self.shape.stroke = Some((color, line_width));
         self
     }
-    pub fn view<State>(self) -> View<State> {
+    pub fn view<State>(self) -> View<State, ()> {
         View {
             view_type: ViewType::Rect(self),
             gesture_handler: GestureHandler {
@@ -102,15 +102,5 @@ impl Rect {
             .cx()
             .view_state
             .insert(self.id, AnimatedView::Rect(animated));
-    }
-}
-
-impl<'s, State> ViewTrait<'s, State> for Rect {
-    fn create_node(
-        self,
-        _ui: &mut RcUi<State>,
-        node: Node<'s, RcUi<State>>,
-    ) -> Node<'s, RcUi<State>> {
-        node
     }
 }

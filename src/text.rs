@@ -1,7 +1,7 @@
 use crate::animated_color::{AnimatedColor, AnimatedU8};
 use crate::{
     ui::RcUi,
-    view::{AnimatedView, View, ViewTrait, ViewType},
+    view::{AnimatedView, View, ViewType},
     GestureHandler, DEFAULT_DURATION, DEFAULT_EASING,
 };
 use backer::{models::*, Node};
@@ -76,7 +76,7 @@ impl Text {
     //     self.font = Some(font_id);
     //     self
     // }
-    pub fn view<State>(self) -> View<State> {
+    pub fn view<State>(self) -> View<State, ()> {
         View {
             view_type: ViewType::Text(self),
             gesture_handler: GestureHandler {
@@ -225,8 +225,8 @@ impl Text {
     }
 }
 
-impl<'s, State> ViewTrait<'s, State> for Text {
-    fn create_node(
+impl<'s> Text {
+    pub(crate) fn create_node<State>(
         self,
         _ui: &mut RcUi<State>,
         node: Node<'s, RcUi<State>>,
