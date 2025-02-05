@@ -1,25 +1,16 @@
 [package]
-name = "ohlo"
+name = "haven"
 version = "0.1.0"
 edition = "2021"
 
+[[example]]
+name = "basic"
+path = "examples/basic/src/main.rs"
+
 [dependencies]
-winit = { version = "0.30.5", default-features = false }
-euclid = "0.22.3"
-rand = "0.8"
-svg = "0.18.0"
-usvg = "0.44.0"
-instant = { version = "0.1", features = ["now"] }
-resource = "0.5.0"
-image = { version = "0.25.0", default-features = false, features = [
-    "jpeg",
-    "png",
-] }
-cosmic-text = { git = "https://github.com/pop-os/cosmic-text", rev = "e00109d77f06d5a2e3057865eda3f530bc40a046" }
-swash = "=0.1.17" # keep this in sync with cosmic-text
-lazy_static = "1.4.0"
-femtovg = "0.10.1"
-glutin = "0.32.1"
-glutin-winit = "0.5.0"
-raw-window-handle = "0.6.2"
 backer = { path = "../backer" }
+lilt = "0.7.0"
+parley = { git = "https://github.com/linebender/parley", branch = "main" }
+pollster = "0.4.0"
+vello_svg = { version = "0.6.0", features = ["wgpu"] }
+winit = "0.30.8"
