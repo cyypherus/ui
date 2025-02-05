@@ -1,7 +1,6 @@
 mod animated_color;
 mod app;
 mod circle;
-mod custom_view;
 mod event;
 mod gestures;
 mod models;

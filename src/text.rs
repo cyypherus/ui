@@ -87,6 +87,9 @@ impl Text {
             },
         }
     }
+    pub fn finish<'n, State: 'n>(self) -> Node<'n, RcUi<State>> {
+        self.view().finish()
+    }
 }
 
 #[derive(Debug, Clone)]

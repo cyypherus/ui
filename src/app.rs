@@ -128,7 +128,8 @@ impl<'n, State: Clone> App<'_, 'n, State> {
                     self.images.insert(id, source());
                 }
                 let image_data = self.images.get(&id).unwrap();
-                if self.image_scenes.get(&id).is_none() {
+                #[allow(clippy::map_entry)]
+                if !self.image_scenes.contains_key(&id) {
                     match vello_svg::usvg::Tree::from_data(
                         image_data,
                         &vello_svg::usvg::Options::default(),
@@ -284,29 +285,24 @@ impl<State: Clone> ApplicationHandler for App<'_, '_, State> {
             match event {
                 event::WindowEvent::Moved(_) => {}
                 event::WindowEvent::KeyPressed(key) => {
-                    self.request_redraw();
                     let Some(key) = crate::Key::from(key) else {
                         return;
                     };
+                    let mut needs_redraw = false;
                     for handler in self.gesture_handlers.as_ref().unwrap().iter() {
                         if let Some(ref on_key) = handler.2.on_key {
+                            needs_redraw = true;
                             (on_key)(&mut self.state, key.clone());
                         }
                     }
+                    if needs_redraw {
+                        self.request_redraw();
+                    }
                 }
                 event::WindowEvent::KeyReleased(_) => {}
-                event::WindowEvent::MouseMoved(pos) => {
-                    self.request_redraw();
-                    self.mouse_moved(pos)
-                }
-                event::WindowEvent::MousePressed(MouseButton::Left) => {
-                    self.request_redraw();
-                    self.mouse_pressed()
-                }
-                event::WindowEvent::MouseReleased(MouseButton::Left) => {
-                    self.request_redraw();
-                    self.mouse_released()
-                }
+                event::WindowEvent::MouseMoved(pos) => self.mouse_moved(pos),
+                event::WindowEvent::MousePressed(MouseButton::Left) => self.mouse_pressed(),
+                event::WindowEvent::MouseReleased(MouseButton::Left) => self.mouse_released(),
                 event::WindowEvent::MousePressed(_) => {}
                 event::WindowEvent::MouseReleased(_) => {}
                 event::WindowEvent::MouseEntered => {}
@@ -330,6 +326,7 @@ impl<State: Clone> ApplicationHandler for App<'_, '_, State> {
 }
 impl<State: Clone> App<'_, '_, State> {
     pub(crate) fn mouse_moved(&mut self, pos: Point) {
+        let mut needs_redraw = false;
         self.cursor_position = Some(pos);
         self.gesture_handlers
             .as_ref()
@@ -337,6 +334,7 @@ impl<State: Clone> App<'_, '_, State> {
             .iter()
             .for_each(|(_, area, gh)| {
                 if let Some(on_hover) = &gh.on_hover {
+                    needs_redraw = true;
                     on_hover(&mut self.state, area_contains(area, pos));
                 }
             });
@@ -350,6 +348,7 @@ impl<State: Clone> App<'_, '_, State> {
                 .find(|(id, _, _)| *id == capturer)
                 .map(|(_, _, gh)| &gh.on_drag)
             {
+                needs_redraw = true;
                 handler(
                     &mut self.state,
                     DragState::Updated {
@@ -360,8 +359,12 @@ impl<State: Clone> App<'_, '_, State> {
                 );
             }
         }
+        if needs_redraw {
+            self.request_redraw();
+        }
     }
     pub(crate) fn mouse_pressed(&mut self) {
+        let mut needs_redraw = false;
         if let Some(point) = self.cursor_position {
             if let Some((capturer, _, handler)) = self
                 .gesture_handlers
@@ -374,6 +377,7 @@ impl<State: Clone> App<'_, '_, State> {
                         && (handler.on_click.is_some() || handler.on_drag.is_some())
                 })
             {
+                needs_redraw = true;
                 if let Some(ref on_click) = handler.on_click {
                     on_click(&mut self.state, ClickState::Started);
                 }
@@ -383,8 +387,12 @@ impl<State: Clone> App<'_, '_, State> {
                 }
             }
         }
+        if needs_redraw {
+            self.request_redraw();
+        }
     }
     pub(crate) fn mouse_released(&mut self) {
+        let mut needs_redraw = false;
         if let Some(current) = self.cursor_position {
             if let GestureState::Dragging { start, capturer } = self.gesture_state {
                 let distance = start.distance(current);
@@ -396,6 +404,7 @@ impl<State: Clone> App<'_, '_, State> {
                     .find(|(id, _, _)| *id == capturer)
                 {
                     if let Some(ref on_click) = handler.on_click {
+                        needs_redraw = true;
                         if area_contains(area, current) {
                             on_click(&mut self.state, ClickState::Completed);
                         } else {
@@ -403,6 +412,7 @@ impl<State: Clone> App<'_, '_, State> {
                         }
                     }
                     if let Some(ref on_drag) = handler.on_drag {
+                        needs_redraw = true;
                         on_drag(
                             &mut self.state,
                             DragState::Completed {
@@ -416,5 +426,8 @@ impl<State: Clone> App<'_, '_, State> {
             }
         }
         self.gesture_state = GestureState::None;
+        if needs_redraw {
+            self.request_redraw();
+        }
     }
 }

@@ -2,6 +2,7 @@ use crate::ui::RcUi;
 use crate::view::{View, ViewType};
 use crate::GestureHandler;
 use backer::models::Area;
+use backer::Node;
 use lilt::Easing;
 
 #[derive(Debug, Clone, Copy)]
@@ -34,6 +35,9 @@ impl Svg {
                 on_key: None,
             },
         }
+    }
+    pub fn finish<'n, State: 'n>(self) -> Node<'n, RcUi<State>> {
+        self.view().finish()
     }
 }
 

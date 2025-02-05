@@ -71,7 +71,7 @@ impl AnimatedShape {
                     corner_rounding: new,
                 },
             ) => existing.transition(new, now),
-            _ => assert!(false, "Mismatched shape types"),
+            _ => debug_assert!(false, "Mismatched shape types"),
         }
     }
     pub(crate) fn new_from(from: &Shape) -> Self {

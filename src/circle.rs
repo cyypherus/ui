@@ -3,6 +3,7 @@ use crate::ui::RcUi;
 use crate::view::{AnimatedView, View, ViewType};
 use crate::GestureHandler;
 use backer::models::Area;
+use backer::Node;
 use std::time::Instant;
 use vello_svg::vello::peniko::Color;
 
@@ -61,6 +62,9 @@ impl Circle {
                 on_key: None,
             },
         }
+    }
+    pub fn finish<'n, State: 'n>(self) -> Node<'n, RcUi<State>> {
+        self.view().finish()
     }
 }
 
