@@ -28,7 +28,7 @@ fn main() {
                             get: |s| s.scroller,
                             set: |s, sc| s.scroller = sc,
                         },
-                        |_state, index, id| {
+                        |_state, index, _id| {
                             let id = id!(index as u64);
                             Some(
                                 text(id, index.to_string())
