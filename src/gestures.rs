@@ -33,12 +33,19 @@ pub(crate) type ClickHandler<State> = Rc<dyn Fn(&mut State, ClickState)>;
 pub(crate) type DragHandler<State> = Rc<dyn Fn(&mut State, DragState)>;
 pub(crate) type HoverHandler<State> = Rc<dyn Fn(&mut State, bool)>;
 pub(crate) type KeyHandler<State> = Rc<dyn Fn(&mut State, Key)>;
+pub(crate) type ScrollHandler<State> = Rc<dyn Fn(&mut State, ScrollDelta)>;
+
+pub struct ScrollDelta {
+    pub x: f32,
+    pub y: f32,
+}
 
 pub struct GestureHandler<State> {
     pub on_click: Option<ClickHandler<State>>,
     pub on_drag: Option<DragHandler<State>>,
     pub on_hover: Option<HoverHandler<State>>,
     pub on_key: Option<KeyHandler<State>>,
+    pub on_scroll: Option<ScrollHandler<State>>,
 }
 
 impl<State> Default for GestureHandler<State> {
@@ -48,6 +55,7 @@ impl<State> Default for GestureHandler<State> {
             on_drag: None,
             on_hover: None,
             on_key: None,
+            on_scroll: None,
         }
     }
 }
@@ -59,6 +67,7 @@ impl<State> Clone for GestureHandler<State> {
             on_drag: self.on_drag.clone(),
             on_hover: self.on_hover.clone(),
             on_key: self.on_key.clone(),
+            on_scroll: self.on_scroll.clone(),
         }
     }
 }

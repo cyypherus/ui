@@ -60,6 +60,7 @@ impl Circle {
                 on_drag: None,
                 on_hover: None,
                 on_key: None,
+                on_scroll: None,
             },
         }
     }

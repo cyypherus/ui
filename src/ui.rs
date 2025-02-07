@@ -1,5 +1,5 @@
 use crate::{
-    gestures::{ClickHandler, DragHandler, HoverHandler, KeyHandler},
+    gestures::{ClickHandler, DragHandler, HoverHandler, KeyHandler, ScrollHandler},
     view::AnimatedView,
     GestureHandler,
 };
@@ -126,6 +126,14 @@ pub fn scoper<'n, State, Scoped: 'n + 'static>(
                                     let r: KeyHandler<State> = Rc::new(move |state, on_hover| {
                                         let mut scoped = scope(state);
                                         (o_c)(&mut scoped, on_hover);
+                                        embed(state, scoped);
+                                    });
+                                    r
+                                }),
+                                on_scroll: h.2.on_scroll.map(|o_c| {
+                                    let r: ScrollHandler<State> = Rc::new(move |state, delta| {
+                                        let mut scoped = scope(state);
+                                        (o_c)(&mut scoped, delta);
                                         embed(state, scoped);
                                     });
                                     r

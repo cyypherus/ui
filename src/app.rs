@@ -1,3 +1,4 @@
+use crate::gestures::ScrollDelta;
 use crate::ui::{AnimationBank, Ui, UiCx};
 use crate::{area_contains, ClickState, DragState, GestureHandler, Point, RcUi};
 use crate::{event, ui::RenderState, Area, GestureState, Layout, RUBIK_FONT};
@@ -12,6 +13,7 @@ use vello_svg::vello::kurbo::{Affine, Vec2};
 use vello_svg::vello::peniko::Color;
 use vello_svg::vello::util::RenderContext;
 use vello_svg::vello::{Renderer, RendererOptions, Scene};
+use winit::event::MouseScrollDelta;
 use winit::{application::ApplicationHandler, event_loop::EventLoop, window::Window};
 use winit::{dpi::LogicalSize, event::MouseButton};
 
@@ -307,7 +309,9 @@ impl<State: Clone> ApplicationHandler for App<'_, '_, State> {
                 event::WindowEvent::MouseReleased(_) => {}
                 event::WindowEvent::MouseEntered => {}
                 event::WindowEvent::MouseExited => {}
-                event::WindowEvent::MouseWheel(_, _) => {}
+                event::WindowEvent::MouseWheel(delta, _phase) => {
+                    self.scrolled(delta);
+                }
                 event::WindowEvent::Resized(_) => {}
                 event::WindowEvent::HoveredFile(_) => {}
                 event::WindowEvent::DroppedFile(_) => {}
@@ -426,6 +430,41 @@ impl<State: Clone> App<'_, '_, State> {
             }
         }
         self.gesture_state = GestureState::None;
+        if needs_redraw {
+            self.request_redraw();
+        }
+    }
+    pub(crate) fn scrolled(&mut self, delta: MouseScrollDelta) {
+        let mut needs_redraw = false;
+        if let Some(current) = self.cursor_position {
+            if let Some((_, _, handler)) = self
+                .gesture_handlers
+                .as_ref()
+                .unwrap()
+                .iter()
+                .rev()
+                .find(|(_, area, handler)| {
+                    area_contains(area, current) && (handler.on_scroll.is_some())
+                })
+            {
+                if let Some(ref on_scroll) = handler.on_scroll {
+                    needs_redraw = true;
+                    on_scroll(
+                        &mut self.state,
+                        match delta {
+                            MouseScrollDelta::LineDelta(x, y) => ScrollDelta {
+                                x: x * 10.,
+                                y: y * 10.,
+                            },
+                            MouseScrollDelta::PixelDelta(physical_position) => ScrollDelta {
+                                x: physical_position.x as f32,
+                                y: physical_position.y as f32,
+                            },
+                        },
+                    );
+                }
+            }
+        }
         if needs_redraw {
             self.request_redraw();
         }

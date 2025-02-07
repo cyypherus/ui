@@ -1,4 +1,5 @@
 use crate::circle::{AnimatedCircle, Circle};
+use crate::gestures::ScrollDelta;
 use crate::rect::{AnimatedRect, Rect};
 use crate::svg::Svg;
 use crate::text::{AnimatedText, Text};
@@ -150,6 +151,10 @@ impl<State, T> View<State, T> {
         self.gesture_handler.on_key = Some(Rc::new(f));
         self
     }
+    pub fn on_scroll(mut self, f: impl Fn(&mut State, ScrollDelta) + 'static) -> Self {
+        self.gesture_handler.on_scroll = Some(Rc::new(f));
+        self
+    }
     pub fn easing(mut self, easing: lilt::Easing) -> Self {
         match self.view_type {
             ViewType::Text(ref mut view) => view.easing = Some(easing),
@@ -293,6 +298,7 @@ impl<State, T> Drawable<RcUi<State>> for View<State, T> {
                     on_drag: self.gesture_handler.on_drag.take(),
                     on_hover: self.gesture_handler.on_hover.take(),
                     on_key: self.gesture_handler.on_key.take(),
+                    on_scroll: self.gesture_handler.on_scroll.take(),
                 },
             ));
             match &mut self.view_type {

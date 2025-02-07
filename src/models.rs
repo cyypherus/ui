@@ -38,3 +38,26 @@ impl Key {
         }
     }
 }
+
+#[derive(Debug)]
+pub struct Binding<State, T> {
+    pub get: fn(&State) -> T,
+    pub set: fn(&mut State, T),
+}
+
+impl<State, T> Clone for Binding<State, T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<State, T> Copy for Binding<State, T> {}
+
+impl<State, T> Binding<State, T> {
+    pub fn get(&self, state: &State) -> T {
+        (self.get)(state)
+    }
+    pub fn set(&self, state: &mut State, value: T) {
+        (self.set)(state, value)
+    }
+}
