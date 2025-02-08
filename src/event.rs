@@ -1,11 +1,10 @@
 use std::path::PathBuf;
 
+use vello_svg::vello::kurbo::Point;
 use winit::{
     event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase},
     keyboard::Key,
 };
-
-use crate::Point;
 
 /// The event associated with a touch at a single point.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -119,13 +118,13 @@ impl WindowEvent {
         use self::WindowEvent::*;
         let event = match event {
             winit::event::WindowEvent::Resized(new_size) => Resized(Point {
-                x: new_size.width as f32,
-                y: new_size.height as f32,
+                x: new_size.width as f64,
+                y: new_size.height as f64,
             }),
 
             winit::event::WindowEvent::Moved(new_pos) => Moved(Point {
-                x: new_pos.x as f32,
-                y: new_pos.y as f32,
+                x: new_pos.x as f64,
+                y: new_pos.y as f64,
             }),
 
             winit::event::WindowEvent::CloseRequested | winit::event::WindowEvent::Destroyed => {
@@ -147,8 +146,8 @@ impl WindowEvent {
             }
 
             winit::event::WindowEvent::CursorMoved { position, .. } => MouseMoved(Point {
-                x: position.x as f32,
-                y: position.y as f32,
+                x: position.x as f64,
+                y: position.y as f64,
             }),
 
             winit::event::WindowEvent::CursorEntered { .. } => MouseEntered,
@@ -169,8 +168,8 @@ impl WindowEvent {
                 ..
             }) => {
                 let position = Point {
-                    x: location.x as f32,
-                    y: location.y as f32,
+                    x: location.x as f64,
+                    y: location.y as f64,
                 };
                 let touch = TouchEvent {
                     phase,

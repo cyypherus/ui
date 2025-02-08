@@ -1,5 +1,5 @@
 use ui::*;
-use vello_svg::vello::peniko::color::palette::css::PERU;
+use vello_svg::vello::peniko::color::AlphaColor;
 
 #[derive(Clone, Default)]
 struct AppState {
@@ -29,6 +29,7 @@ fn main() {
                             set: |s, sc| s.scroller = sc,
                         },
                         |_state, index, _id| {
+                            // if index < 10 {
                             let id = id!(index as u64);
                             Some(
                                 text(id!(id), index.to_string())
@@ -45,9 +46,11 @@ fn main() {
                                             .finish(),
                                     ),
                             )
+                            // } else {
+                            //     None
+                            // }
                         },
-                    )
-                    .height(500.),
+                    ),
                     text(id!(), s.text.clone())
                         .fill(Color::WHITE)
                         .font_size(30)
@@ -93,16 +96,16 @@ fn main() {
     )
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-struct Element {
-    height: f32,
-    index: usize,
-}
-
 #[derive(Debug, Clone, Default)]
 struct ScrollerState {
     visible_window: Vec<Element>,
     dt: f32,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct Element {
+    height: f32,
+    index: usize,
 }
 
 impl ScrollerState {
@@ -129,12 +132,26 @@ impl ScrollerState {
                     height: added_height,
                     index,
                 });
+            } else {
+                break;
             }
         }
 
         if self.dt.is_sign_negative() {
             let mut compensated_dt = 0.;
             while compensated_dt > self.dt {
+                let index = self.visible_window.last().map(|l| l.index).unwrap_or(0) + 1;
+                if let Some(mut element) = cell(&mut state.ui.state, index, id) {
+                    let added_height = element.min_height(available_area, state).unwrap_or(0.);
+                    self.visible_window.push(Element {
+                        height: added_height,
+                        index,
+                    });
+                    compensated_dt -= added_height * 0.5;
+                } else {
+                    compensated_dt = self.dt;
+                    break;
+                }
                 if let Some(first) = self.visible_window.first() {
                     let height = first.height;
                     if -(self.dt - compensated_dt) > height {
@@ -144,52 +161,42 @@ impl ScrollerState {
                         break;
                     }
                 }
-                let index = self.visible_window.last().map(|l| l.index).unwrap_or(0) + 1;
-                if let Some(mut element) = cell(&mut state.ui.state, index, id) {
-                    let added_height = element.min_height(available_area, state).unwrap_or(0.);
-                    self.visible_window.push(Element {
-                        height: added_height,
-                        index,
-                    });
-                    compensated_dt -= added_height * 0.5;
-                }
             }
             self.dt -= compensated_dt;
         } else if self.dt.is_sign_positive() {
-            if self.visible_window.first().map(|l| l.index).unwrap_or(0) > 0 {
-                let mut compensated_dt = 0.;
-                while compensated_dt < self.dt {
-                    if let Some(last) = self.visible_window.last() {
-                        let height = last.height;
-                        if (self.dt + compensated_dt) > height {
-                            if let Some(removed) = self.visible_window.pop() {
-                                compensated_dt += removed.height * 0.5;
-                            }
-                        } else {
-                            break;
+            let mut compensated_dt = 0.;
+            while compensated_dt < self.dt {
+                if let Some(last) = self.visible_window.last() {
+                    let height = last.height;
+                    if (self.dt + compensated_dt) > height {
+                        if let Some(removed) = self.visible_window.pop() {
+                            compensated_dt += removed.height * 0.5;
                         }
-                    }
-                    let first_index = self.visible_window.first().map(|l| l.index).unwrap_or(0);
-                    if first_index > 0 {
-                        let index = first_index - 1;
-                        if let Some(mut element) = cell(&mut state.ui.state, index, id) {
-                            let inserted_height =
-                                element.min_height(available_area, state).unwrap_or(0.);
-                            self.visible_window.insert(
-                                0,
-                                Element {
-                                    height: inserted_height,
-                                    index,
-                                },
-                            );
-                            compensated_dt += inserted_height * 0.5;
-                        }
+                    } else {
+                        break;
                     }
                 }
-                self.dt -= compensated_dt;
-            } else {
-                self.dt = (overflow_amount * 0.5).min(self.dt);
+                let first_index = self.visible_window.first().map(|l| l.index).unwrap_or(0);
+                if first_index > 0 {
+                    let index = first_index - 1;
+                    if let Some(mut element) = cell(&mut state.ui.state, index, id) {
+                        let inserted_height =
+                            element.min_height(available_area, state).unwrap_or(0.);
+                        self.visible_window.insert(
+                            0,
+                            Element {
+                                height: inserted_height,
+                                index,
+                            },
+                        );
+                        compensated_dt += inserted_height * 0.5;
+                    }
+                } else {
+                    compensated_dt = self.dt;
+                    break;
+                }
             }
+            self.dt -= compensated_dt;
         }
     }
 }
@@ -205,6 +212,7 @@ where
     stack(vec![
         rect(id!())
             .corner_rounding(30.)
+            .fill(AlphaColor::from_rgb8(30, 30, 30))
             .stroke(Color::WHITE, 1.)
             .view()
             .on_scroll(move |s, dt| {
@@ -213,35 +221,31 @@ where
                 scroller.set(s, sc);
             })
             .finish(),
-        area_reader::<RcUi<State>>(move |area, state| {
-            let mut scroller_state = scroller.get(&state.ui.state);
-            scroller_state.update_visible_window(area, state, id, cell);
-            let window = &scroller_state.visible_window;
-            let mut cells = Vec::new();
-            for element in window {
-                if let Some(cell) = cell(&mut state.ui.state, element.index, id) {
-                    cells.push(cell);
+        clipping(
+            |area| {
+                ui::RoundedRect::from_origin_size(
+                    Point::new(area.x.into(), area.y.into()),
+                    Size::new(area.width.into(), area.height.into()),
+                    30.,
+                )
+                .to_path(0.001)
+            },
+            area_reader::<RcUi<State>>(move |area, state| {
+                let mut scroller_state = scroller.get(&state.ui.state);
+                scroller_state.update_visible_window(area, state, id, cell);
+                let window = &scroller_state.visible_window;
+                let mut cells = Vec::new();
+                for element in window {
+                    if let Some(cell) = cell(&mut state.ui.state, element.index, id) {
+                        cells.push(cell);
+                    }
                 }
-            }
-            let dt = scroller_state.dt;
-            scroller.set(&mut state.ui.state, scroller_state);
-            column(cells).align(Align::Top).offset_y(dt).height(1.)
-            //
-            // .offset_y(offset)
-            // space()
-            // let index = (-scroller.get(&state.ui.state).offset / cell_height) as i32;
-            // let window = (area.height / cell_height) as i32;
-            // let mut cells = Vec::new();
-            // for i in 0..=(window) {
-            //     let window_index = index + i;
-            //     if window_index >= 0 {
-            //         if let Some(cell) = cell(&mut state.ui.state, window_index as usize, id) {
-            //             cells.push(cell.height(cell_height));
-            //         }
-            //     }
-            // }
-        })
-        .expand(),
+                let dt = scroller_state.dt;
+                scroller.set(&mut state.ui.state, scroller_state);
+                column(cells).offset_y(dt).height(1.)
+            })
+            .expand(),
+        ),
     ])
 }
 

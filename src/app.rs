@@ -358,7 +358,7 @@ impl<State: Clone> App<'_, '_, State> {
                     DragState::Updated {
                         start,
                         current: pos,
-                        distance,
+                        distance: distance as f32,
                     },
                 );
             }
@@ -422,7 +422,7 @@ impl<State: Clone> App<'_, '_, State> {
                             DragState::Completed {
                                 start,
                                 current,
-                                distance,
+                                distance: distance as f32,
                             },
                         );
                     }

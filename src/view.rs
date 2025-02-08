@@ -5,11 +5,13 @@ use crate::svg::Svg;
 use crate::text::{AnimatedText, Text};
 use crate::ui::{AnimArea, RcUi};
 use crate::{ClickState, DragState, GestureHandler, Key};
-use backer::nodes::{draw_object, dynamic};
+use backer::nodes::{draw_object, dynamic, intermediate};
 use backer::traits::Drawable;
 use backer::{models::Area, Node};
 use lilt::{Animated, Easing};
 use std::rc::Rc;
+use vello_svg::vello::kurbo::{Affine, BezPath};
+use vello_svg::vello::peniko::Mix;
 
 // A simple const FNV-1a hash for our purposes
 const FNV_OFFSET: u64 = 1469598103934665603;
@@ -50,6 +52,24 @@ pub fn dynamic_node<'a, State: 'a>(
     view: impl Fn(&mut State) -> Node<'a, RcUi<State>> + 'a,
 ) -> Node<'a, RcUi<State>> {
     dynamic(move |ui: &mut RcUi<State>| view(&mut ui.ui.state))
+}
+
+pub fn clipping<'a, State: 'a>(
+    path: fn(Area) -> BezPath,
+    node: Node<'a, RcUi<State>>,
+) -> Node<'a, RcUi<State>> {
+    intermediate(
+        move |ui: &mut RcUi<State>, available_area: Area| {
+            ui.ui
+                .cx()
+                .scene
+                .push_layer(Mix::Normal, 1., Affine::IDENTITY, &(path)(available_area));
+        },
+        move |ui: &mut RcUi<State>, _: Area| {
+            ui.ui.cx().scene.pop_layer();
+        },
+        node,
+    )
 }
 
 pub struct View<State, T> {
