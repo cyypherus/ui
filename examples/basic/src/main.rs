@@ -29,28 +29,29 @@ fn main() {
                             set: |s, sc| s.scroller = sc,
                         },
                         |_state, index, _id| {
-                            // if index < 10 {
-                            let id = id!(index as u64);
-                            Some(
-                                text(id!(id), index.to_string())
-                                    .fill(Color::WHITE)
-                                    .view()
-                                    .transition_duration(0.)
-                                    .finish()
-                                    .height(if index % 2 == 0 { 20. } else { 35. })
-                                    .attach_under(
-                                        rect(id!(id))
-                                            .stroke(Color::WHITE, 1.)
-                                            .view()
-                                            .transition_duration(0.)
-                                            .finish(),
-                                    ),
-                            )
-                            // } else {
-                            //     None
-                            // }
+                            if index < 100 {
+                                let id = id!(index as u64);
+                                Some(
+                                    text(id!(id), index.to_string())
+                                        .fill(Color::WHITE)
+                                        .view()
+                                        .transition_duration(0.)
+                                        .finish()
+                                        .height(if index % 2 == 0 { 50. } else { 60. })
+                                        .attach_under(
+                                            rect(id!(id))
+                                                .stroke(Color::WHITE, 1.)
+                                                .view()
+                                                .transition_duration(0.)
+                                                .finish(),
+                                        ),
+                                )
+                            } else {
+                                None
+                            }
                         },
-                    ),
+                    )
+                    .height(300.),
                     text(id!(), s.text.clone())
                         .fill(Color::WHITE)
                         .font_size(30)
@@ -100,6 +101,8 @@ fn main() {
 struct ScrollerState {
     visible_window: Vec<Element>,
     dt: f32,
+    compensated_top: f32,
+    compensated_bottom: f32,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -121,83 +124,133 @@ impl ScrollerState {
     {
         let mut current_height = self.visible_window.iter().fold(0., |acc, e| acc + e.height);
 
-        let overflow_amount = available_area.height * 0.25;
+        let overflow_amount = 0.;
 
-        while current_height < available_area.height + overflow_amount {
-            let index = self.visible_window.last().map(|l| l.index).unwrap_or(0) + 1;
-            if let Some(mut element) = cell(&mut state.ui.state, index, id) {
+        let mut index = self.visible_window.last().map(|l| l.index).unwrap_or(0);
+        if self.visible_window.is_empty() {
+            while let (Some(mut element), true) = (
+                cell(&mut state.ui.state, index, id),
+                current_height < available_area.height + overflow_amount,
+            ) {
                 let added_height = element.min_height(available_area, state).unwrap_or(0.);
                 current_height += added_height;
                 self.visible_window.push(Element {
                     height: added_height,
                     index,
                 });
-            } else {
-                break;
+                index += 1;
             }
         }
 
         if self.dt.is_sign_negative() {
-            let mut compensated_dt = 0.;
-            while compensated_dt > self.dt {
-                let index = self.visible_window.last().map(|l| l.index).unwrap_or(0) + 1;
-                if let Some(mut element) = cell(&mut state.ui.state, index, id) {
-                    let added_height = element.min_height(available_area, state).unwrap_or(0.);
-                    self.visible_window.push(Element {
-                        height: added_height,
-                        index,
-                    });
-                    compensated_dt -= added_height * 0.5;
-                } else {
-                    compensated_dt = self.dt;
-                    break;
-                }
-                if let Some(first) = self.visible_window.first() {
-                    let height = first.height;
-                    if -(self.dt - compensated_dt) > height {
-                        let removed = self.visible_window.remove(0);
-                        compensated_dt -= removed.height * 0.5;
+            self.compensated_bottom += self.dt;
+            self.dt = 0.;
+
+            while let Some((index, _, height)) = self
+                .visible_window
+                .last()
+                .map(|last| last.index + 1)
+                .and_then(|index| {
+                    let mut cell = cell(&mut state.ui.state, index, id)?;
+                    let height = cell.min_height(available_area, state)?;
+                    if self.compensated_bottom < 0. {
+                        Some((index, cell, height))
                     } else {
-                        break;
+                        None
                     }
-                }
+                })
+            {
+                let added_height = height;
+                self.visible_window.push(Element {
+                    height: added_height,
+                    index,
+                });
+                let compensation = added_height;
+                self.compensated_bottom += compensation;
+                self.compensated_top -= compensation;
             }
-            self.dt -= compensated_dt;
-        } else if self.dt.is_sign_positive() {
-            let mut compensated_dt = 0.;
-            while compensated_dt < self.dt {
-                if let Some(last) = self.visible_window.last() {
-                    let height = last.height;
-                    if (self.dt + compensated_dt) > height {
-                        if let Some(removed) = self.visible_window.pop() {
-                            compensated_dt += removed.height * 0.5;
-                        }
-                    } else {
-                        break;
-                    }
-                }
-                let first_index = self.visible_window.first().map(|l| l.index).unwrap_or(0);
-                if first_index > 0 {
-                    let index = first_index - 1;
-                    if let Some(mut element) = cell(&mut state.ui.state, index, id) {
-                        let inserted_height =
-                            element.min_height(available_area, state).unwrap_or(0.);
-                        self.visible_window.insert(
-                            0,
-                            Element {
-                                height: inserted_height,
-                                index,
-                            },
-                        );
-                        compensated_dt += inserted_height * 0.5;
-                    }
-                } else {
-                    compensated_dt = self.dt;
-                    break;
-                }
+            while self
+                .visible_window
+                .first()
+                .is_some_and(|first| -self.compensated_top > first.height)
+            {
+                let removed = self.visible_window.remove(0);
+                self.compensated_top += removed.height;
             }
-            self.dt -= compensated_dt;
         }
+
+        // while self.compensated_bottom < 0. {
+        //     let index = self.visible_window.last().map(|l| l.index).unwrap_or(0) + 1;
+        //     if let Some(mut element) = cell(&mut state.ui.state, index, id) {
+        //         let added_height = element.min_height(available_area, state).unwrap_or(0.);
+        //         self.visible_window.push(Element {
+        //             height: added_height,
+        //             index,
+        //         });
+        //         self.compensated_bottom += added_height * 0.5;
+        //     }
+        //     dbg!("?");
+        // }
+        // if self.dt.is_sign_negative() {
+
+        // let mut compensated_dt = 0.;
+        // while compensated_dt > self.dt {
+        //     let index = self.visible_window.last().map(|l| l.index).unwrap_or(0) + 1;
+        //     if let Some(mut element) = cell(&mut state.ui.state, index, id) {
+        //         let added_height = element.min_height(available_area, state).unwrap_or(0.);
+        //         self.visible_window.push(Element {
+        //             height: added_height,
+        //             index,
+        //         });
+        //         compensated_dt -= added_height * 0.5;
+        //     }
+        //     // else {
+        //     //     compensated_dt = self.dt;
+        //     //     break;
+        //     // }
+        //     if let Some(first) = self.visible_window.first() {
+        //         let height = first.height;
+        //         dbg!(self.dt, height);
+        //         if -self.dt > height {
+        //             let removed = self.visible_window.remove(0);
+        //             compensated_dt -= removed.height * 0.5;
+        //         }
+        //         // else {
+        //         //     break;
+        //         // }
+        //     }
+        // }
+        // self.dt -= compensated_dt;
+        // } else if self.dt.is_sign_positive() {
+        //     let mut compensated_dt = 0.;
+        // while compensated_dt < self.dt {
+        //     let first_index = self.visible_window.first().map(|l| l.index).unwrap_or(0);
+        //     if first_index > 0 {
+        //         let index = first_index - 1;
+        //         if let Some(mut element) = cell(&mut state.ui.state, index, id) {
+        //             let inserted_height =
+        //                 element.min_height(available_area, state).unwrap_or(0.);
+        //             self.visible_window.insert(
+        //                 0,
+        //                 Element {
+        //                     height: inserted_height,
+        //                     index,
+        //                 },
+        //             );
+        //             compensated_dt += inserted_height * 0.5;
+        //         }
+        //     }
+        //     if let Some(last) = self.visible_window.last() {
+        //         let height = last.height;
+        //         if (self.dt + compensated_dt) > height {
+        //             if let Some(removed) = self.visible_window.pop() {
+        //                 compensated_dt += removed.height * 0.5;
+        //             }
+        //         }
+        //     }
+        // }
+        //     self.dt -= compensated_dt;
+        // }
     }
 }
 
@@ -221,31 +274,36 @@ where
                 scroller.set(s, sc);
             })
             .finish(),
-        clipping(
-            |area| {
-                ui::RoundedRect::from_origin_size(
-                    Point::new(area.x.into(), area.y.into()),
-                    Size::new(area.width.into(), area.height.into()),
-                    30.,
-                )
-                .to_path(0.001)
-            },
-            area_reader::<RcUi<State>>(move |area, state| {
-                let mut scroller_state = scroller.get(&state.ui.state);
-                scroller_state.update_visible_window(area, state, id, cell);
-                let window = &scroller_state.visible_window;
-                let mut cells = Vec::new();
-                for element in window {
-                    if let Some(cell) = cell(&mut state.ui.state, element.index, id) {
-                        cells.push(cell);
-                    }
+        // clipping(
+        //     |area| {
+        //         ui::RoundedRect::from_origin_size(
+        //             Point::new(area.x.into(), area.y.into()),
+        //             Size::new(area.width.into(), area.height.into()),
+        //             30.,
+        //         )
+        //         .to_path(0.001)
+        //     },
+        area_reader::<RcUi<State>>(move |area, state| {
+            let mut scroller_state = scroller.get(&state.ui.state);
+            scroller_state.update_visible_window(area, state, id, cell);
+            let window = &scroller_state.visible_window;
+            let mut cells = Vec::new();
+            for element in window {
+                if let Some(cell) = cell(&mut state.ui.state, element.index, id) {
+                    cells.push(cell);
                 }
-                let dt = scroller_state.dt;
-                scroller.set(&mut state.ui.state, scroller_state);
-                column(cells).offset_y(dt).height(1.)
-            })
-            .expand(),
-        ),
+            }
+            let dtb = scroller_state.compensated_bottom;
+            let dtt = scroller_state.compensated_top;
+            let dt = scroller_state.dt;
+            scroller.set(&mut state.ui.state, scroller_state);
+            column(cells)
+                //
+                .offset_y(dtb + (dtt * 0.5))
+                .height(1.)
+        })
+        .expand(),
+        // ),
     ])
 }
 
