@@ -29,7 +29,7 @@ fn main() {
                             set: |s, sc| s.scroller = sc,
                         },
                         |_state, index, _id| {
-                            if index < 100 {
+                            if index < 10 {
                                 let id = id!(index as u64);
                                 Some(
                                     text(id!(id), index.to_string())
@@ -145,16 +145,20 @@ impl ScrollerState {
         if self.dt.is_sign_negative() {
             self.compensated_bottom += self.dt;
             self.dt = 0.;
+            let mut limit = false;
 
-            while let Some((index, _, height)) = self
+            while let Some((index, height)) = self
                 .visible_window
                 .last()
                 .map(|last| last.index + 1)
                 .and_then(|index| {
-                    let mut cell = cell(&mut state.ui.state, index, id)?;
+                    let Some(mut cell) = cell(&mut state.ui.state, index, id) else {
+                        limit = true;
+                        return None;
+                    };
                     let height = cell.min_height(available_area, state)?;
                     if self.compensated_bottom < 0. {
-                        Some((index, cell, height))
+                        Some((index, height))
                     } else {
                         None
                     }
@@ -177,80 +181,17 @@ impl ScrollerState {
                 let removed = self.visible_window.remove(0);
                 self.compensated_top += removed.height;
             }
+
+            if limit {
+                let bottom_edge = -(self.visible_window.iter().fold(0., |acc, e| acc + e.height)
+                    - available_area.height)
+                    * 0.5;
+                if self.compensated_bottom + (self.compensated_top * 0.5) < bottom_edge {
+                    self.compensated_top = 0.;
+                    self.compensated_bottom = bottom_edge;
+                }
+            }
         }
-
-        // while self.compensated_bottom < 0. {
-        //     let index = self.visible_window.last().map(|l| l.index).unwrap_or(0) + 1;
-        //     if let Some(mut element) = cell(&mut state.ui.state, index, id) {
-        //         let added_height = element.min_height(available_area, state).unwrap_or(0.);
-        //         self.visible_window.push(Element {
-        //             height: added_height,
-        //             index,
-        //         });
-        //         self.compensated_bottom += added_height * 0.5;
-        //     }
-        //     dbg!("?");
-        // }
-        // if self.dt.is_sign_negative() {
-
-        // let mut compensated_dt = 0.;
-        // while compensated_dt > self.dt {
-        //     let index = self.visible_window.last().map(|l| l.index).unwrap_or(0) + 1;
-        //     if let Some(mut element) = cell(&mut state.ui.state, index, id) {
-        //         let added_height = element.min_height(available_area, state).unwrap_or(0.);
-        //         self.visible_window.push(Element {
-        //             height: added_height,
-        //             index,
-        //         });
-        //         compensated_dt -= added_height * 0.5;
-        //     }
-        //     // else {
-        //     //     compensated_dt = self.dt;
-        //     //     break;
-        //     // }
-        //     if let Some(first) = self.visible_window.first() {
-        //         let height = first.height;
-        //         dbg!(self.dt, height);
-        //         if -self.dt > height {
-        //             let removed = self.visible_window.remove(0);
-        //             compensated_dt -= removed.height * 0.5;
-        //         }
-        //         // else {
-        //         //     break;
-        //         // }
-        //     }
-        // }
-        // self.dt -= compensated_dt;
-        // } else if self.dt.is_sign_positive() {
-        //     let mut compensated_dt = 0.;
-        // while compensated_dt < self.dt {
-        //     let first_index = self.visible_window.first().map(|l| l.index).unwrap_or(0);
-        //     if first_index > 0 {
-        //         let index = first_index - 1;
-        //         if let Some(mut element) = cell(&mut state.ui.state, index, id) {
-        //             let inserted_height =
-        //                 element.min_height(available_area, state).unwrap_or(0.);
-        //             self.visible_window.insert(
-        //                 0,
-        //                 Element {
-        //                     height: inserted_height,
-        //                     index,
-        //                 },
-        //             );
-        //             compensated_dt += inserted_height * 0.5;
-        //         }
-        //     }
-        //     if let Some(last) = self.visible_window.last() {
-        //         let height = last.height;
-        //         if (self.dt + compensated_dt) > height {
-        //             if let Some(removed) = self.visible_window.pop() {
-        //                 compensated_dt += removed.height * 0.5;
-        //             }
-        //         }
-        //     }
-        // }
-        //     self.dt -= compensated_dt;
-        // }
     }
 }
 
