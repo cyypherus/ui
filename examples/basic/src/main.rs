@@ -40,6 +40,11 @@ fn main() {
                                         .height(if index % 2 == 0 { 50. } else { 60. })
                                         .attach_under(
                                             rect(id!(id))
+                                                .fill(if index % 2 == 0 {
+                                                    AlphaColor::from_rgb8(250, 0, 0)
+                                                } else {
+                                                    AlphaColor::from_rgb8(250, 0, 255)
+                                                })
                                                 .stroke(Color::WHITE, 1.)
                                                 .view()
                                                 .transition_duration(0.)
@@ -140,6 +145,10 @@ impl ScrollerState {
                 });
                 index += 1;
             }
+            let top_edge = (self.visible_window.iter().fold(0., |acc, e| acc + e.height)
+                - available_area.height)
+                * 0.5;
+            self.compensated_bottom = top_edge;
         }
 
         if self.dt.is_sign_negative() {
@@ -215,36 +224,35 @@ where
                 scroller.set(s, sc);
             })
             .finish(),
-        // clipping(
-        //     |area| {
-        //         ui::RoundedRect::from_origin_size(
-        //             Point::new(area.x.into(), area.y.into()),
-        //             Size::new(area.width.into(), area.height.into()),
-        //             30.,
-        //         )
-        //         .to_path(0.001)
-        //     },
-        area_reader::<RcUi<State>>(move |area, state| {
-            let mut scroller_state = scroller.get(&state.ui.state);
-            scroller_state.update_visible_window(area, state, id, cell);
-            let window = &scroller_state.visible_window;
-            let mut cells = Vec::new();
-            for element in window {
-                if let Some(cell) = cell(&mut state.ui.state, element.index, id) {
-                    cells.push(cell);
+        clipping(
+            |area| {
+                ui::RoundedRect::from_origin_size(
+                    Point::new(area.x.into(), area.y.into()),
+                    Size::new(area.width.into(), area.height.into()),
+                    30.,
+                )
+                .to_path(0.001)
+            },
+            area_reader::<RcUi<State>>(move |area, state| {
+                let mut scroller_state = scroller.get(&state.ui.state);
+                scroller_state.update_visible_window(area, state, id, cell);
+                let window = &scroller_state.visible_window;
+                let mut cells = Vec::new();
+                for element in window {
+                    if let Some(cell) = cell(&mut state.ui.state, element.index, id) {
+                        cells.push(cell);
+                    }
                 }
-            }
-            let dtb = scroller_state.compensated_bottom;
-            let dtt = scroller_state.compensated_top;
-            let dt = scroller_state.dt;
-            scroller.set(&mut state.ui.state, scroller_state);
-            column(cells)
-                //
-                .offset_y(dtb + (dtt * 0.5))
-                .height(1.)
-        })
-        .expand(),
-        // ),
+                let dtb = scroller_state.compensated_bottom;
+                let dtt = scroller_state.compensated_top;
+                scroller.set(&mut state.ui.state, scroller_state);
+                column(cells)
+                    //
+                    .offset_y(dtb + (dtt * 0.5))
+                    .height(1.)
+            })
+            .expand(),
+        ),
     ])
 }
 
