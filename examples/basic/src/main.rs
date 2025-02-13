@@ -1,5 +1,4 @@
 use ui::*;
-use vello_svg::vello::peniko::color::AlphaColor;
 
 #[derive(Clone, Default)]
 struct AppState {
@@ -29,7 +28,7 @@ fn main() {
                             set: |s, sc| s.scroller = sc,
                         },
                         |_state, index, _id| {
-                            if index < 10 {
+                            if index < 20 {
                                 let id = id!(index as u64);
                                 Some(
                                     text(id!(id), index.to_string())
@@ -37,7 +36,7 @@ fn main() {
                                         .view()
                                         .transition_duration(0.)
                                         .finish()
-                                        .height(if index % 2 == 0 { 50. } else { 60. })
+                                        .height(if index % 3 == 0 { 40. } else { 60. })
                                         .attach_under(
                                             rect(id!(id))
                                                 // .fill(if index % 2 == 0 {

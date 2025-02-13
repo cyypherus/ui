@@ -94,50 +94,71 @@ impl ScrollerState {
         if self.visible_window.is_empty() {
             self.fill_forwards(state, available_area, id, cell);
         }
-        dbg!(&self.dt);
         if self.dt != 0. {
             if self.dt.is_sign_negative() {
                 self.compensated += self.dt;
                 self.dt = 0.;
-                // let mut limit = false;
-                while let Some(true) = self
+                if self
                     .visible_window
-                    .first()
-                    .map(|first| first.height < -self.compensated && -self.compensated > 0.)
+                    .last()
+                    .and_then(|l| cell(state, l.index + 1, id, available_area))
+                    .is_none()
                 {
-                    let removed = self.visible_window.remove(0);
-                    self.compensated += removed.height;
+                    self.compensated = self.compensated.max(
+                        available_area.height
+                            - self.visible_window.iter().fold(0., |acc, e| acc + e.height),
+                    );
+                } else {
+                    while let Some(true) = self
+                        .visible_window
+                        .first()
+                        .map(|first| first.height < -self.compensated && -self.compensated > 0.)
+                    {
+                        let removed = self.visible_window.remove(0);
+                        self.compensated += removed.height;
+                    }
+                    self.fill_forwards(state, available_area, id, cell)
                 }
-
-                self.fill_forwards(state, available_area, id, cell);
             } else if self.dt.is_sign_positive() {
                 self.compensated += self.dt;
                 self.dt = 0.;
-                while let (Some((last_height, true)), Some(true)) = (
-                    self.visible_window.last().map(|last| {
-                        (
-                            last.height,
-                            last.height < self.compensated && self.compensated > 0.,
-                        )
-                    }),
-                    self.visible_window.first().map(|f| {
-                        if f.index != 0 {
-                            true
+                while let Some((cell_height, true, index)) =
+                    self.visible_window.first().and_then(|f| {
+                        if f.index > 0 {
+                            cell(state, f.index - 1, id, available_area).map(|cell_height| {
+                                (cell_height, self.compensated >= 0., f.index - 1)
+                            })
                         } else {
                             self.compensated = 0.;
-                            false
+                            None
                         }
-                    }),
-                ) {
-                    self.visible_window.pop();
-                    self.compensated -= last_height;
+                    })
+                {
+                    self.visible_window.insert(
+                        0,
+                        Element {
+                            height: cell_height,
+                            index,
+                        },
+                    );
+                    self.compensated -= cell_height;
                 }
-                self.fill_backwards(state, available_area, id, cell);
+                while self.visible_window.len() > 1
+                    && self.visible_window.iter().fold(0., |acc, e| acc + e.height)
+                        - self.visible_window.last().map(|l| l.height).unwrap_or(0.)
+                        + self.compensated
+                        > available_area.height
+                {
+                    self.visible_window.pop();
+                }
             }
         }
-        self.offset = -(available_area.height
-            - self.visible_window.iter().fold(0., |acc, e| acc + e.height))
-            * 0.5;
+        self.offset = self.offset(available_area);
+    }
+
+    fn offset(&self, available_area: Area) -> f32 {
+        -(available_area.height - self.visible_window.iter().fold(0., |acc, e| acc + e.height))
+            * 0.5
     }
 }
 
