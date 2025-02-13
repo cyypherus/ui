@@ -4,7 +4,7 @@ use vello_svg::vello::peniko::color::AlphaColor;
 #[derive(Clone, Default)]
 struct AppState {
     text: String,
-    button: ButtonState,
+    button: Vec<ButtonState>,
     scroller: ScrollerState,
 }
 
@@ -12,7 +12,7 @@ fn main() {
     App::start(
         AppState {
             text: "The scale factor is calculated differently on different platforms:".to_string(),
-            button: ButtonState::default(),
+            button: vec![ButtonState::default(); 40],
             scroller: ScrollerState::default(),
         },
         dynamic_node(|s: &mut AppState| {
@@ -24,32 +24,25 @@ fn main() {
                     //     .aspect(1.),
                     scroller(
                         id!(),
-                        Binding::<AppState, _> {
-                            get: |s| s.scroller.clone(),
-                            set: |s, sc| s.scroller = sc,
-                        },
-                        |_state, index, _id| {
-                            if index < 20 {
+                        Binding::<AppState, ScrollerState, _, _>::new(
+                            |s: &AppState| s.scroller.clone(),
+                            |s: &mut AppState, sc| s.scroller = sc,
+                        ),
+                        |state, index, _id| {
+                            if state.button.get(index).is_some() {
                                 let id = id!(index as u64);
                                 Some(
-                                    text(id!(id), index.to_string())
-                                        .fill(Color::WHITE)
-                                        .view()
-                                        .transition_duration(0.)
-                                        .finish()
-                                        .height(if index % 3 == 0 { 40. } else { 60. })
-                                        .attach_under(
-                                            rect(id!(id))
-                                                .fill(if index % 2 == 0 {
-                                                    AlphaColor::from_rgb8(250, 0, 0)
-                                                } else {
-                                                    AlphaColor::from_rgb8(250, 0, 255)
-                                                })
-                                                .stroke(Color::WHITE, 1.)
-                                                .view()
-                                                .transition_duration(0.)
-                                                .finish(),
+                                    button::<AppState, _, _>(
+                                        id,
+                                        "Clear text".to_string(),
+                                        Binding::new(
+                                            move |s: &AppState| s.button[index],
+                                            move |s: &mut AppState, d| s.button[index] = d,
                                         ),
+                                        |s| s.text = "".to_string(),
+                                    )
+                                    .height(if index % 3 == 0 { 80. } else { 50. })
+                                    .pad(5.),
                                 )
                             } else {
                                 None
@@ -80,21 +73,6 @@ fn main() {
                                 .stroke(Color::WHITE, 1.)
                                 .finish(),
                         ),
-                    button::<AppState>(
-                        id!(),
-                        "Clear text".to_string(),
-                        Binding {
-                            get: |s| s.button.depressed,
-                            set: |s, d| s.button.depressed = d,
-                        },
-                        Binding {
-                            get: |s| s.button.hovered,
-                            set: |s, h| s.button.hovered = h,
-                        },
-                        |s| s.text = "".to_string(),
-                    )
-                    .width(200.)
-                    .height(100.),
                 ],
             )
             .width(400.)
@@ -102,42 +80,48 @@ fn main() {
     )
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy, Default)]
 struct ButtonState {
     hovered: bool,
     depressed: bool,
 }
 
-fn button<'n, State: 'static>(
+fn button<'n, State: 'static, Get, Set>(
     id: u64,
     label: String,
-    depressed: Binding<State, bool>,
-    hovered: Binding<State, bool>,
+    state: Binding<State, ButtonState, Get, Set>,
     on_click: fn(&mut State),
-) -> Node<'n, RcUi<State>> {
+) -> Node<'n, RcUi<State>>
+where
+    Get: Fn(&State) -> ButtonState + Copy + 'static,
+    Set: Fn(&mut State, ButtonState) + Copy + 'static,
+{
     dynamic_node(move |s: &mut State| {
         stack(vec![
             rect(id!(id))
-                .fill(match (depressed.get(s), hovered.get(s)) {
+                .fill(match (state.get(s).depressed, state.get(s).hovered) {
                     (true, _) => Color::from_rgb8(50, 30, 55),
                     (false, true) => Color::from_rgb8(180, 150, 255),
                     (false, false) => Color::from_rgb8(110, 80, 255),
                 })
                 .corner_rounding(10.)
                 .view()
-                .on_hover(move |s: &mut State, h| hovered.set(s, h))
+                .on_hover(move |s: &mut State, h| state.update(s, |s| s.hovered = h))
                 .on_click(move |s: &mut State, click_state| match click_state {
-                    ClickState::Started => depressed.set(s, true),
-                    ClickState::Cancelled => depressed.set(s, false),
+                    ClickState::Started => state.update(s, |s| s.depressed = true),
+                    ClickState::Cancelled => state.update(s, |s| s.depressed = false),
                     ClickState::Completed => {
                         on_click(s);
-                        depressed.set(s, false);
+                        state.update(s, |s| s.depressed = false)
                     }
                 })
+                .transition_duration(0.)
                 .finish(),
             text(id!(id), label.clone())
                 .fill(Color::WHITE)
                 .font_size(30)
+                .view()
+                .transition_duration(0.)
                 .finish(),
         ])
     })

@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use crate::Area;
 use vello_svg::vello::kurbo::Point;
 use winit::keyboard::{NamedKey, SmolStr};
@@ -32,25 +34,51 @@ impl Key {
     }
 }
 
-#[derive(Debug)]
-pub struct Binding<State, T> {
-    pub get: fn(&State) -> T,
-    pub set: fn(&mut State, T),
+pub struct Binding<State, T, Get, Set> {
+    pub get: Get,
+    pub set: Set,
+    _s: PhantomData<State>,
+    _t: PhantomData<T>,
 }
 
-impl<State, T> Clone for Binding<State, T> {
-    fn clone(&self) -> Self {
-        *self
+impl<State, T, Get, Set> Binding<State, T, Get, Set> {
+    pub fn new(get: Get, set: Set) -> Self {
+        Self {
+            get,
+            set,
+            _s: PhantomData,
+            _t: PhantomData,
+        }
     }
 }
 
-impl<State, T> Copy for Binding<State, T> {}
+impl<State, T, Get: Clone, Set: Clone> Clone for Binding<State, T, Get, Set> {
+    fn clone(&self) -> Self {
+        Self {
+            get: self.get.clone(),
+            set: self.set.clone(),
+            _s: PhantomData,
+            _t: PhantomData,
+        }
+    }
+}
 
-impl<State, T> Binding<State, T> {
+impl<State, T, Get: Copy, Set: Copy> Copy for Binding<State, T, Get, Set> {}
+
+impl<State, T, Get, Set> Binding<State, T, Get, Set>
+where
+    Get: Fn(&State) -> T,
+    Set: Fn(&mut State, T),
+{
     pub fn get(&self, state: &State) -> T {
         (self.get)(state)
     }
     pub fn set(&self, state: &mut State, value: T) {
         (self.set)(state, value)
+    }
+    pub fn update(&self, state: &mut State, f: impl Fn(&mut T)) {
+        let mut temp = (self.get)(state);
+        f(&mut temp);
+        (self.set)(state, temp)
     }
 }
