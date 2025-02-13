@@ -1,4 +1,5 @@
 use ui::*;
+use vello_svg::vello::peniko::color::AlphaColor;
 
 #[derive(Clone, Default)]
 struct AppState {
@@ -39,11 +40,11 @@ fn main() {
                                         .height(if index % 3 == 0 { 40. } else { 60. })
                                         .attach_under(
                                             rect(id!(id))
-                                                // .fill(if index % 2 == 0 {
-                                                //     AlphaColor::from_rgb8(250, 0, 0)
-                                                // } else {
-                                                //     AlphaColor::from_rgb8(250, 0, 255)
-                                                // })
+                                                .fill(if index % 2 == 0 {
+                                                    AlphaColor::from_rgb8(250, 0, 0)
+                                                } else {
+                                                    AlphaColor::from_rgb8(250, 0, 255)
+                                                })
                                                 .stroke(Color::WHITE, 1.)
                                                 .view()
                                                 .transition_duration(0.)
@@ -75,7 +76,7 @@ fn main() {
                         .pad_y(10.)
                         .attach_under(
                             rect(id!())
-                                .corner_rounding(30.)
+                                .corner_rounding(10.)
                                 .stroke(Color::WHITE, 1.)
                                 .finish(),
                         ),
@@ -122,7 +123,7 @@ fn button<'n, State: 'static>(
                     (false, true) => Color::from_rgb8(180, 150, 255),
                     (false, false) => Color::from_rgb8(110, 80, 255),
                 })
-                .corner_rounding(30.)
+                .corner_rounding(10.)
                 .view()
                 .on_hover(move |s: &mut State, h| hovered.set(s, h))
                 .on_click(move |s: &mut State, click_state| match click_state {

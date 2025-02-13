@@ -146,8 +146,8 @@ impl WindowEvent {
             }
 
             winit::event::WindowEvent::CursorMoved { position, .. } => MouseMoved(Point {
-                x: position.x as f64,
-                y: position.y as f64,
+                x: position.x,
+                y: position.y,
             }),
 
             winit::event::WindowEvent::CursorEntered { .. } => MouseEntered,
@@ -168,8 +168,8 @@ impl WindowEvent {
                 ..
             }) => {
                 let position = Point {
-                    x: location.x as f64,
-                    y: location.y as f64,
+                    x: location.x,
+                    y: location.y,
                 };
                 let touch = TouchEvent {
                     phase,

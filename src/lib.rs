@@ -35,3 +35,4 @@ pub use models::*;
 const RUBIK_FONT: &[u8] = include_bytes!("../assets/Rubik-VariableFont_wght.ttf");
 const DEFAULT_EASING: Easing = Easing::EaseOut;
 const DEFAULT_DURATION: f32 = 200.;
+const DEFAULT_CORNER_ROUNDING: f64 = 10.;
