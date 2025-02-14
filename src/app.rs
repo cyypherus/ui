@@ -218,6 +218,7 @@ impl<'n, State: Clone> App<'_, 'n, State> {
         {
             self.request_redraw();
         }
+        self.request_redraw();
     }
 }
 

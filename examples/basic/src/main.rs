@@ -1,5 +1,4 @@
 use ui::*;
-use vello_svg::vello::peniko::color::AlphaColor;
 
 #[derive(Clone, Default)]
 struct AppState {
@@ -19,12 +18,12 @@ fn main() {
             column_spaced(
                 20.,
                 vec![
-                    // svg(id!(), || std::fs::read("assets/tiger.svg").unwrap())
-                    //     .finish()
-                    //     .aspect(1.),
+                    svg(id!(), || std::fs::read("assets/tiger.svg").unwrap())
+                        .finish()
+                        .aspect(1.),
                     scroller(
                         id!(),
-                        Binding::<AppState, ScrollerState, _, _>::new(
+                        Binding::<AppState, ScrollerState>::new(
                             |s: &AppState| s.scroller.clone(),
                             |s: &mut AppState, sc| s.scroller = sc,
                         ),
@@ -32,7 +31,7 @@ fn main() {
                             if state.button.get(index).is_some() {
                                 let id = id!(index as u64);
                                 Some(
-                                    button::<AppState, _, _>(
+                                    button::<AppState>(
                                         id,
                                         "Clear text".to_string(),
                                         Binding::new(
@@ -86,16 +85,12 @@ struct ButtonState {
     depressed: bool,
 }
 
-fn button<'n, State: 'static, Get, Set>(
+fn button<'n, State: 'static>(
     id: u64,
     label: String,
-    state: Binding<State, ButtonState, Get, Set>,
+    state: Binding<State, ButtonState>,
     on_click: fn(&mut State),
-) -> Node<'n, RcUi<State>>
-where
-    Get: Fn(&State) -> ButtonState + Copy + 'static,
-    Set: Fn(&mut State, ButtonState) + Copy + 'static,
-{
+) -> Node<'n, RcUi<State>> {
     dynamic_node(move |s: &mut State| {
         stack(vec![
             rect(id!(id))
@@ -106,13 +101,19 @@ where
                 })
                 .corner_rounding(10.)
                 .view()
-                .on_hover(move |s: &mut State, h| state.update(s, |s| s.hovered = h))
-                .on_click(move |s: &mut State, click_state| match click_state {
-                    ClickState::Started => state.update(s, |s| s.depressed = true),
-                    ClickState::Cancelled => state.update(s, |s| s.depressed = false),
-                    ClickState::Completed => {
-                        on_click(s);
-                        state.update(s, |s| s.depressed = false)
+                .on_hover({
+                    let binding = state.clone();
+                    move |s: &mut State, h| binding.update(s, |s| s.hovered = h)
+                })
+                .on_click({
+                    let binding = state.clone();
+                    move |s: &mut State, click_state| match click_state {
+                        ClickState::Started => binding.update(s, |s| s.depressed = true),
+                        ClickState::Cancelled => binding.update(s, |s| s.depressed = false),
+                        ClickState::Completed => {
+                            on_click(s);
+                            binding.update(s, |s| s.depressed = false)
+                        }
                     }
                 })
                 .transition_duration(0.)

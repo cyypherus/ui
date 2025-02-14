@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::rc::Rc;
 
 use crate::Area;
 use vello_svg::vello::kurbo::Point;
@@ -34,42 +34,30 @@ impl Key {
     }
 }
 
-pub struct Binding<State, T, Get, Set> {
-    pub get: Get,
-    pub set: Set,
-    _s: PhantomData<State>,
-    _t: PhantomData<T>,
+pub struct Binding<State, T> {
+    pub get: Rc<dyn Fn(&State) -> T>,
+    pub set: Rc<dyn Fn(&mut State, T)>,
 }
 
-impl<State, T, Get, Set> Binding<State, T, Get, Set> {
-    pub fn new(get: Get, set: Set) -> Self {
+impl<State, T> Binding<State, T> {
+    pub fn new(get: impl Fn(&State) -> T + 'static, set: impl Fn(&mut State, T) + 'static) -> Self {
         Self {
-            get,
-            set,
-            _s: PhantomData,
-            _t: PhantomData,
+            get: Rc::new(get),
+            set: Rc::new(set),
         }
     }
 }
 
-impl<State, T, Get: Clone, Set: Clone> Clone for Binding<State, T, Get, Set> {
+impl<State, T> Clone for Binding<State, T> {
     fn clone(&self) -> Self {
         Self {
             get: self.get.clone(),
             set: self.set.clone(),
-            _s: PhantomData,
-            _t: PhantomData,
         }
     }
 }
 
-impl<State, T, Get: Copy, Set: Copy> Copy for Binding<State, T, Get, Set> {}
-
-impl<State, T, Get, Set> Binding<State, T, Get, Set>
-where
-    Get: Fn(&State) -> T,
-    Set: Fn(&mut State, T),
-{
+impl<State, T> Binding<State, T> {
     pub fn get(&self, state: &State) -> T {
         (self.get)(state)
     }

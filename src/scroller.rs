@@ -134,66 +134,73 @@ impl ScrollerState {
     }
 }
 
-pub fn scroller<'n, State: 'static, CellFn, Get, Set>(
+pub fn scroller<'n, State: 'static, CellFn>(
     id: u64,
-    scroller: Binding<State, ScrollerState, Get, Set>,
+    scroller: Binding<State, ScrollerState>,
     cell: CellFn,
 ) -> Node<'n, RcUi<State>>
 where
     CellFn: for<'x> Fn(&'x mut State, usize, u64) -> Option<Node<'n, RcUi<State>>> + Copy + 'static,
-    Get: Fn(&State) -> ScrollerState + Copy + 'static,
-    Set: Fn(&mut State, ScrollerState) + Copy + 'static,
 {
     stack(vec![
         rect(crate::id!())
             .corner_rounding(DEFAULT_CORNER_ROUNDING as f32)
             .fill(AlphaColor::from_rgb8(30, 30, 30))
             .view()
-            .on_scroll(move |s, dt| {
-                let mut sc = scroller.get(s);
-                sc.dt += dt.y;
-                scroller.set(s, sc);
+            .on_scroll({
+                let scroller = scroller.clone();
+                move |s, dt| {
+                    let mut sc = scroller.get(s);
+                    sc.dt += dt.y;
+                    scroller.set(s, sc);
+                }
             })
             .finish(),
-        // clipping(
-        //     |area| {
-        //         RoundedRect::from_origin_size(
-        //             Point::new(area.x.into(), area.y.into()),
-        //             Size::new(area.width.into(), area.height.into()),
-        //             DEFAULT_CORNER_ROUNDING,
-        //         )
-        //         .to_path(0.001)
-        //     },
-        area_reader::<RcUi<State>>(move |area, state| {
-            let mut scroller_state = scroller.get(&state.ui.state);
-            scroller_state.update(area, state, id, |state, index, id, area| {
-                cell(&mut state.ui.state, index, id)?.min_height(area, state)
-            });
-            let window = &scroller_state.visible_window;
-            let mut cells = Vec::new();
-            for element in window {
-                if let Some(cell) = cell(&mut state.ui.state, element.index, id) {
-                    cells.push(cell);
+        clipping(
+            |area| {
+                RoundedRect::from_origin_size(
+                    Point::new(area.x.into(), area.y.into()),
+                    Size::new(area.width.into(), area.height.into()),
+                    DEFAULT_CORNER_ROUNDING,
+                )
+                .to_path(0.001)
+            },
+            area_reader::<RcUi<State>>({
+                let scroller = scroller.clone();
+                move |area, state| {
+                    let mut scroller_state = scroller.get(&state.ui.state);
+                    scroller_state.update(area, state, id, |state, index, id, area| {
+                        cell(&mut state.ui.state, index, id)?.min_height(area, state)
+                    });
+                    let window = &scroller_state.visible_window;
+                    let mut cells = Vec::new();
+                    for element in window {
+                        if let Some(cell) = cell(&mut state.ui.state, element.index, id) {
+                            cells.push(cell);
+                        }
+                    }
+                    let offset = scroller_state.offset;
+                    let comp = scroller_state.compensated;
+                    scroller.set(&mut state.ui.state, scroller_state);
+                    column(cells)
+                        //
+                        .offset_y(offset + comp)
+                        .height(1.)
                 }
-            }
-            let offset = scroller_state.offset;
-            let comp = scroller_state.compensated;
-            scroller.set(&mut state.ui.state, scroller_state);
-            column(cells)
-                //
-                .offset_y(offset + comp)
-                .height(1.)
-        })
-        .expand(),
-        // ),
+            })
+            .expand(),
+        ),
         rect(crate::id!())
             .corner_rounding(DEFAULT_CORNER_ROUNDING as f32)
             .stroke(Color::WHITE, 1.)
             .view()
-            .on_scroll(move |s, dt| {
-                let mut sc = scroller.get(s);
-                sc.dt += dt.y;
-                scroller.set(s, sc);
+            .on_scroll({
+                let scroller = scroller.clone();
+                move |s, dt| {
+                    let mut sc = scroller.get(s);
+                    sc.dt += dt.y;
+                    scroller.set(s, sc);
+                }
             })
             .finish(),
     ])
