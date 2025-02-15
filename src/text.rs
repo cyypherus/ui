@@ -6,7 +6,7 @@ use crate::{
 };
 use backer::{models::*, Node};
 use lilt::{Animated, Easing};
-use parley::{FontStack, PositionedLayoutItem, TextStyle};
+use parley::{FontStack, Layout, PositionedLayoutItem, TextStyle};
 use std::time::Instant;
 use vello_svg::vello::{
     kurbo::Affine,
@@ -128,6 +128,10 @@ impl AnimatedText {
                     .easing(from.easing.unwrap_or(DEFAULT_EASING))
                     .duration(from.duration.unwrap_or(DEFAULT_DURATION))
                     .delay(from.delay),
+                a: Animated::new(AnimatedU8(from.fill.to_rgba8().a))
+                    .easing(from.easing.unwrap_or(DEFAULT_EASING))
+                    .duration(from.duration.unwrap_or(DEFAULT_DURATION))
+                    .delay(from.delay),
             },
         }
     }
@@ -154,24 +158,7 @@ impl Text {
             return;
         };
         AnimatedText::update(state.ui.now, self, &mut animated);
-        let mut layout = state.ui.cx().with_font_layout_ctx(|layout_cx, font_cx| {
-            let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
-            let mut builder = layout_cx.tree_builder(
-                font_cx,
-                1.,
-                &TextStyle {
-                    brush: [255, 0, 0, 0],
-                    font_stack,
-                    line_height: 1.3,
-                    font_size: self.font_size as f32,
-                    ..Default::default()
-                },
-            );
-            builder.push_text(&self.text);
-            builder.build().0
-        });
-        layout.break_all_lines(Some(area.width));
-        layout.align(Some(area.width), self.alignment.into(), true);
+        let layout = self.current_layout(area.width, state);
 
         let anim_fill = Color::from_rgba8(
             animated.fill.r.animate_wrapped(state.ui.now).0,
@@ -230,12 +217,26 @@ impl Text {
 }
 
 impl<'s> Text {
-    pub(crate) fn create_node<State>(
-        self,
-        _ui: &mut RcUi<State>,
-        node: Node<'s, RcUi<State>>,
-    ) -> Node<'s, RcUi<State>> {
-        node.dynamic_height(move |width, ui| {
+    pub(crate) fn current_layout<State>(
+        &self,
+        available_width: f32,
+        ui: &mut RcUi<State>,
+    ) -> Layout<[u8; 4]> {
+        if let Some(layout) = ui
+            .ui
+            .cx()
+            .layout_cache
+            .get(&self.id)
+            .and_then(|(text, layout)| {
+                if *text == self.text {
+                    Some(layout)
+                } else {
+                    None
+                }
+            })
+        {
+            layout.clone()
+        } else {
             let mut layout = ui.ui.cx().with_font_layout_ctx(|layout_cx, font_cx| {
                 let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
                 let mut builder = layout_cx.tree_builder(
@@ -252,9 +253,20 @@ impl<'s> Text {
                 builder.push_text(&self.text);
                 builder.build().0
             });
-            layout.break_all_lines(Some(width));
-            layout.align(Some(width), self.alignment.into(), true);
-            layout.height()
-        })
+            layout.break_all_lines(Some(available_width));
+            layout.align(Some(available_width), self.alignment.into(), true);
+            ui.ui
+                .cx()
+                .layout_cache
+                .insert(self.id, (self.text.clone(), layout.clone()));
+            layout
+        }
+    }
+    pub(crate) fn create_node<State>(
+        self,
+        _ui: &mut RcUi<State>,
+        node: Node<'s, RcUi<State>>,
+    ) -> Node<'s, RcUi<State>> {
+        node.dynamic_height(move |width, ui| self.current_layout(width, ui).height())
     }
 }

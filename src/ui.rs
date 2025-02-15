@@ -6,7 +6,7 @@ use crate::{
 pub use backer::models::*;
 use backer::Node;
 use lilt::Animated;
-use parley::{FontContext, LayoutContext};
+use parley::{FontContext, Layout, LayoutContext};
 use std::{cell::Cell, sync::Arc, time::Instant};
 use std::{collections::HashMap, rc::Rc};
 use vello_svg::vello::util::RenderSurface;
@@ -162,6 +162,7 @@ pub struct UiCx {
     pub(crate) font_cx: Rc<Cell<Option<FontContext>>>,
     pub(crate) layout_cx: Rc<Cell<Option<LayoutContext>>>,
     pub(crate) view_state: HashMap<u64, AnimatedView>,
+    pub(crate) layout_cache: HashMap<u64, (String, Layout<[u8; 4]>)>,
 }
 
 impl UiCx {

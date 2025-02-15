@@ -7,6 +7,7 @@ pub(crate) struct AnimatedColor {
     pub(crate) r: Animated<AnimatedU8, Instant>,
     pub(crate) g: Animated<AnimatedU8, Instant>,
     pub(crate) b: Animated<AnimatedU8, Instant>,
+    pub(crate) a: Animated<AnimatedU8, Instant>,
 }
 
 impl AnimatedColor {
@@ -14,10 +15,14 @@ impl AnimatedColor {
         self.r.transition(AnimatedU8(to.to_rgba8().r), now);
         self.g.transition(AnimatedU8(to.to_rgba8().g), now);
         self.b.transition(AnimatedU8(to.to_rgba8().b), now);
+        self.a.transition(AnimatedU8(to.to_rgba8().a), now);
     }
 
     pub(crate) fn in_progress(&self, now: Instant) -> bool {
-        self.r.in_progress(now) || self.g.in_progress(now) || self.b.in_progress(now)
+        self.r.in_progress(now)
+            || self.g.in_progress(now)
+            || self.b.in_progress(now)
+            || self.a.in_progress(now)
     }
 }
 

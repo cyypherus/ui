@@ -1,4 +1,4 @@
-use crate::{clipping, rect, Binding, RcUi, DEFAULT_CORNER_ROUNDING};
+use crate::{clipping, rect, view::View, Binding, RcUi, DEFAULT_CORNER_ROUNDING};
 use backer::{
     models::Area,
     nodes::{area_reader, column, stack},
@@ -15,6 +15,7 @@ pub struct ScrollerState {
     dt: f32,
     compensated: f32,
     offset: f32,
+    limit_offset: f32,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -101,7 +102,10 @@ impl ScrollerState {
                                 (cell_height, self.compensated >= 0., f.index - 1)
                             })
                         } else {
-                            self.compensated = 0.;
+                            // if self.compensated > 0. {
+                            //     self.limit_offset = self.compensated.min(self.compensated * 0.2);
+                            // }
+                            self.compensated = self.compensated.min(0.);
                             None
                         }
                     })
@@ -125,17 +129,15 @@ impl ScrollerState {
                 }
             }
         }
-        self.offset = self.offset(available_area);
-    }
-
-    fn offset(&self, available_area: Area) -> f32 {
-        -(available_area.height - self.visible_window.iter().fold(0., |acc, e| acc + e.height))
-            * 0.5
+        self.offset = -(available_area.height
+            - self.visible_window.iter().fold(0., |acc, e| acc + e.height))
+            * 0.5;
     }
 }
 
 pub fn scroller<'n, State: 'static, CellFn>(
     id: u64,
+    backing: Node<'n, RcUi<State>>,
     scroller: Binding<State, ScrollerState>,
     cell: CellFn,
 ) -> Node<'n, RcUi<State>>
@@ -143,19 +145,7 @@ where
     CellFn: for<'x> Fn(&'x mut State, usize, u64) -> Option<Node<'n, RcUi<State>>> + Copy + 'static,
 {
     stack(vec![
-        rect(crate::id!())
-            .corner_rounding(DEFAULT_CORNER_ROUNDING as f32)
-            .fill(AlphaColor::from_rgb8(30, 30, 30))
-            .view()
-            .on_scroll({
-                let scroller = scroller.clone();
-                move |s, dt| {
-                    let mut sc = scroller.get(s);
-                    sc.dt += dt.y;
-                    scroller.set(s, sc);
-                }
-            })
-            .finish(),
+        backing,
         clipping(
             |area| {
                 RoundedRect::from_origin_size(
@@ -181,6 +171,8 @@ where
                     }
                     let offset = scroller_state.offset;
                     let comp = scroller_state.compensated;
+                    // let limit_offset = scroller_state.limit_offset;
+
                     scroller.set(&mut state.ui.state, scroller_state);
                     column(cells)
                         //
@@ -192,7 +184,7 @@ where
         ),
         rect(crate::id!())
             .corner_rounding(DEFAULT_CORNER_ROUNDING as f32)
-            .stroke(Color::WHITE, 1.)
+            .fill(Color::TRANSPARENT)
             .view()
             .on_scroll({
                 let scroller = scroller.clone();

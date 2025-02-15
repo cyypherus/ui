@@ -89,6 +89,10 @@ impl AnimatedShape {
                     .easing(from.easing.unwrap_or(DEFAULT_EASING))
                     .duration(from.duration.unwrap_or(DEFAULT_DURATION))
                     .delay(from.delay),
+                a: Animated::new(AnimatedU8(fill.to_rgba8().a))
+                    .easing(from.easing.unwrap_or(DEFAULT_EASING))
+                    .duration(from.duration.unwrap_or(DEFAULT_DURATION))
+                    .delay(from.delay),
             }),
             stroke: from.stroke.map(|(color, width)| {
                 (
@@ -102,6 +106,10 @@ impl AnimatedShape {
                             .duration(from.duration.unwrap_or(DEFAULT_DURATION))
                             .delay(from.delay),
                         b: Animated::new(AnimatedU8(color.to_rgba8().b))
+                            .easing(from.easing.unwrap_or(DEFAULT_EASING))
+                            .duration(from.duration.unwrap_or(DEFAULT_DURATION))
+                            .delay(from.delay),
+                        a: Animated::new(AnimatedU8(color.to_rgba8().a))
                             .easing(from.easing.unwrap_or(DEFAULT_EASING))
                             .duration(from.duration.unwrap_or(DEFAULT_DURATION))
                             .delay(from.delay),
@@ -172,7 +180,7 @@ impl AnimatedShape {
                         fill.r.animate_wrapped(now).0,
                         fill.g.animate_wrapped(now).0,
                         fill.b.animate_wrapped(now).0,
-                        255,
+                        fill.a.animate_wrapped(now).0,
                     )
                     .multiply_alpha(visible_amount),
                     None,
@@ -188,7 +196,7 @@ impl AnimatedShape {
                             stroke.r.animate_wrapped(now).0,
                             stroke.g.animate_wrapped(now).0,
                             stroke.b.animate_wrapped(now).0,
-                            255,
+                            stroke.a.animate_wrapped(now).0,
                         )
                         .multiply_alpha(visible_amount),
                     ),

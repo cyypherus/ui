@@ -79,6 +79,7 @@ impl<'n, State: Clone> App<'_, 'n, State> {
                 scene: Scene::new(),
                 layout_cx: Rc::new(Cell::new(Some(LayoutContext::new()))),
                 font_cx: Rc::new(Cell::new(Some(font_cx))),
+                layout_cache: HashMap::new(),
             }),
             view,
             gesture_handlers: Some(Vec::new()),
@@ -218,7 +219,6 @@ impl<'n, State: Clone> App<'_, 'n, State> {
         {
             self.request_redraw();
         }
-        self.request_redraw();
     }
 }
 
@@ -243,7 +243,7 @@ impl<State: Clone> ApplicationHandler for App<'_, '_, State> {
             window.clone(),
             size.width,
             size.height,
-            vello_svg::vello::wgpu::PresentMode::Immediate,
+            vello_svg::vello::wgpu::PresentMode::AutoVsync,
         );
         let surface = pollster::block_on(surface_future).expect("Error creating surface");
         let render_state = RenderState { window, surface };
