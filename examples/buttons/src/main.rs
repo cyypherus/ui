@@ -1,7 +1,7 @@
 use ui::*;
 use vello_svg::vello::peniko::color::AlphaColor;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 struct AppState {
     count: i32,
     b1: ButtonState,
@@ -38,10 +38,10 @@ fn main() {
                             text(id!(), "Custom Body").fill(AlphaColor::WHITE).finish(),
                             button(id!(), binding!(AppState, b2))
                                 .on_click(|s| s.count += 1)
-                                .body(
+                                .body(|button| {
                                     rect(id!())
                                         .fill({
-                                            match (s.b2.hovered, s.b2.depressed) {
+                                            match (button.hovered, button.depressed) {
                                                 (_, true) => AlphaColor::from_rgb8(100, 30, 30),
                                                 (true, false) => AlphaColor::from_rgb8(230, 30, 30),
                                                 (false, false) => {
@@ -50,8 +50,8 @@ fn main() {
                                             }
                                         })
                                         .corner_rounding(40.)
-                                        .view(),
-                                )
+                                        .finish()
+                                })
                                 .finish(),
                         ],
                     )
@@ -63,7 +63,12 @@ fn main() {
                             text(id!(), "Svg Label").fill(AlphaColor::WHITE).finish(),
                             button(id!(), binding!(AppState, b3))
                                 .on_click(|s| s.count += 1)
-                                .label(svg(id!(), "assets/download.svg").view())
+                                .label(|_| {
+                                    svg(id!(), "assets/download.svg")
+                                        .finish()
+                                        .aspect(1.)
+                                        .height(40.)
+                                })
                                 .finish(),
                         ],
                     )

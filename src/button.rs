@@ -1,4 +1,4 @@
-use crate::{dynamic_node, view::View, Binding, ClickState, RcUi, DEFAULT_FONT_SIZE};
+use crate::{dynamic_node, rect, Binding, ClickState, RcUi, DEFAULT_FONT_SIZE};
 use backer::{nodes::stack, Node};
 use vello_svg::vello::peniko::color::AlphaColor;
 
@@ -8,17 +8,20 @@ pub struct ButtonState {
     pub depressed: bool,
 }
 
-pub struct Button<State> {
+type BodyFn<'n, State> = fn(ButtonState) -> Node<'n, RcUi<State>>;
+type LabelFn<'n, State> = fn(ButtonState) -> Node<'n, RcUi<State>>;
+
+pub struct Button<'n, State> {
     id: u64,
-    body: Option<View<State, ()>>,
-    label: Option<View<State, ()>>,
+    body: Option<BodyFn<'n, State>>,
+    label: Option<LabelFn<'n, State>>,
     text_label: Option<String>,
     corner_rounding: Option<f32>,
     on_click: Option<fn(&mut State)>,
     state: Binding<State, ButtonState>,
 }
 
-pub fn button<State>(id: u64, binding: Binding<State, ButtonState>) -> Button<State> {
+pub fn button<'n, State>(id: u64, binding: Binding<State, ButtonState>) -> Button<'n, State> {
     Button {
         id,
         body: None,
@@ -30,12 +33,12 @@ pub fn button<State>(id: u64, binding: Binding<State, ButtonState>) -> Button<St
     }
 }
 
-impl<State> Button<State> {
-    pub fn body(mut self, body: View<State, ()>) -> Self {
+impl<'n, State> Button<'n, State> {
+    pub fn body(mut self, body: fn(ButtonState) -> Node<'n, RcUi<State>>) -> Self {
         self.body = Some(body);
         self
     }
-    pub fn label(mut self, label: View<State, ()>) -> Self {
+    pub fn label(mut self, label: fn(ButtonState) -> Node<'n, RcUi<State>>) -> Self {
         self.label = Some(label);
         self
     }
@@ -51,26 +54,50 @@ impl<State> Button<State> {
         self.on_click = Some(on_click);
         self
     }
-    pub fn finish<'n>(self) -> Node<'n, RcUi<State>>
+    pub fn finish(self) -> Node<'n, RcUi<State>>
     where
         State: 'static,
     {
         dynamic_node(move |s: &mut State| {
             stack(vec![
-                self.body
-                    .clone()
-                    .unwrap_or(
-                        crate::rect(crate::id!(self.id))
-                            .fill(
-                                match (self.state.get(s).depressed, self.state.get(s).hovered) {
-                                    (true, _) => AlphaColor::from_rgb8(93, 50, 212),
-                                    (false, true) => AlphaColor::from_rgb8(133, 90, 252),
-                                    (false, false) => AlphaColor::from_rgb8(113, 70, 232),
-                                },
-                            )
-                            .corner_rounding(self.corner_rounding.unwrap_or(10.))
-                            .view(),
+                if let Some(body) = self.body {
+                    body(self.state.get(s))
+                } else {
+                    rect(crate::id!(self.id))
+                        .fill(
+                            match (self.state.get(s).depressed, self.state.get(s).hovered) {
+                                (true, _) => AlphaColor::from_rgb8(93, 50, 212),
+                                (false, true) => AlphaColor::from_rgb8(133, 90, 252),
+                                (false, false) => AlphaColor::from_rgb8(113, 70, 232),
+                            },
+                        )
+                        .corner_rounding(self.corner_rounding.unwrap_or(10.))
+                        .view()
+                        .transition_duration(0.)
+                        .finish()
+                },
+                if let Some(label) = self.label {
+                    label(self.state.get(s))
+                } else {
+                    crate::text(
+                        crate::id!(self.id),
+                        self.text_label.clone().unwrap_or_default(),
                     )
+                    .fill(
+                        match (self.state.get(s).depressed, self.state.get(s).hovered) {
+                            (true, _) => AlphaColor::from_rgb8(190, 190, 190),
+                            (false, true) => AlphaColor::from_rgb8(250, 250, 250),
+                            (false, false) => AlphaColor::from_rgb8(200, 200, 200),
+                        },
+                    )
+                    .font_size(DEFAULT_FONT_SIZE)
+                    .view()
+                    .transition_duration(0.)
+                    .finish()
+                },
+                rect(crate::id!(self.id))
+                    .fill(AlphaColor::TRANSPARENT)
+                    .view()
                     .on_hover({
                         let binding = self.state.clone();
                         move |s: &mut State, h| binding.update(s, |s| s.hovered = h)
@@ -88,26 +115,6 @@ impl<State> Button<State> {
                             }
                         }
                     })
-                    .transition_duration(0.)
-                    .finish(),
-                self.label
-                    .clone()
-                    .unwrap_or(
-                        crate::text(
-                            crate::id!(self.id),
-                            self.text_label.clone().unwrap_or_default(),
-                        )
-                        .fill(
-                            match (self.state.get(s).depressed, self.state.get(s).hovered) {
-                                (true, _) => AlphaColor::from_rgb8(190, 190, 190),
-                                (false, true) => AlphaColor::from_rgb8(250, 250, 250),
-                                (false, false) => AlphaColor::from_rgb8(200, 200, 200),
-                            },
-                        )
-                        .font_size(DEFAULT_FONT_SIZE)
-                        .view(),
-                    )
-                    .transition_duration(0.)
                     .finish(),
             ])
         })
