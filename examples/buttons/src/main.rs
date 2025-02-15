@@ -12,7 +12,7 @@ struct AppState {
 fn main() {
     App::start(
         AppState::default(),
-        dynamic_node(|s: &mut AppState| {
+        dynamic_node(|_: &mut AppState| {
             row_spaced(
                 20.,
                 vec![
