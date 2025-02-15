@@ -63,12 +63,7 @@ fn main() {
                             text(id!(), "Svg Label").fill(AlphaColor::WHITE).finish(),
                             button(id!(), binding!(AppState, b3))
                                 .on_click(|s| s.count += 1)
-                                .label(|_| {
-                                    svg(id!(), "assets/download.svg")
-                                        .finish()
-                                        .aspect(1.)
-                                        .height(40.)
-                                })
+                                .label(|_| svg(id!(), "assets/download.svg").finish())
                                 .finish(),
                         ],
                     )

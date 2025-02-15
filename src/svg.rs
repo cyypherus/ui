@@ -11,6 +11,7 @@ use vello_svg::vello::Scene;
 pub struct Svg {
     pub(crate) id: u64,
     pub(crate) source: String,
+    pub(crate) unlocked_aspect_ratio: bool,
     pub(crate) easing: Option<Easing>,
     pub(crate) duration: Option<f32>,
     pub(crate) delay: f32,
@@ -23,10 +24,15 @@ pub fn svg(id: u64, source: impl AsRef<str>) -> Svg {
         easing: None,
         duration: None,
         delay: 0.,
+        unlocked_aspect_ratio: false,
     }
 }
 
 impl Svg {
+    pub fn unlock_aspect_ratio(mut self) -> Self {
+        self.unlocked_aspect_ratio = true;
+        self
+    }
     pub fn view<State>(self) -> View<State, ()> {
         View {
             view_type: ViewType::Svg(self),
@@ -90,14 +96,21 @@ impl Svg {
         if let Some((svg_scene, width, height)) = image_scenes.get(&self.source) {
             scene.append(
                 svg_scene,
-                Some(
+                Some(if self.unlocked_aspect_ratio {
                     Affine::IDENTITY
                         .then_scale_non_uniform(
                             (area.width / width) as f64,
                             (area.height / height) as f64,
                         )
-                        .then_translate(Vec2::new(area.x as f64, area.y as f64)),
-                ),
+                        .then_translate(Vec2::new(area.x as f64, area.y as f64))
+                } else {
+                    let scale = (area.width / width).min(area.height / height) as f64;
+                    let dx = area.x as f64 + (area.width as f64 - *width as f64 * scale) / 2.0;
+                    let dy = area.y as f64 + (area.height as f64 - *height as f64 * scale) / 2.0;
+                    Affine::IDENTITY
+                        .then_scale(scale)
+                        .then_translate(Vec2::new(dx, dy))
+                }),
             );
         }
     }
