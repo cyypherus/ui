@@ -63,10 +63,7 @@ fn main() {
                             text(id!(), "Svg Label").fill(AlphaColor::WHITE).finish(),
                             button(id!(), binding!(AppState, b3))
                                 .on_click(|s| s.count += 1)
-                                .label(
-                                    svg(id!(), || std::fs::read("assets/tiger.svg").unwrap())
-                                        .view(),
-                                )
+                                .label(svg(id!(), "assets/download.svg").view())
                                 .finish(),
                         ],
                     )

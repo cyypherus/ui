@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Instant;
 use std::{num::NonZeroUsize, sync::Arc};
-use vello_svg::vello::kurbo::{Affine, Vec2};
 use vello_svg::vello::peniko::Color;
 use vello_svg::vello::util::RenderContext;
 use vello_svg::vello::{Renderer, RendererOptions, Scene};
@@ -28,8 +27,6 @@ pub struct App<'s, 'n, State: Clone> {
     pub(crate) render_state: Option<RenderState<'s>>,
     pub(crate) cached_window: Option<Arc<Window>>,
     pub(crate) cx: Option<UiCx>,
-    pub(crate) images: HashMap<u64, Vec<u8>>,
-    pub(crate) image_scenes: HashMap<u64, (Scene, f32, f32)>,
     pub(crate) background_scheduler: BackgroundScheduler<State>,
 }
 
@@ -113,11 +110,10 @@ impl<'n, State: Clone + 'static> App<'_, 'n, State> {
                 layout_cx: Rc::new(Cell::new(Some(LayoutContext::new()))),
                 font_cx: Rc::new(Cell::new(Some(font_cx))),
                 layout_cache: HashMap::new(),
+                image_scenes: HashMap::new(),
             }),
             view,
             gesture_handlers: Some(Vec::new()),
-            images: HashMap::new(),
-            image_scenes: HashMap::new(),
             background_scheduler: BackgroundScheduler::new(),
         };
         event_loop.run_app(&mut app).expect("run to completion");
@@ -142,7 +138,6 @@ impl<'n, State: Clone + 'static> App<'_, 'n, State> {
                     state: self.state.clone(),
                     gesture_handlers: self.gesture_handlers.take().unwrap(),
                     cx: self.cx.take(),
-                    images: HashMap::new(),
                     now,
                 },
             };
@@ -159,44 +154,6 @@ impl<'n, State: Clone + 'static> App<'_, 'n, State> {
             self.state = ui.ui.state.clone();
             self.gesture_handlers = Some(std::mem::take(&mut ui.ui.gesture_handlers));
             self.cx = ui.ui.cx.take();
-
-            for (id, (area, source)) in ui.ui.images {
-                if self.images.get_mut(&id).is_none() {
-                    self.images.insert(id, source());
-                }
-                let image_data = self.images.get(&id).unwrap();
-                #[allow(clippy::map_entry)]
-                if !self.image_scenes.contains_key(&id) {
-                    match vello_svg::usvg::Tree::from_data(
-                        image_data,
-                        &vello_svg::usvg::Options::default(),
-                    ) {
-                        Err(err) => {
-                            eprintln!("Loading svg failed: {err}");
-                            self.image_scenes.insert(id, (Scene::new(), 0., 0.));
-                        }
-                        Ok(svg) => {
-                            let svg_scene = vello_svg::render_tree(&svg);
-                            let size = svg.size();
-                            self.image_scenes
-                                .insert(id, (svg_scene, size.width(), size.height()));
-                        }
-                    }
-                }
-                if let Some((svg_scene, width, height)) = self.image_scenes.get(&id) {
-                    self.cx.as_mut().unwrap().scene.append(
-                        svg_scene,
-                        Some(
-                            Affine::IDENTITY
-                                .then_scale_non_uniform(
-                                    (area.width / width) as f64,
-                                    (area.height / height) as f64,
-                                )
-                                .then_translate(Vec2::new(area.x as f64, area.y as f64)),
-                        ),
-                    );
-                }
-            }
         }
         let Self {
             context,

@@ -43,7 +43,7 @@ fn main() {
             column_spaced(
                 20.,
                 vec![
-                    svg(id!(), || std::fs::read("assets/tiger.svg").unwrap())
+                    svg(id!(), "assets/tiger.svg")
                         .finish()
                         .aspect(1.),
                     scroller(
@@ -80,6 +80,12 @@ fn main() {
                                                 .transition_duration(0.)
                                                 .finish()
                                                 .pad(10.),
+                                            svg(id!(index as u64), "assets/tiger.svg")
+                                                .view()
+                                                .transition_duration(0.)
+                                                .finish()
+                                                .height(100.)
+                                                .aspect(1.)
                                         ]),
                                     ]),
                                     space().height(10.)

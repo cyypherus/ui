@@ -111,7 +111,7 @@ impl<State, T: Clone> Clone for ViewType<State, T> {
             ViewType::Text(text) => ViewType::Text(text.clone()),
             ViewType::Rect(rect) => ViewType::Rect(*rect),
             ViewType::Circle(circle) => ViewType::Circle(circle.clone()),
-            ViewType::Svg(svg) => ViewType::Svg(*svg),
+            ViewType::Svg(svg) => ViewType::Svg(svg.clone()),
             ViewType::External(external_view) => ViewType::External(external_view.clone()),
         }
     }

@@ -1,23 +1,25 @@
-use crate::ui::RcUi;
+use crate::ui::{RcUi, UiCx};
 use crate::view::{View, ViewType};
 use crate::GestureHandler;
 use backer::models::Area;
 use backer::Node;
 use lilt::Easing;
+use vello_svg::vello::kurbo::{Affine, Vec2};
+use vello_svg::vello::Scene;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Svg {
     pub(crate) id: u64,
-    pub(crate) source: fn() -> Vec<u8>,
+    pub(crate) source: String,
     pub(crate) easing: Option<Easing>,
     pub(crate) duration: Option<f32>,
     pub(crate) delay: f32,
 }
 
-pub fn svg(id: u64, source: fn() -> Vec<u8>) -> Svg {
+pub fn svg(id: u64, source: impl AsRef<str>) -> Svg {
     Svg {
         id,
-        source,
+        source: source.as_ref().to_string(),
         easing: None,
         duration: None,
         delay: 0.,
@@ -53,6 +55,50 @@ impl Svg {
         if !visible && visible_amount == 0. {
             return;
         }
-        state.ui.images.insert(self.id, (area, self.source));
+        #[allow(clippy::map_entry)]
+        if !state.ui.cx().image_scenes.contains_key(&self.source) {
+            match std::fs::read(self.source.clone()) {
+                Err(err) => eprintln!("Loading svg failed: {err}"),
+                Ok(image_data) => match vello_svg::usvg::Tree::from_data(
+                    image_data.as_slice(),
+                    &vello_svg::usvg::Options::default(),
+                ) {
+                    Err(err) => {
+                        eprintln!("Loading svg failed: {err}");
+                        state
+                            .ui
+                            .cx()
+                            .image_scenes
+                            .insert(self.source.clone(), (Scene::new(), 0., 0.));
+                    }
+                    Ok(svg) => {
+                        let svg_scene = vello_svg::render_tree(&svg);
+                        let size = svg.size();
+                        state.ui.cx().image_scenes.insert(
+                            self.source.clone(),
+                            (svg_scene, size.width(), size.height()),
+                        );
+                    }
+                },
+            }
+        }
+        let UiCx {
+            image_scenes,
+            scene,
+            ..
+        } = state.ui.cx();
+        if let Some((svg_scene, width, height)) = image_scenes.get(&self.source) {
+            scene.append(
+                svg_scene,
+                Some(
+                    Affine::IDENTITY
+                        .then_scale_non_uniform(
+                            (area.width / width) as f64,
+                            (area.height / height) as f64,
+                        )
+                        .then_translate(Vec2::new(area.x as f64, area.y as f64)),
+                ),
+            );
+        }
     }
 }
