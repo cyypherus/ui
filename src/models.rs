@@ -34,9 +34,12 @@ impl Key {
     }
 }
 
+type Getter<State, T> = Rc<dyn Fn(&State) -> T>;
+type Setter<State, T> = Rc<dyn Fn(&mut State, T)>;
+
 pub struct Binding<State, T> {
-    pub get: Rc<dyn Fn(&State) -> T>,
-    pub set: Rc<dyn Fn(&mut State, T)>,
+    pub get: Getter<State, T>,
+    pub set: Setter<State, T>,
 }
 
 impl<State, T> Binding<State, T> {

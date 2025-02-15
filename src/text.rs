@@ -1,4 +1,5 @@
 use crate::animated_color::{AnimatedColor, AnimatedU8};
+use crate::DEFAULT_FONT_SIZE;
 use crate::{
     ui::RcUi,
     view::{AnimatedView, View, ViewType},
@@ -17,7 +18,7 @@ pub fn text(id: u64, text: impl AsRef<str> + 'static) -> Text {
     Text {
         id,
         text: text.as_ref().to_owned(),
-        font_size: 20,
+        font_size: DEFAULT_FONT_SIZE,
         // font: None,
         fill: Color::BLACK,
         easing: None,
@@ -164,7 +165,7 @@ impl Text {
             animated.fill.r.animate_wrapped(state.ui.now).0,
             animated.fill.g.animate_wrapped(state.ui.now).0,
             animated.fill.b.animate_wrapped(state.ui.now).0,
-            255,
+            animated.fill.a.animate_wrapped(state.ui.now).0,
         )
         .multiply_alpha(visible_amount);
         let transform = Affine::translate((area.x as f64, area.y as f64));

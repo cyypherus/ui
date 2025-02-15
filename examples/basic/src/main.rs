@@ -58,37 +58,33 @@ fn main() {
                             |s: &mut AppState, sc| s.scroller = sc,
                         ),
                         |state, index, _id| {
-                            if let Some(s) = state.texts.get(index) {
-                                Some(
-                                    column(vec![
-                                        if index == 0 {
-                                            space().height(10.)
-                                        } else {
-                                            empty()
-                                        },
-                                        stack(vec![
-                                            rect(id!(index as u64))
-                                                .fill(AlphaColor::from_rgb8(40, 40, 40))
-                                                .corner_rounding(5.)
+                            state.texts.get(index).map(|s| {
+                                column(vec![
+                                    if index == 0 {
+                                        space().height(10.)
+                                    } else {
+                                        empty()
+                                    },
+                                    stack(vec![
+                                        rect(id!(index as u64))
+                                            .fill(AlphaColor::from_rgb8(40, 40, 40))
+                                            .corner_rounding(5.)
+                                            .view()
+                                            .transition_duration(0.)
+                                            .finish(),
+                                        row(vec![
+                                            text(id!(index as u64), s.clone())
+                                                .fill(Color::WHITE)
+                                                .align(TextAlign::Leading)
                                                 .view()
                                                 .transition_duration(0.)
-                                                .finish(),
-                                            row(vec![
-                                                text(id!(index as u64), s.clone())
-                                                    .fill(Color::WHITE)
-                                                    .align(TextAlign::Leading)
-                                                    .view()
-                                                    .transition_duration(0.)
-                                                    .finish()
-                                                    .pad(10.),
-                                            ]),
+                                                .finish()
+                                                .pad(10.),
                                         ]),
-                                        space().height(10.)
-                                    ]).pad_x(10.)
-                                )
-                            } else {
-                                None
-                            }
+                                    ]),
+                                    space().height(10.)
+                                ]).pad_x(10.)
+                            })
                         },
                     )
                     .height(300.),
@@ -120,53 +116,4 @@ fn main() {
             .width(600.)
         }),
     )
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-struct ButtonState {
-    hovered: bool,
-    depressed: bool,
-}
-
-fn button<'n, State: 'static>(
-    id: u64,
-    label: String,
-    state: Binding<State, ButtonState>,
-    on_click: fn(&mut State),
-) -> Node<'n, RcUi<State>> {
-    dynamic_node(move |s: &mut State| {
-        stack(vec![
-            rect(id!(id))
-                .fill(match (state.get(s).depressed, state.get(s).hovered) {
-                    (true, _) => Color::from_rgb8(50, 30, 55),
-                    (false, true) => Color::from_rgb8(180, 150, 255),
-                    (false, false) => Color::from_rgb8(110, 80, 255),
-                })
-                .corner_rounding(10.)
-                .view()
-                .on_hover({
-                    let binding = state.clone();
-                    move |s: &mut State, h| binding.update(s, |s| s.hovered = h)
-                })
-                .on_click({
-                    let binding = state.clone();
-                    move |s: &mut State, click_state| match click_state {
-                        ClickState::Started => binding.update(s, |s| s.depressed = true),
-                        ClickState::Cancelled => binding.update(s, |s| s.depressed = false),
-                        ClickState::Completed => {
-                            on_click(s);
-                            binding.update(s, |s| s.depressed = false)
-                        }
-                    }
-                })
-                .transition_duration(0.)
-                .finish(),
-            text(id!(id), label.clone())
-                .fill(Color::WHITE)
-                .font_size(30)
-                .view()
-                .transition_duration(0.)
-                .finish(),
-        ])
-    })
 }

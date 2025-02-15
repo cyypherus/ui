@@ -1,5 +1,6 @@
 mod animated_color;
 mod app;
+mod button;
 mod circle;
 mod event;
 mod gestures;
@@ -14,6 +15,7 @@ mod view;
 
 pub use app::App;
 pub use backer::{models::*, nodes::*, Layout, Node};
+pub use button::{button, Button, ButtonState};
 pub use circle::circle;
 pub use gestures::{ClickState, DragState, GestureHandler, GestureState};
 use lilt::Easing;
@@ -36,3 +38,4 @@ const RUBIK_FONT: &[u8] = include_bytes!("../assets/Rubik-VariableFont_wght.ttf"
 const DEFAULT_EASING: Easing = Easing::EaseOut;
 const DEFAULT_DURATION: f32 = 200.;
 const DEFAULT_CORNER_ROUNDING: f64 = 10.;
+const DEFAULT_FONT_SIZE: u32 = 23;

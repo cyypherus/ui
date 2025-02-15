@@ -7,7 +7,7 @@ use backer::Node;
 use std::time::Instant;
 use vello_svg::vello::peniko::Color;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Rect {
     pub(crate) id: u64,
     pub(crate) shape: Shape,

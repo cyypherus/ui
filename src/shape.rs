@@ -8,7 +8,7 @@ use vello_svg::vello::peniko::{Brush, Fill};
 use vello_svg::vello::Scene;
 use vello_svg::vello::{kurbo::Affine, peniko::Color};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Shape {
     pub(crate) shape: ShapeType,
     pub(crate) fill: Option<Color>,

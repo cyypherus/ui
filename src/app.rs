@@ -30,18 +30,51 @@ pub struct App<'s, 'n, State: Clone> {
     pub(crate) cx: Option<UiCx>,
     pub(crate) images: HashMap<u64, Vec<u8>>,
     pub(crate) image_scenes: HashMap<u64, (Scene, f32, f32)>,
+    pub(crate) background_scheduler: BackgroundScheduler<State>,
 }
 
-impl<State: Clone> App<'_, '_, State> {
+use std::thread;
+use tokio::{runtime::Runtime, sync::mpsc, task};
+
+type BackgroundTask<State> = Box<dyn FnOnce() -> BackgroundTaskCompletion<State> + Send + 'static>;
+type BackgroundTaskCompletion<State> = Box<dyn FnOnce(&mut State) + Send>;
+
+pub struct BackgroundScheduler<State> {
+    sender: mpsc::Sender<BackgroundTask<State>>,
+}
+
+impl<State: 'static> BackgroundScheduler<State> {
+    pub fn new() -> Self {
+        let (tx, mut rx) = mpsc::channel::<BackgroundTask<State>>(100);
+        thread::spawn(move || {
+            let rt = Runtime::new().unwrap();
+            rt.block_on(async move {
+                while let Some(task) = rx.recv().await {
+                    task::spawn_blocking(move || task());
+                }
+            });
+        });
+        Self { sender: tx }
+    }
+}
+
+impl<'n, State: Clone + 'static> App<'_, 'n, State> {
+    pub fn spawn<F, R>(&self, task: F)
+    where
+        F: FnOnce() -> R + Send + 'static,
+        R: FnOnce(&mut State) + Send + 'static,
+    {
+        _ = self
+            .background_scheduler
+            .sender
+            .blocking_send(Box::new(|| Box::new(task())));
+    }
     fn request_redraw(&self) {
         let Some(RenderState { window, .. }) = &self.render_state else {
             return;
         };
         window.request_redraw();
     }
-}
-
-impl<'n, State: Clone> App<'_, 'n, State> {
     pub fn start(state: State, view: Node<'n, RcUi<State>>) {
         let event_loop = EventLoop::new().expect("Could not create event loop");
         #[allow(unused_mut)]
@@ -85,6 +118,7 @@ impl<'n, State: Clone> App<'_, 'n, State> {
             gesture_handlers: Some(Vec::new()),
             images: HashMap::new(),
             image_scenes: HashMap::new(),
+            background_scheduler: BackgroundScheduler::new(),
         };
         event_loop.run_app(&mut app).expect("run to completion");
     }
@@ -222,7 +256,7 @@ impl<'n, State: Clone> App<'_, 'n, State> {
     }
 }
 
-impl<State: Clone> ApplicationHandler for App<'_, '_, State> {
+impl<State: Clone + 'static> ApplicationHandler for App<'_, '_, State> {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         let Option::None = self.render_state else {
             return;
@@ -329,7 +363,7 @@ impl<State: Clone> ApplicationHandler for App<'_, '_, State> {
         }
     }
 }
-impl<State: Clone> App<'_, '_, State> {
+impl<State: Clone + 'static> App<'_, '_, State> {
     pub(crate) fn mouse_moved(&mut self, pos: Point) {
         let mut needs_redraw = false;
         self.cursor_position = Some(pos);

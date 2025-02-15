@@ -48,6 +48,16 @@ macro_rules! id {
     }};
 }
 
+#[macro_export]
+macro_rules! binding {
+    ($State:ty, $field:ident) => {
+        Binding::new(
+            |s: &$State| s.$field,
+            |s: &mut $State, value| s.$field = value,
+        )
+    };
+}
+
 pub fn dynamic_node<'a, State: 'a>(
     view: impl Fn(&mut State) -> Node<'a, RcUi<State>> + 'a,
 ) -> Node<'a, RcUi<State>> {
@@ -99,7 +109,7 @@ impl<State, T: Clone> Clone for ViewType<State, T> {
     fn clone(&self) -> Self {
         match self {
             ViewType::Text(text) => ViewType::Text(text.clone()),
-            ViewType::Rect(rect) => ViewType::Rect(rect.clone()),
+            ViewType::Rect(rect) => ViewType::Rect(*rect),
             ViewType::Circle(circle) => ViewType::Circle(circle.clone()),
             ViewType::Svg(svg) => ViewType::Svg(*svg),
             ViewType::External(external_view) => ViewType::External(external_view.clone()),

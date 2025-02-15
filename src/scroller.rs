@@ -1,4 +1,4 @@
-use crate::{clipping, rect, view::View, Binding, RcUi, DEFAULT_CORNER_ROUNDING};
+use crate::{clipping, rect, Binding, RcUi, DEFAULT_CORNER_ROUNDING};
 use backer::{
     models::Area,
     nodes::{area_reader, column, stack},
@@ -6,7 +6,7 @@ use backer::{
 };
 use vello_svg::vello::{
     kurbo::{Point, RoundedRect, Shape, Size},
-    peniko::{color::AlphaColor, Color},
+    peniko::Color,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -15,7 +15,7 @@ pub struct ScrollerState {
     dt: f32,
     compensated: f32,
     offset: f32,
-    limit_offset: f32,
+    _limit_offset: f32,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
