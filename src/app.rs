@@ -521,9 +521,19 @@ impl<State: Clone + 'static> App<'_, '_, State> {
     }
     pub(crate) fn mouse_released(&mut self) {
         let mut needs_redraw = false;
-        if let Some((_, _, editor, EditingPhase::Editing)) = self.editor.as_mut() {
-            editor.mouse_released();
-            needs_redraw = true;
+        let mut end_editing = false;
+        if let Some(point) = self.cursor_position {
+            if let Some((_, area, editor, EditingPhase::Editing)) = self.editor.as_mut() {
+                needs_redraw = true;
+                if area_contains(area, point) {
+                    editor.mouse_released();
+                } else {
+                    end_editing = true;
+                }
+            }
+        }
+        if end_editing {
+            self.editor = None;
         }
         if let Some(current) = self.cursor_position {
             if let GestureState::Dragging { start, capturer } = self.gesture_state {

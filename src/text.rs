@@ -229,7 +229,13 @@ impl<State> Text<State> {
         if !visible && visible_amount == 0. {
             return;
         }
-        if let (EditingPhase::None, true) = (
+        if let (EditingPhase::Editing, true) = (
+            self.state.get(&state.ui.state).editing,
+            state.ui.editor.is_none(),
+        ) {
+            self.state
+                .update(&mut state.ui.state, |s| s.editing = EditingPhase::None);
+        } else if let (EditingPhase::None, true) = (
             self.state.get(&state.ui.state).editing,
             state.ui.editor.is_none(),
         ) {
