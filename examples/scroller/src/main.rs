@@ -38,50 +38,66 @@ fn main() {
             scroller: ScrollerState::default(),
         },
         dynamic_node(|_: &mut AppState| {
-            scroller(
-                id!(),
-                rect(crate::id!())
-                    .corner_rounding(10.)
-                    .stroke(AlphaColor::from_rgb8(50, 50, 50), 2.)
-                    .fill(AlphaColor::from_rgb8(30, 30, 30))
-                    .finish(),
-                binding!(AppState, scroller),
-                |state, index, _id| {
-                    state.texts.get(index).map(|s| {
-                        column(vec![
-                            if index == 0 {
-                                space().height(10.)
-                            } else {
-                                empty()
-                            },
-                            stack(vec![
-                                rect(id!(index as u64))
-                                    .fill(AlphaColor::from_rgb8(40, 40, 40))
-                                    .corner_rounding(5.)
-                                    .view()
-                                    .transition_duration(0.)
-                                    .finish(),
-                                row(vec![
-                                    text(id!(index as u64), s.clone())
-                                        .fill(Color::WHITE)
-                                        .align(TextAlign::Leading)
-                                        .view()
-                                        .transition_duration(0.)
-                                        .finish()
-                                        .pad(10.),
-                                    svg(id!(index as u64), "assets/tiger.svg")
-                                        .view()
-                                        .transition_duration(0.)
-                                        .finish()
-                                        .height(100.)
-                                        .aspect(1.)
-                                ]),
-                            ]),
-                            space().height(10.)
-                        ]).pad_x(10.)
-                    })
-                },
-            ).pad(10.)
+            let vec = vec![
+                space(),
+                scroller(
+                    id!(),
+                    rect(crate::id!())
+                        .corner_rounding(10.)
+                        .stroke(AlphaColor::from_rgb8(50, 50, 50), 2.)
+                        .fill(AlphaColor::from_rgb8(30, 30, 30))
+                        .view()
+                        .transition_duration(0.)
+                        .finish(),
+                    binding!(AppState, scroller),
+                    scroller_cell,
+                ),
+                space()
+            ];
+            let elements = vec;
+            row(elements)
+            .pad_y(25.)
         }),
     )
+}
+
+fn scroller_cell<'n>(
+    state: &mut AppState,
+    index: usize,
+    _id: u64,
+) -> Option<Node<'n, RcUi<AppState>>> {
+    state.texts.get(index).map(|s| {
+        column(vec![
+            if index == 0 {
+                space().height(10.)
+            } else {
+                empty()
+            },
+            stack(vec![
+                rect(id!(index as u64))
+                    .fill(AlphaColor::from_rgb8(40, 40, 40))
+                    .corner_rounding(5.)
+                    .view()
+                    .transition_duration(0.)
+                    .finish(),
+                row(vec![
+                    text(id!(index as u64), s.clone())
+                        .fill(Color::WHITE)
+                        .align(TextAlign::Leading)
+                        .view()
+                        .transition_duration(0.)
+                        .finish()
+                        .pad(10.),
+                    svg(id!(index as u64), "assets/tiger.svg")
+                        .view()
+                        .transition_duration(0.)
+                        .finish()
+                        .height(100.)
+                        .aspect(1.),
+                ]),
+            ]),
+            space().height(10.),
+        ])
+        .pad_x(10.)
+    })
 }
