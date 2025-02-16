@@ -58,6 +58,15 @@ impl<State, T> Binding<State, T> {
             set: Rc::new(set),
         }
     }
+    pub fn constant(value: T) -> Self
+    where
+        T: Clone + 'static,
+    {
+        Self {
+            get: Rc::new(move |_| value.clone()),
+            set: Rc::new(move |_, _| {}),
+        }
+    }
 }
 
 impl<State, T> Clone for Binding<State, T> {

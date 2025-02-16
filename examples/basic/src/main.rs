@@ -2,22 +2,27 @@ use ui::*;
 
 #[derive(Clone)]
 struct AppState {
-    text: String,
-    editor: Editor,
+    text: TextState,
 }
 
 fn main() {
     App::start(
         AppState {
-            text: "The scale factor is calculated differently on different platforms:".to_string(),
-            editor: Editor::new("2025-02-15 20:49:37.749 basic[41538:11281138] +[IMKClient subclass]: chose IMKClient_Legacy
-            2025-02-15 20:49:37.749 basic[41538:11281138] +[IMKInputSession subclass]: chose IMKInputSession_Legacy"),
+            text: TextState {
+                text: "The scale factor is calculated differently on different platforms:"
+                    .to_string(),
+                editing: false,
+            },
         },
-        dynamic_node(|s: &mut AppState| {
+        dynamic_node(|_: &mut AppState| {
             column_spaced(
                 20.,
                 vec![
-                    text_field(id!(), binding!(AppState, editor)).finish().width(200.),
+                    text_field(id!(), binding!(AppState, text))
+                        .fill(Color::from_rgb8(0, 200, 200))
+                        .finish()
+                        .width(200.)
+                        .attach_under(rect(id!()).stroke(Color::WHITE, 2.).finish()),
                     // svg(id!(), "assets/tiger.svg").finish().aspect(1.),
                     // text(id!(), s.text.clone())
                     //     .fill(Color::WHITE)

@@ -1,10 +1,4 @@
-use crate::{
-    gestures::{
-        ClickHandler, DragHandler, HoverHandler, KeyHandler, ScrollHandler, SystemKeyHandler,
-    },
-    view::AnimatedView,
-    GestureHandler,
-};
+use crate::{gestures::InteractionHandler, view::AnimatedView, Editor, GestureHandler};
 pub use backer::models::*;
 use backer::Node;
 use lilt::Animated;
@@ -20,6 +14,7 @@ pub struct Ui<State> {
     pub gesture_handlers: Vec<(u64, Area, GestureHandler<State>)>,
     pub cx: Option<UiCx>,
     pub(crate) now: Instant,
+    pub(crate) editor: Option<(u64, Area, Editor)>,
 }
 
 #[derive(Debug, Clone)]
@@ -73,16 +68,14 @@ pub fn scoper<'n, State, Scoped: 'n + 'static>(
     node: Node<'n, RcUi<Scoped>>,
 ) -> Node<'n, RcUi<State>> {
     backer::nodes::scope_owned(
-        move |ui: &mut RcUi<State>| {
-            let child_cx = ui.ui.cx.take();
-            RcUi {
-                ui: Ui {
-                    state: scope(&mut ui.ui.state),
-                    gesture_handlers: Vec::new(),
-                    cx: child_cx,
-                    now: ui.ui.now,
-                },
-            }
+        move |ui: &mut RcUi<State>| RcUi {
+            ui: Ui {
+                state: scope(&mut ui.ui.state),
+                gesture_handlers: Vec::new(),
+                cx: ui.ui.cx.take(),
+                now: ui.ui.now,
+                editor: ui.ui.editor.take(),
+            },
         },
         move |ui: &mut RcUi<State>, mut embedded: RcUi<Scoped>| {
             ui.ui.cx = embedded.ui.cx.take();
@@ -94,55 +87,25 @@ pub fn scoper<'n, State, Scoped: 'n + 'static>(
                             h.0,
                             h.1,
                             GestureHandler {
-                                on_click: h.2.on_click.map(|o_c| {
-                                    let r: ClickHandler<State> =
-                                        Rc::new(move |state, click_state, pos| {
-                                            let mut scoped = scope(state);
-                                            (o_c)(&mut scoped, click_state, pos);
-                                            embed(state, scoped);
+                                interaction_type: h.2.interaction_type,
+                                interaction_handler: h.2.interaction_handler.map(|o_c| {
+                                    let r: InteractionHandler<State> =
+                                        Rc::new(move |ui, interaction| {
+                                            let child_cx = ui.ui.cx.take();
+                                            let mut scoped = RcUi {
+                                                ui: Ui {
+                                                    state: scope(&mut ui.ui.state),
+                                                    gesture_handlers: Vec::new(),
+                                                    cx: child_cx,
+                                                    now: ui.ui.now,
+                                                    editor: ui.ui.editor.take(),
+                                                },
+                                            };
+                                            (o_c)(&mut scoped, interaction);
+                                            ui.ui.cx = scoped.ui.cx.take();
+                                            ui.ui.editor = scoped.ui.editor.take();
+                                            embed(&mut ui.ui.state, scoped.ui.state);
                                         });
-                                    r
-                                }),
-                                on_drag: h.2.on_drag.map(|o_c| {
-                                    let r: DragHandler<State> =
-                                        Rc::new(move |state, drag_state| {
-                                            let mut scoped = scope(state);
-                                            (o_c)(&mut scoped, drag_state);
-                                            embed(state, scoped);
-                                        });
-                                    r
-                                }),
-                                on_hover: h.2.on_hover.map(|o_c| {
-                                    let r: HoverHandler<State> = Rc::new(move |state, on_hover| {
-                                        let mut scoped = scope(state);
-                                        (o_c)(&mut scoped, on_hover);
-                                        embed(state, scoped);
-                                    });
-                                    r
-                                }),
-                                on_key: h.2.on_key.map(|o_c| {
-                                    let r: KeyHandler<State> = Rc::new(move |state, on_hover| {
-                                        let mut scoped = scope(state);
-                                        (o_c)(&mut scoped, on_hover);
-                                        embed(state, scoped);
-                                    });
-                                    r
-                                }),
-                                on_system_key: h.2.on_system_key.map(|o_c| {
-                                    let r: SystemKeyHandler<State> =
-                                        Rc::new(move |state, cx, key| {
-                                            let mut scoped = scope(state);
-                                            (o_c)(&mut scoped, cx, key);
-                                            embed(state, scoped);
-                                        });
-                                    r
-                                }),
-                                on_scroll: h.2.on_scroll.map(|o_c| {
-                                    let r: ScrollHandler<State> = Rc::new(move |state, delta| {
-                                        let mut scoped = scope(state);
-                                        (o_c)(&mut scoped, delta);
-                                        embed(state, scoped);
-                                    });
                                     r
                                 }),
                             },

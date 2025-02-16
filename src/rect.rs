@@ -1,7 +1,6 @@
 use crate::shape::{AnimatedShape, Shape, ShapeType};
 use crate::ui::RcUi;
 use crate::view::{AnimatedView, View, ViewType};
-use crate::GestureHandler;
 use backer::models::Area;
 use backer::Node;
 use std::time::Instant;
@@ -70,10 +69,10 @@ impl Rect {
     pub fn view<State>(self) -> View<State, ()> {
         View {
             view_type: ViewType::Rect(self),
-            gesture_handler: GestureHandler::default(),
+            gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<'n, State: 'n>(self) -> Node<'n, RcUi<State>> {
+    pub fn finish<'n, State: 'static>(self) -> Node<'n, RcUi<State>> {
         self.view().finish()
     }
 }

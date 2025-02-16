@@ -1,6 +1,6 @@
-use crate::gestures::{ClickLocation, ScrollDelta};
+use crate::gestures::{ClickLocation, Interaction, ScrollDelta};
 use crate::ui::{AnimationBank, Ui, UiCx};
-use crate::{area_contains, ClickState, DragState, GestureHandler, Point, RcUi};
+use crate::{area_contains, ClickState, DragState, Editor, GestureHandler, Point, RcUi};
 use crate::{event, ui::RenderState, Area, GestureState, Layout, RUBIK_FONT};
 use backer::Node;
 use parley::{FontContext, LayoutContext};
@@ -12,7 +12,7 @@ use std::{num::NonZeroUsize, sync::Arc};
 use vello_svg::vello::peniko::Color;
 use vello_svg::vello::util::RenderContext;
 use vello_svg::vello::{Renderer, RendererOptions, Scene};
-use winit::event::{Modifiers, MouseScrollDelta};
+use winit::event::MouseScrollDelta;
 use winit::{application::ApplicationHandler, event_loop::EventLoop, window::Window};
 use winit::{dpi::LogicalSize, event::MouseButton};
 
@@ -29,6 +29,7 @@ pub struct App<'s, 'n, State: Clone> {
     pub(crate) cx: Option<UiCx>,
     pub(crate) background_scheduler: BackgroundScheduler<State>,
     pub(crate) scale_factor: f64,
+    pub(crate) editor: Option<(u64, Area, Editor)>,
 }
 
 use std::thread;
@@ -119,8 +120,25 @@ impl<'n, State: Clone + 'static> App<'_, 'n, State> {
             gesture_handlers: Some(Vec::new()),
             background_scheduler: BackgroundScheduler::new(),
             scale_factor: 1.,
+            editor: None,
         };
         event_loop.run_app(&mut app).expect("run to completion");
+    }
+    fn with_ui(&mut self, f: impl FnOnce(&mut RcUi<State>)) {
+        let mut ui = RcUi {
+            ui: Ui {
+                state: self.state.clone(),
+                gesture_handlers: self.gesture_handlers.take().unwrap(),
+                cx: self.cx.take(),
+                now: Instant::now(),
+                editor: self.editor.take(),
+            },
+        };
+        f(&mut ui);
+        self.state = ui.ui.state.clone();
+        self.gesture_handlers = Some(std::mem::take(&mut ui.ui.gesture_handlers));
+        self.cx = ui.ui.cx.take();
+        self.editor = ui.ui.editor.take();
     }
     fn redraw(&mut self) {
         let now = Instant::now();
@@ -145,6 +163,7 @@ impl<'n, State: Clone + 'static> App<'_, 'n, State> {
                     gesture_handlers: self.gesture_handlers.take().unwrap(),
                     cx: self.cx.take(),
                     now,
+                    editor: self.editor.take(),
                 },
             };
 
@@ -160,6 +179,21 @@ impl<'n, State: Clone + 'static> App<'_, 'n, State> {
             self.state = ui.ui.state.clone();
             self.gesture_handlers = Some(std::mem::take(&mut ui.ui.gesture_handlers));
             self.cx = ui.ui.cx.take();
+            self.editor = ui.ui.editor.take();
+            if let Some((_, area, ref mut editor)) = self.editor {
+                let mut layout_cx = self.cx.as_mut().unwrap().layout_cx.take().unwrap();
+                let mut font_cx = self.cx.as_mut().unwrap().font_cx.take().unwrap();
+                editor.draw(
+                    area,
+                    &mut self.cx.as_mut().unwrap().scene,
+                    &mut layout_cx,
+                    &mut font_cx,
+                    true,
+                    1.0,
+                );
+                self.cx.as_mut().unwrap().layout_cx.set(Some(layout_cx));
+                self.cx.as_mut().unwrap().font_cx.set(Some(font_cx));
+            }
         }
         let Self {
             context,
@@ -288,15 +322,38 @@ impl<State: Clone + 'static> ApplicationHandler for App<'_, '_, State> {
                     let Some(key) = crate::Key::from(key) else {
                         return;
                     };
+                    let App { cx, editor, .. } = self;
                     let mut needs_redraw = false;
-                    for handler in self.gesture_handlers.as_ref().unwrap().iter() {
-                        if let Some(ref on_key) = handler.2.on_key {
-                            needs_redraw = true;
-                            (on_key)(&mut self.state, key.clone());
-                        }
-                        if let Some(ref on_key) = handler.2.on_system_key {
-                            needs_redraw = true;
-                            (on_key)(&mut self.state, self.cx.as_mut().unwrap(), key.clone());
+                    if let Some((_, _, editor)) = editor {
+                        let mut layout_cx = cx.as_mut().unwrap().layout_cx.take().unwrap();
+                        let mut font_cx = cx.as_mut().unwrap().font_cx.take().unwrap();
+                        editor.handle_key(
+                            key.clone(),
+                            &mut layout_cx,
+                            &mut font_cx,
+                            cx.as_ref().unwrap().modifiers,
+                        );
+                        cx.as_mut().unwrap().layout_cx.set(Some(layout_cx));
+                        cx.as_mut().unwrap().font_cx.set(Some(font_cx));
+                    }
+                    for handler in self.gesture_handlers.clone().unwrap().iter() {
+                        if let Some(ref interaction_handler) = handler.2.interaction_handler {
+                            if handler.2.interaction_type.key {
+                                needs_redraw = true;
+                                self.with_ui(|ui| {
+                                    (interaction_handler)(ui, Interaction::Key(key.clone()));
+                                });
+                            } else if handler.2.interaction_type.edit {
+                                needs_redraw = true;
+                                self.with_ui(|ui| {
+                                    if let Some((_, _, editor)) = &ui.ui.editor {
+                                        (interaction_handler)(
+                                            ui,
+                                            Interaction::Edit(editor.text().to_string()),
+                                        );
+                                    }
+                                });
+                            }
                         }
                     }
                     if needs_redraw {
@@ -341,35 +398,54 @@ impl<State: Clone + 'static> App<'_, '_, State> {
     pub(crate) fn mouse_moved(&mut self, pos: Point) {
         let mut needs_redraw = false;
         self.cursor_position = Some(pos);
+        let App { cx, editor, .. } = self;
+        if let Some((_, area, editor)) = editor.as_mut() {
+            needs_redraw = true;
+            let mut layout_cx = cx.as_mut().unwrap().layout_cx.take().unwrap();
+            let mut font_cx = cx.as_mut().unwrap().font_cx.take().unwrap();
+            editor.mouse_moved(
+                Point::new(pos.x - area.x as f64, pos.y - area.y as f64),
+                &mut layout_cx,
+                &mut font_cx,
+            );
+            cx.as_mut().unwrap().layout_cx.set(Some(layout_cx));
+            cx.as_mut().unwrap().font_cx.set(Some(font_cx));
+        }
         self.gesture_handlers
-            .as_ref()
+            .clone()
             .unwrap()
             .iter()
             .for_each(|(_, area, gh)| {
-                if let Some(on_hover) = &gh.on_hover {
-                    needs_redraw = true;
-                    on_hover(&mut self.state, area_contains(area, pos));
+                if gh.interaction_type.hover {
+                    if let Some(ref on_hover) = gh.interaction_handler {
+                        needs_redraw = true;
+                        self.with_ui(|ui| {
+                            (on_hover)(ui, Interaction::Hover(area_contains(area, pos)));
+                        });
+                    }
                 }
             });
         if let GestureState::Dragging { start, capturer } = self.gesture_state {
             let distance = start.distance(pos);
             if let Some(Some(handler)) = self
                 .gesture_handlers
-                .as_ref()
+                .clone()
                 .unwrap()
                 .iter()
-                .find(|(id, _, _)| *id == capturer)
-                .map(|(_, _, gh)| &gh.on_drag)
+                .find(|(id, _, gh)| *id == capturer && gh.interaction_type.drag)
+                .map(|(_, _, gh)| &gh.interaction_handler)
             {
                 needs_redraw = true;
-                handler(
-                    &mut self.state,
-                    DragState::Updated {
-                        start,
-                        current: pos,
-                        distance: distance as f32,
-                    },
-                );
+                self.with_ui(|ui| {
+                    handler(
+                        ui,
+                        Interaction::Drag(DragState::Updated {
+                            start,
+                            current: pos,
+                            distance: distance as f32,
+                        }),
+                    );
+                });
             }
         }
         if needs_redraw {
@@ -378,25 +454,37 @@ impl<State: Clone + 'static> App<'_, '_, State> {
     }
     pub(crate) fn mouse_pressed(&mut self) {
         let mut needs_redraw = false;
+        let App { cx, editor, .. } = self;
+        if let Some((_, _, editor)) = editor.as_mut() {
+            let mut layout_cx = cx.as_mut().unwrap().layout_cx.take().unwrap();
+            let mut font_cx = cx.as_mut().unwrap().font_cx.take().unwrap();
+            editor.mouse_pressed(&mut layout_cx, &mut font_cx);
+            cx.as_mut().unwrap().layout_cx.set(Some(layout_cx));
+            cx.as_mut().unwrap().font_cx.set(Some(font_cx));
+        }
         if let Some(point) = self.cursor_position {
             if let Some((capturer, area, handler)) = self
                 .gesture_handlers
-                .as_ref()
+                .clone()
                 .unwrap()
                 .iter()
                 .rev()
                 .find(|(_, area, handler)| {
                     area_contains(area, point)
-                        && (handler.on_click.is_some() || handler.on_drag.is_some())
+                        && (handler.interaction_type.click || handler.interaction_type.drag)
                 })
             {
                 needs_redraw = true;
-                if let Some(ref on_click) = handler.on_click {
-                    on_click(
-                        &mut self.state,
-                        ClickState::Started,
-                        ClickLocation::new(point, *area),
-                    );
+                if let Some(ref on_click) = handler.interaction_handler {
+                    self.with_ui(|ui| {
+                        on_click(
+                            ui,
+                            Interaction::Click(
+                                ClickState::Started,
+                                ClickLocation::new(point, *area),
+                            ),
+                        );
+                    });
                 }
                 self.gesture_state = GestureState::Dragging {
                     start: point,
@@ -410,42 +498,54 @@ impl<State: Clone + 'static> App<'_, '_, State> {
     }
     pub(crate) fn mouse_released(&mut self) {
         let mut needs_redraw = false;
+        if let Some((_, _, editor)) = self.editor.as_mut() {
+            editor.mouse_released();
+            needs_redraw = true;
+        }
         if let Some(current) = self.cursor_position {
             if let GestureState::Dragging { start, capturer } = self.gesture_state {
                 let distance = start.distance(current);
                 if let Some((_, area, handler)) = self
                     .gesture_handlers
-                    .as_ref()
+                    .clone()
                     .unwrap()
                     .iter()
                     .find(|(id, _, _)| *id == capturer)
                 {
-                    if let Some(ref on_click) = handler.on_click {
+                    if let Some(ref on_click) = handler.interaction_handler {
                         needs_redraw = true;
-                        if area_contains(area, current) {
-                            on_click(
-                                &mut self.state,
-                                ClickState::Completed,
-                                ClickLocation::new(current, *area),
-                            );
-                        } else {
-                            on_click(
-                                &mut self.state,
-                                ClickState::Cancelled,
-                                ClickLocation::new(current, *area),
-                            );
-                        }
+                        self.with_ui(|ui| {
+                            if area_contains(area, current) {
+                                on_click(
+                                    ui,
+                                    Interaction::Click(
+                                        ClickState::Completed,
+                                        ClickLocation::new(current, *area),
+                                    ),
+                                );
+                            } else {
+                                on_click(
+                                    ui,
+                                    Interaction::Click(
+                                        ClickState::Cancelled,
+                                        ClickLocation::new(current, *area),
+                                    ),
+                                );
+                            }
+                        });
                     }
-                    if let Some(ref on_drag) = handler.on_drag {
+                    if let Some(ref on_drag) = handler.interaction_handler {
                         needs_redraw = true;
-                        on_drag(
-                            &mut self.state,
-                            DragState::Completed {
-                                start,
-                                current,
-                                distance: distance as f32,
-                            },
-                        );
+                        self.with_ui(|ui| {
+                            on_drag(
+                                ui,
+                                Interaction::Drag(DragState::Completed {
+                                    start,
+                                    current,
+                                    distance: distance as f32,
+                                }),
+                            );
+                        });
                     }
                 }
             }
@@ -458,31 +558,33 @@ impl<State: Clone + 'static> App<'_, '_, State> {
     pub(crate) fn scrolled(&mut self, delta: MouseScrollDelta) {
         let mut needs_redraw = false;
         if let Some(current) = self.cursor_position {
-            if let Some((_, _, handler)) = self
-                .gesture_handlers
-                .as_ref()
-                .unwrap()
-                .iter()
-                .rev()
-                .find(|(_, area, handler)| {
-                    area_contains(area, current) && (handler.on_scroll.is_some())
-                })
+            if let Some((_, _, handler)) =
+                self.gesture_handlers
+                    .clone()
+                    .unwrap()
+                    .iter()
+                    .rev()
+                    .find(|(_, area, handler)| {
+                        area_contains(area, current) && (handler.interaction_type.scroll)
+                    })
             {
-                if let Some(ref on_scroll) = handler.on_scroll {
+                if let Some(ref on_scroll) = handler.interaction_handler {
                     needs_redraw = true;
-                    on_scroll(
-                        &mut self.state,
-                        match delta {
-                            MouseScrollDelta::LineDelta(x, y) => ScrollDelta {
-                                x: x * 10.,
-                                y: y * 10.,
-                            },
-                            MouseScrollDelta::PixelDelta(physical_position) => ScrollDelta {
-                                x: physical_position.x as f32,
-                                y: physical_position.y as f32,
-                            },
-                        },
-                    );
+                    self.with_ui(|ui| {
+                        on_scroll(
+                            ui,
+                            Interaction::Scroll(match delta {
+                                MouseScrollDelta::LineDelta(x, y) => ScrollDelta {
+                                    x: x * 10.,
+                                    y: y * 10.,
+                                },
+                                MouseScrollDelta::PixelDelta(physical_position) => ScrollDelta {
+                                    x: physical_position.x as f32,
+                                    y: physical_position.y as f32,
+                                },
+                            }),
+                        );
+                    });
                 }
             }
         }

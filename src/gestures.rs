@@ -1,6 +1,6 @@
 use backer::models::Area;
 
-use crate::{ui::UiCx, Key, Point, RcUi};
+use crate::{Key, Point, RcUi};
 use std::rc::Rc;
 
 #[derive(Debug, Clone, Copy)]
@@ -52,36 +52,40 @@ impl ClickLocation {
     }
 }
 
-pub(crate) type ClickHandler<State> = Rc<dyn Fn(&mut State, ClickState, ClickLocation)>;
-pub(crate) type DragHandler<State> = Rc<dyn Fn(&mut State, DragState)>;
-pub(crate) type HoverHandler<State> = Rc<dyn Fn(&mut State, bool)>;
-pub(crate) type KeyHandler<State> = Rc<dyn Fn(&mut State, Key)>;
-pub(crate) type SystemKeyHandler<State> = Rc<dyn Fn(&mut State, &mut UiCx, Key)>;
-pub(crate) type ScrollHandler<State> = Rc<dyn Fn(&mut State, ScrollDelta)>;
+pub(crate) enum Interaction {
+    Edit(String),
+    Click(ClickState, ClickLocation),
+    Drag(DragState),
+    Hover(bool),
+    Key(Key),
+    Scroll(ScrollDelta),
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+pub(crate) struct InteractionType {
+    pub(crate) edit: bool,
+    pub(crate) click: bool,
+    pub(crate) drag: bool,
+    pub(crate) hover: bool,
+    pub(crate) key: bool,
+    pub(crate) scroll: bool,
+}
 
 pub struct ScrollDelta {
     pub x: f32,
     pub y: f32,
 }
-
+pub(crate) type InteractionHandler<State> = Rc<dyn Fn(&mut RcUi<State>, Interaction)>;
 pub struct GestureHandler<State> {
-    pub on_click: Option<ClickHandler<State>>,
-    pub on_drag: Option<DragHandler<State>>,
-    pub on_hover: Option<HoverHandler<State>>,
-    pub on_key: Option<KeyHandler<State>>,
-    pub on_system_key: Option<SystemKeyHandler<State>>,
-    pub on_scroll: Option<ScrollHandler<State>>,
+    pub(crate) interaction_type: InteractionType,
+    pub(crate) interaction_handler: Option<InteractionHandler<State>>,
 }
 
 impl<State> Default for GestureHandler<State> {
     fn default() -> Self {
         GestureHandler {
-            on_click: None,
-            on_drag: None,
-            on_hover: None,
-            on_key: None,
-            on_system_key: None,
-            on_scroll: None,
+            interaction_type: InteractionType::default(),
+            interaction_handler: None,
         }
     }
 }
@@ -89,12 +93,8 @@ impl<State> Default for GestureHandler<State> {
 impl<State> Clone for GestureHandler<State> {
     fn clone(&self) -> Self {
         Self {
-            on_click: self.on_click.clone(),
-            on_drag: self.on_drag.clone(),
-            on_hover: self.on_hover.clone(),
-            on_key: self.on_key.clone(),
-            on_system_key: self.on_system_key.clone(),
-            on_scroll: self.on_scroll.clone(),
+            interaction_type: self.interaction_type,
+            interaction_handler: self.interaction_handler.clone(),
         }
     }
 }

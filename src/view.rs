@@ -1,10 +1,10 @@
 use crate::circle::{AnimatedCircle, Circle};
-use crate::gestures::{ClickLocation, ScrollDelta};
+use crate::gestures::{ClickLocation, Interaction, InteractionType, ScrollDelta};
 use crate::rect::{AnimatedRect, Rect};
 use crate::svg::Svg;
 use crate::text::{AnimatedText, Text};
-use crate::ui::{AnimArea, RcUi, UiCx};
-use crate::{ClickState, DragState, GestureHandler, Key, TextField};
+use crate::ui::{AnimArea, RcUi};
+use crate::{ClickState, DragState, GestureHandler, Key};
 use backer::nodes::{draw_object, dynamic, intermediate};
 use backer::traits::Drawable;
 use backer::{models::Area, Node};
@@ -84,22 +84,21 @@ pub fn clipping<'a, State: 'a>(
 
 pub struct View<State, T> {
     pub(crate) view_type: ViewType<State, T>,
-    pub(crate) gesture_handler: GestureHandler<State>,
+    pub(crate) gesture_handlers: Vec<GestureHandler<State>>,
 }
 
 impl<State, T: Clone> Clone for View<State, T> {
     fn clone(&self) -> Self {
         Self {
             view_type: self.view_type.clone(),
-            gesture_handler: self.gesture_handler.clone(),
+            gesture_handlers: self.gesture_handlers.clone(),
         }
     }
 }
 
 #[derive(Debug)]
 pub(crate) enum ViewType<State, T> {
-    Text(Text),
-    TextField(TextField<State>),
+    Text(Text<State>),
     Rect(Rect),
     Circle(Circle),
     Svg(Svg),
@@ -110,7 +109,6 @@ impl<State, T: Clone> Clone for ViewType<State, T> {
     fn clone(&self) -> Self {
         match self {
             ViewType::Text(text) => ViewType::Text(text.clone()),
-            ViewType::TextField(text_field) => ViewType::TextField(text_field.clone()),
             ViewType::Rect(rect) => ViewType::Rect(*rect),
             ViewType::Circle(circle) => ViewType::Circle(circle.clone()),
             ViewType::Svg(svg) => ViewType::Svg(svg.clone()),
@@ -155,7 +153,7 @@ impl<State, T: Clone> Clone for ExternalView<State, T> {
 pub fn custom_view<State, T>(view: ExternalView<State, T>) -> View<State, T> {
     View {
         view_type: ViewType::External(view),
-        gesture_handler: GestureHandler::default(),
+        gesture_handlers: Vec::new(),
     }
 }
 
@@ -167,34 +165,100 @@ pub(crate) enum AnimatedView {
 }
 
 impl<State, T> View<State, T> {
+    pub fn on_edit(mut self, f: impl Fn(&mut State, String) + 'static) -> Self {
+        self.gesture_handlers.push(GestureHandler {
+            interaction_type: InteractionType {
+                edit: true,
+                ..Default::default()
+            },
+            interaction_handler: Some(Rc::new(move |ui, interaction| {
+                let Interaction::Edit(text) = interaction else {
+                    return;
+                };
+                (f)(&mut ui.ui.state, text);
+            })),
+        });
+        self
+    }
     pub fn on_click(mut self, f: impl Fn(&mut State, ClickState, ClickLocation) + 'static) -> Self {
-        self.gesture_handler.on_click = Some(Rc::new(f));
+        self.gesture_handlers.push(GestureHandler {
+            interaction_type: InteractionType {
+                click: true,
+                ..Default::default()
+            },
+            interaction_handler: Some(Rc::new(move |ui, interaction| {
+                let Interaction::Click(click, location) = interaction else {
+                    return;
+                };
+                (f)(&mut ui.ui.state, click, location);
+            })),
+        });
         self
     }
     pub fn on_drag(mut self, f: impl Fn(&mut State, DragState) + 'static) -> Self {
-        self.gesture_handler.on_drag = Some(Rc::new(f));
+        self.gesture_handlers.push(GestureHandler {
+            interaction_type: InteractionType {
+                drag: true,
+                ..Default::default()
+            },
+            interaction_handler: Some(Rc::new(move |ui, interaction| {
+                let Interaction::Drag(drag) = interaction else {
+                    return;
+                };
+                (f)(&mut ui.ui.state, drag);
+            })),
+        });
         self
     }
     pub fn on_hover(mut self, f: impl Fn(&mut State, bool) + 'static) -> Self {
-        self.gesture_handler.on_hover = Some(Rc::new(f));
+        self.gesture_handlers.push(GestureHandler {
+            interaction_type: InteractionType {
+                hover: true,
+                ..Default::default()
+            },
+            interaction_handler: Some(Rc::new(move |ui, interaction| {
+                let Interaction::Hover(hovered) = interaction else {
+                    return;
+                };
+                (f)(&mut ui.ui.state, hovered);
+            })),
+        });
         self
     }
     pub fn on_key(mut self, f: impl Fn(&mut State, Key) + 'static) -> Self {
-        self.gesture_handler.on_key = Some(Rc::new(f));
-        self
-    }
-    pub fn on_system_key(mut self, f: impl Fn(&mut State, &mut UiCx, Key) + 'static) -> Self {
-        self.gesture_handler.on_system_key = Some(Rc::new(f));
+        self.gesture_handlers.push(GestureHandler {
+            interaction_type: InteractionType {
+                key: true,
+                ..Default::default()
+            },
+            interaction_handler: Some(Rc::new(move |ui, interaction| {
+                let Interaction::Key(key) = interaction else {
+                    return;
+                };
+                (f)(&mut ui.ui.state, key);
+            })),
+        });
         self
     }
     pub fn on_scroll(mut self, f: impl Fn(&mut State, ScrollDelta) + 'static) -> Self {
-        self.gesture_handler.on_scroll = Some(Rc::new(f));
+        self.gesture_handlers.push(GestureHandler {
+            interaction_type: InteractionType {
+                scroll: true,
+                ..Default::default()
+            },
+            interaction_handler: Some(Rc::new(move |ui, interaction| {
+                let Interaction::Scroll(scroll) = interaction else {
+                    return;
+                };
+                (f)(&mut ui.ui.state, scroll);
+            })),
+        });
         self
     }
     pub fn easing(mut self, easing: lilt::Easing) -> Self {
         match self.view_type {
             ViewType::Text(ref mut view) => view.easing = Some(easing),
-            ViewType::TextField(ref mut view) => view.easing = Some(easing),
+
             ViewType::Rect(ref mut view) => view.shape.easing = Some(easing),
             ViewType::Svg(ref mut view) => view.easing = Some(easing),
             ViewType::Circle(ref mut view) => view.shape.easing = Some(easing),
@@ -205,7 +269,7 @@ impl<State, T> View<State, T> {
     pub fn transition_duration(mut self, duration_ms: f32) -> Self {
         match self.view_type {
             ViewType::Text(ref mut view) => view.duration = Some(duration_ms),
-            ViewType::TextField(ref mut view) => view.duration = Some(duration_ms),
+
             ViewType::Rect(ref mut view) => view.shape.duration = Some(duration_ms),
             ViewType::Svg(ref mut view) => view.duration = Some(duration_ms),
             ViewType::Circle(ref mut view) => view.shape.duration = Some(duration_ms),
@@ -216,7 +280,6 @@ impl<State, T> View<State, T> {
     pub fn transition_delay(mut self, delay_ms: f32) -> Self {
         match self.view_type {
             ViewType::Text(ref mut view) => view.delay = delay_ms,
-            ViewType::TextField(ref mut view) => view.delay = delay_ms,
             ViewType::Rect(ref mut view) => view.shape.delay = delay_ms,
             ViewType::Svg(ref mut view) => view.delay = delay_ms,
             ViewType::Circle(ref mut view) => view.shape.delay = delay_ms,
@@ -227,7 +290,6 @@ impl<State, T> View<State, T> {
     pub(crate) fn id(&self) -> u64 {
         match &self.view_type {
             ViewType::Text(view) => view.id,
-            ViewType::TextField(view) => view.id,
             ViewType::Rect(view) => view.id,
             ViewType::Svg(view) => view.id,
             ViewType::Circle(view) => view.id,
@@ -237,7 +299,6 @@ impl<State, T> View<State, T> {
     fn get_easing(&self) -> Easing {
         match &self.view_type {
             ViewType::Text(view) => view.easing,
-            ViewType::TextField(view) => view.easing,
             ViewType::Rect(view) => view.shape.easing,
             ViewType::Svg(view) => view.easing,
             ViewType::Circle(view) => view.shape.easing,
@@ -248,7 +309,6 @@ impl<State, T> View<State, T> {
     fn get_duration(&self) -> f32 {
         match &self.view_type {
             ViewType::Text(view) => view.duration,
-            ViewType::TextField(view) => view.duration,
             ViewType::Rect(view) => view.shape.duration,
             ViewType::Svg(view) => view.duration,
             ViewType::Circle(view) => view.shape.duration,
@@ -259,7 +319,6 @@ impl<State, T> View<State, T> {
     fn get_delay(&self) -> f32 {
         match &self.view_type {
             ViewType::Text(view) => view.delay,
-            ViewType::TextField(view) => view.delay,
             ViewType::Rect(view) => view.shape.delay,
             ViewType::Svg(view) => view.delay,
             ViewType::Circle(view) => view.shape.delay,
@@ -272,7 +331,7 @@ impl<State, T> View<State, T> {
     pub fn finish<'a>(self) -> Node<'a, RcUi<State>>
     where
         T: Clone + 'a,
-        State: 'a,
+        State: 'static,
     {
         dynamic(move |ui: &mut RcUi<State>| {
             let moved = self.clone();
@@ -333,21 +392,14 @@ impl<State, T> Drawable<RcUi<State>> for View<State, T> {
             if !visible || visibility == 0. {
                 return;
             }
-            state.ui.gesture_handlers.push((
-                self.id(),
-                area,
-                GestureHandler {
-                    on_click: self.gesture_handler.on_click.take(),
-                    on_drag: self.gesture_handler.on_drag.take(),
-                    on_hover: self.gesture_handler.on_hover.take(),
-                    on_key: self.gesture_handler.on_key.take(),
-                    on_system_key: self.gesture_handler.on_system_key.take(),
-                    on_scroll: self.gesture_handler.on_scroll.take(),
-                },
-            ));
+            let id = self.id();
+            state.ui.gesture_handlers.extend(
+                self.gesture_handlers
+                    .drain(..)
+                    .map(|handler| (id, area, handler)),
+            );
             match &mut self.view_type {
                 ViewType::Text(view) => view.draw(area, state, visible, visibility),
-                ViewType::TextField(view) => view.draw(area, state, visible, visibility),
                 ViewType::Rect(view) => view.draw(area, state, visible, visibility),
                 ViewType::Svg(view) => view.draw(area, state, visible, visibility),
                 ViewType::Circle(view) => view.draw(area, state, visible, visibility),

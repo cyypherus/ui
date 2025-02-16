@@ -1,6 +1,5 @@
 use crate::ui::{RcUi, UiCx};
 use crate::view::{View, ViewType};
-use crate::GestureHandler;
 use backer::models::Area;
 use backer::Node;
 use lilt::Easing;
@@ -43,10 +42,10 @@ impl Svg {
     pub fn view<State>(self) -> View<State, ()> {
         View {
             view_type: ViewType::Svg(self),
-            gesture_handler: GestureHandler::default(),
+            gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<'n, State: 'n>(self) -> Node<'n, RcUi<State>> {
+    pub fn finish<'n, State: 'static>(self) -> Node<'n, RcUi<State>> {
         self.view().finish()
     }
 }
