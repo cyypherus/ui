@@ -87,7 +87,7 @@ impl<'n, State> Button<'n, State> {
                         match (self.state.get(s).depressed, self.state.get(s).hovered) {
                             (true, _) => AlphaColor::from_rgb8(190, 190, 190),
                             (false, true) => AlphaColor::from_rgb8(250, 250, 250),
-                            (false, false) => AlphaColor::from_rgb8(200, 200, 200),
+                            (false, false) => AlphaColor::from_rgb8(240, 240, 240),
                         },
                     )
                     .font_size(DEFAULT_FONT_SIZE)

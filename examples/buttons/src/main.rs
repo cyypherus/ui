@@ -63,7 +63,16 @@ fn main() {
                             text(id!(), "Svg Label").fill(AlphaColor::WHITE).finish(),
                             button(id!(), binding!(AppState, b3))
                                 .on_click(|s| s.count += 1)
-                                .label(|_| svg(id!(), "assets/download.svg").finish())
+                                .label(|button| {
+                                    svg(id!(), "assets/download.svg")
+                                        .fill(match (button.depressed, button.hovered) {
+                                            (true, _) => AlphaColor::from_rgb8(190, 190, 190),
+                                            (false, true) => AlphaColor::from_rgb8(250, 250, 250),
+                                            (false, false) => AlphaColor::from_rgb8(240, 240, 240),
+                                        })
+                                        .finish()
+                                        .pad(15.)
+                                })
                                 .finish(),
                         ],
                     )
