@@ -106,7 +106,7 @@ impl<'n, State> Button<'n, State> {
                     })
                     .on_click({
                         let binding = self.state.clone();
-                        move |s: &mut State, click_state| match click_state {
+                        move |s: &mut State, click_state, _| match click_state {
                             ClickState::Started => binding.update(s, |s| s.depressed = true),
                             ClickState::Cancelled => binding.update(s, |s| s.depressed = false),
                             ClickState::Completed => {

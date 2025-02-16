@@ -1,4 +1,4 @@
-use crate::gestures::ScrollDelta;
+use crate::gestures::{ClickLocation, ScrollDelta};
 use crate::ui::{AnimationBank, Ui, UiCx};
 use crate::{area_contains, ClickState, DragState, GestureHandler, Point, RcUi};
 use crate::{event, ui::RenderState, Area, GestureState, Layout, RUBIK_FONT};
@@ -12,7 +12,7 @@ use std::{num::NonZeroUsize, sync::Arc};
 use vello_svg::vello::peniko::Color;
 use vello_svg::vello::util::RenderContext;
 use vello_svg::vello::{Renderer, RendererOptions, Scene};
-use winit::event::MouseScrollDelta;
+use winit::event::{Modifiers, MouseScrollDelta};
 use winit::{application::ApplicationHandler, event_loop::EventLoop, window::Window};
 use winit::{dpi::LogicalSize, event::MouseButton};
 
@@ -113,6 +113,7 @@ impl<'n, State: Clone + 'static> App<'_, 'n, State> {
                 layout_cache: HashMap::new(),
                 image_scenes: HashMap::new(),
                 display_scale: 1.,
+                modifiers: None,
             }),
             view,
             gesture_handlers: Some(Vec::new()),
@@ -293,6 +294,10 @@ impl<State: Clone + 'static> ApplicationHandler for App<'_, '_, State> {
                             needs_redraw = true;
                             (on_key)(&mut self.state, key.clone());
                         }
+                        if let Some(ref on_key) = handler.2.on_system_key {
+                            needs_redraw = true;
+                            (on_key)(&mut self.state, self.cx.as_mut().unwrap(), key.clone());
+                        }
                     }
                     if needs_redraw {
                         self.request_redraw();
@@ -324,6 +329,9 @@ impl<State: Clone + 'static> ApplicationHandler for App<'_, '_, State> {
                 event::WindowEvent::ScaleFactorChanged(scale_factor) => {
                     self.scale_factor = scale_factor;
                     self.request_redraw();
+                }
+                event::WindowEvent::ModifiersChanged(modifiers) => {
+                    self.cx.as_mut().unwrap().modifiers = Some(modifiers)
                 }
             }
         }
@@ -371,7 +379,7 @@ impl<State: Clone + 'static> App<'_, '_, State> {
     pub(crate) fn mouse_pressed(&mut self) {
         let mut needs_redraw = false;
         if let Some(point) = self.cursor_position {
-            if let Some((capturer, _, handler)) = self
+            if let Some((capturer, area, handler)) = self
                 .gesture_handlers
                 .as_ref()
                 .unwrap()
@@ -384,7 +392,11 @@ impl<State: Clone + 'static> App<'_, '_, State> {
             {
                 needs_redraw = true;
                 if let Some(ref on_click) = handler.on_click {
-                    on_click(&mut self.state, ClickState::Started);
+                    on_click(
+                        &mut self.state,
+                        ClickState::Started,
+                        ClickLocation::new(point, *area),
+                    );
                 }
                 self.gesture_state = GestureState::Dragging {
                     start: point,
@@ -411,9 +423,17 @@ impl<State: Clone + 'static> App<'_, '_, State> {
                     if let Some(ref on_click) = handler.on_click {
                         needs_redraw = true;
                         if area_contains(area, current) {
-                            on_click(&mut self.state, ClickState::Completed);
+                            on_click(
+                                &mut self.state,
+                                ClickState::Completed,
+                                ClickLocation::new(current, *area),
+                            );
                         } else {
-                            on_click(&mut self.state, ClickState::Cancelled);
+                            on_click(
+                                &mut self.state,
+                                ClickState::Cancelled,
+                                ClickLocation::new(current, *area),
+                            );
                         }
                     }
                     if let Some(ref on_drag) = handler.on_drag {

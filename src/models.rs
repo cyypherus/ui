@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{fmt::Debug, rc::Rc};
 
 use crate::Area;
 use vello_svg::vello::kurbo::Point;
@@ -40,6 +40,15 @@ type Setter<State, T> = Rc<dyn Fn(&mut State, T)>;
 pub struct Binding<State, T> {
     pub get: Getter<State, T>,
     pub set: Setter<State, T>,
+}
+
+impl<State, T> Debug for Binding<State, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Binding")
+            .field("get", &"<function>")
+            .field("set", &"<function>")
+            .finish()
+    }
 }
 
 impl<State, T> Binding<State, T> {

@@ -43,13 +43,7 @@ impl Svg {
     pub fn view<State>(self) -> View<State, ()> {
         View {
             view_type: ViewType::Svg(self),
-            gesture_handler: GestureHandler {
-                on_click: None,
-                on_drag: None,
-                on_hover: None,
-                on_key: None,
-                on_scroll: None,
-            },
+            gesture_handler: GestureHandler::default(),
         }
     }
     pub fn finish<'n, State: 'n>(self) -> Node<'n, RcUi<State>> {

@@ -9,6 +9,8 @@ use backer::{models::*, Node};
 use lilt::{Animated, Easing};
 use parley::{FontStack, Layout, PositionedLayoutItem, TextStyle};
 use std::time::Instant;
+use vello_svg::vello::peniko::color::AlphaColor;
+use vello_svg::vello::peniko::Brush;
 use vello_svg::vello::{
     kurbo::Affine,
     peniko::{Color, Fill},
@@ -80,13 +82,7 @@ impl Text {
     pub fn view<State>(self) -> View<State, ()> {
         View {
             view_type: ViewType::Text(self),
-            gesture_handler: GestureHandler {
-                on_click: None,
-                on_drag: None,
-                on_hover: None,
-                on_key: None,
-                on_scroll: None,
-            },
+            gesture_handler: GestureHandler::default(),
         }
     }
     pub fn finish<'n, State: 'n>(self) -> Node<'n, RcUi<State>> {
@@ -222,7 +218,7 @@ impl<'s> Text {
         &self,
         available_width: f32,
         ui: &mut RcUi<State>,
-    ) -> Layout<[u8; 4]> {
+    ) -> Layout<Brush> {
         if let Some((_, _, layout)) = ui.ui.cx().layout_cache.get(&self.id).and_then(|cached| {
             cached
                 .iter()
@@ -237,7 +233,7 @@ impl<'s> Text {
                     font_cx,
                     scale,
                     &TextStyle {
-                        brush: [255, 0, 0, 0],
+                        brush: Brush::Solid(AlphaColor::WHITE),
                         font_stack,
                         line_height: 1.3,
                         font_size: self.font_size as f32,

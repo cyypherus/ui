@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use vello_svg::vello::kurbo::Point;
 use winit::{
-    event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase},
+    event::{ElementState, Modifiers, MouseButton, MouseScrollDelta, TouchPhase},
     keyboard::Key,
 };
 
@@ -100,6 +100,8 @@ pub enum WindowEvent {
 
     ScaleFactorChanged(f64),
 
+    ModifiersChanged(Modifiers),
+
     RedrawRequested,
 }
 
@@ -196,9 +198,7 @@ impl WindowEvent {
                 ElementState::Released => KeyReleased(event.logical_key),
             },
 
-            winit::event::WindowEvent::ModifiersChanged(_) => {
-                return None;
-            }
+            winit::event::WindowEvent::ModifiersChanged(modifiers) => ModifiersChanged(modifiers),
 
             winit::event::WindowEvent::RedrawRequested => Self::RedrawRequested,
 

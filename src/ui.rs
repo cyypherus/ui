@@ -1,5 +1,7 @@
 use crate::{
-    gestures::{ClickHandler, DragHandler, HoverHandler, KeyHandler, ScrollHandler},
+    gestures::{
+        ClickHandler, DragHandler, HoverHandler, KeyHandler, ScrollHandler, SystemKeyHandler,
+    },
     view::AnimatedView,
     GestureHandler,
 };
@@ -9,9 +11,9 @@ use lilt::Animated;
 use parley::{FontContext, Layout, LayoutContext};
 use std::{cell::Cell, sync::Arc, time::Instant};
 use std::{collections::HashMap, rc::Rc};
-use vello_svg::vello::util::RenderSurface;
 use vello_svg::vello::Scene;
-use winit::window::Window;
+use vello_svg::vello::{peniko::Brush, util::RenderSurface};
+use winit::{event::Modifiers, window::Window};
 
 pub struct Ui<State> {
     pub state: State,
@@ -94,9 +96,9 @@ pub fn scoper<'n, State, Scoped: 'n + 'static>(
                             GestureHandler {
                                 on_click: h.2.on_click.map(|o_c| {
                                     let r: ClickHandler<State> =
-                                        Rc::new(move |state, click_state| {
+                                        Rc::new(move |state, click_state, pos| {
                                             let mut scoped = scope(state);
-                                            (o_c)(&mut scoped, click_state);
+                                            (o_c)(&mut scoped, click_state, pos);
                                             embed(state, scoped);
                                         });
                                     r
@@ -126,6 +128,15 @@ pub fn scoper<'n, State, Scoped: 'n + 'static>(
                                     });
                                     r
                                 }),
+                                on_system_key: h.2.on_system_key.map(|o_c| {
+                                    let r: SystemKeyHandler<State> =
+                                        Rc::new(move |state, cx, key| {
+                                            let mut scoped = scope(state);
+                                            (o_c)(&mut scoped, cx, key);
+                                            embed(state, scoped);
+                                        });
+                                    r
+                                }),
                                 on_scroll: h.2.on_scroll.map(|o_c| {
                                     let r: ScrollHandler<State> = Rc::new(move |state, delta| {
                                         let mut scoped = scope(state);
@@ -151,22 +162,23 @@ impl<State> Ui<State> {
     }
 }
 
-type TextLayoutCache = HashMap<u64, Vec<(String, f32, Layout<[u8; 4]>)>>;
+type TextLayoutCache = HashMap<u64, Vec<(String, f32, Layout<Brush>)>>;
 pub struct UiCx {
     pub(crate) animation_bank: AnimationBank,
     pub(crate) scene: Scene,
     pub(crate) font_cx: Rc<Cell<Option<FontContext>>>,
-    pub(crate) layout_cx: Rc<Cell<Option<LayoutContext>>>,
+    pub(crate) layout_cx: Rc<Cell<Option<LayoutContext<Brush>>>>,
     pub(crate) view_state: HashMap<u64, AnimatedView>,
     pub(crate) layout_cache: TextLayoutCache,
     pub(crate) image_scenes: HashMap<String, (Scene, f32, f32)>,
     pub(crate) display_scale: f64,
+    pub(crate) modifiers: Option<Modifiers>,
 }
 
 impl UiCx {
     pub(crate) fn with_font_layout_ctx<T>(
         &mut self,
-        f: impl Fn(&mut LayoutContext, &mut FontContext) -> T,
+        f: impl Fn(&mut LayoutContext<Brush>, &mut FontContext) -> T,
     ) -> T {
         let mut layout_ctx = self.layout_cx.take().unwrap();
         let mut font_cx = self.font_cx.take().unwrap();
