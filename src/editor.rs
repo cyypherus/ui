@@ -109,7 +109,7 @@ impl Editor {
     ) {
         self.modifiers = modifiers;
         #[allow(unused)]
-        let (shift, action_mod) = self
+        let (shift, action_mod, alt) = self
             .modifiers
             .map(|mods| {
                 (
@@ -119,6 +119,7 @@ impl Editor {
                     } else {
                         mods.state().control_key()
                     },
+                    mods.state().alt_key(),
                 )
             })
             .unwrap_or_default();
@@ -159,6 +160,12 @@ impl Editor {
             Key::Named(NamedKey::ArrowLeft) => {
                 if action_mod {
                     if shift {
+                        drv.select_to_line_start();
+                    } else {
+                        drv.move_to_line_start();
+                    }
+                } else if alt {
+                    if shift {
                         drv.select_word_left();
                     } else {
                         drv.move_word_left();
@@ -172,6 +179,12 @@ impl Editor {
             Key::Named(NamedKey::ArrowRight) => {
                 if action_mod {
                     if shift {
+                        drv.select_to_line_end();
+                    } else {
+                        drv.move_to_line_end();
+                    }
+                } else if alt {
+                    if shift {
                         drv.select_word_right();
                     } else {
                         drv.move_word_right();
@@ -183,14 +196,26 @@ impl Editor {
                 }
             }
             Key::Named(NamedKey::ArrowUp) => {
-                if shift {
+                if action_mod {
+                    if shift {
+                        drv.select_to_text_start();
+                    } else {
+                        drv.move_to_text_start();
+                    }
+                } else if shift {
                     drv.select_up();
                 } else {
                     drv.move_up();
                 }
             }
             Key::Named(NamedKey::ArrowDown) => {
-                if shift {
+                if action_mod {
+                    if shift {
+                        drv.select_to_text_end();
+                    } else {
+                        drv.move_to_text_end();
+                    }
+                } else if shift {
                     drv.select_down();
                 } else {
                     drv.move_down();
@@ -231,6 +256,9 @@ impl Editor {
             }
             Key::Named(NamedKey::Backspace) => {
                 if action_mod {
+                    drv.select_to_line_start();
+                    drv.delete_selection();
+                } else if alt {
                     drv.backdelete_word();
                 } else {
                     drv.backdelete();

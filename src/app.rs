@@ -454,15 +454,17 @@ impl<State: Clone + 'static> App<'_, '_, State> {
     }
     pub(crate) fn mouse_pressed(&mut self) {
         let mut needs_redraw = false;
-        let App { cx, editor, .. } = self;
-        if let Some((_, _, editor)) = editor.as_mut() {
-            let mut layout_cx = cx.as_mut().unwrap().layout_cx.take().unwrap();
-            let mut font_cx = cx.as_mut().unwrap().font_cx.take().unwrap();
-            editor.mouse_pressed(&mut layout_cx, &mut font_cx);
-            cx.as_mut().unwrap().layout_cx.set(Some(layout_cx));
-            cx.as_mut().unwrap().font_cx.set(Some(font_cx));
-        }
         if let Some(point) = self.cursor_position {
+            let App { cx, editor, .. } = self;
+            if let Some((_, area, editor)) = editor.as_mut() {
+                if area_contains(area, point) {
+                    let mut layout_cx = cx.as_mut().unwrap().layout_cx.take().unwrap();
+                    let mut font_cx = cx.as_mut().unwrap().font_cx.take().unwrap();
+                    editor.mouse_pressed(&mut layout_cx, &mut font_cx);
+                    cx.as_mut().unwrap().layout_cx.set(Some(layout_cx));
+                    cx.as_mut().unwrap().font_cx.set(Some(font_cx));
+                }
+            }
             if let Some((capturer, area, handler)) = self
                 .gesture_handlers
                 .clone()
