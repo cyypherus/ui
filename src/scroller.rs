@@ -15,6 +15,7 @@ pub struct ScrollerState {
     dt: f32,
     compensated: f32,
     offset: f32,
+    area: Area,
     _limit_offset: f32,
 }
 
@@ -64,6 +65,13 @@ impl ScrollerState {
     ) where
         CellFn: Fn(&mut State, usize, u64, Area) -> Option<f32> + Copy,
     {
+        if self.area != available_area && self.visible_window.len() > 1 {
+            // This handles "re-layout" when the available area changes, anchored to the first element
+            self.visible_window.drain(1..);
+            let index = self.visible_window[0].index;
+            self.visible_window[0].height = cell(state, index, id, available_area).unwrap_or(0.);
+            self.fill_forwards(state, available_area, id, cell);
+        }
         if self.visible_window.is_empty() {
             self.fill_forwards(state, available_area, id, cell);
         }
@@ -132,6 +140,7 @@ impl ScrollerState {
         self.offset = -(available_area.height
             - self.visible_window.iter().fold(0., |acc, e| acc + e.height))
             * 0.5;
+        self.area = available_area;
     }
 }
 

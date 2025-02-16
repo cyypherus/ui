@@ -3,7 +3,6 @@ use vello_svg::vello::peniko::color::AlphaColor;
 
 #[derive(Clone, Default)]
 struct AppState {
-    text: String,
     texts: Vec<String>,
     scroller: ScrollerState,
 }
@@ -11,7 +10,6 @@ struct AppState {
 fn main() {
     App::start(
         AppState {
-            text: "The scale factor is calculated differently on different platforms:".to_string(),
             texts: vec![
                 "Rendering must not wait for logic resolution unless explicitly requested.".to_string(),
                 "Event dispatch latency is a function of input queuing and frame scheduling.".to_string(),
@@ -39,84 +37,51 @@ fn main() {
             ],
             scroller: ScrollerState::default(),
         },
-        dynamic_node(|s: &mut AppState| {
-            column_spaced(
-                20.,
-                vec![
-                    svg(id!(), "assets/tiger.svg")
-                        .finish()
-                        .aspect(1.),
-                    scroller(
-                        id!(),
-                        rect(crate::id!())
-                            .corner_rounding(10.)
-                            .stroke(AlphaColor::from_rgb8(50, 50, 50), 2.)
-                            .fill(AlphaColor::from_rgb8(30, 30, 30))
-                            .finish(),
-                        binding!(AppState, scroller),
-                        |state, index, _id| {
-                            state.texts.get(index).map(|s| {
-                                column(vec![
-                                    if index == 0 {
-                                        space().height(10.)
-                                    } else {
-                                        empty()
-                                    },
-                                    stack(vec![
-                                        rect(id!(index as u64))
-                                            .fill(AlphaColor::from_rgb8(40, 40, 40))
-                                            .corner_rounding(5.)
-                                            .view()
-                                            .transition_duration(0.)
-                                            .finish(),
-                                        row(vec![
-                                            text(id!(index as u64), s.clone())
-                                                .fill(Color::WHITE)
-                                                .align(TextAlign::Leading)
-                                                .view()
-                                                .transition_duration(0.)
-                                                .finish()
-                                                .pad(10.),
-                                            svg(id!(index as u64), "assets/tiger.svg")
-                                                .view()
-                                                .transition_duration(0.)
-                                                .finish()
-                                                .height(100.)
-                                                .aspect(1.)
-                                        ]),
-                                    ]),
-                                    space().height(10.)
-                                ]).pad_x(10.)
-                            })
-                        },
-                    )
-                    .height(300.),
-                    text(id!(), s.text.clone())
-                        .fill(Color::WHITE)
-                        .font_size(30)
-                        .align(TextAlign::Leading)
-                        .view()
-                        .on_key(|s: &mut AppState, key| match key {
-                            Key::Named(NamedKey::Space) => s.text.push(' '),
-                            Key::Named(NamedKey::Enter) => s.text.push('\n'),
-                            Key::Named(NamedKey::Backspace) => {
-                                s.text.pop();
-                            }
-                            Key::Character(c) => s.text.push_str(c.as_str()),
-                            Key::Named(_) => (),
-                        })
-                        .finish()
-                        .pad_x(30.)
-                        .pad_y(10.)
-                        .attach_under(
-                            rect(id!())
-                                .corner_rounding(10.)
-                                .stroke(Color::WHITE, 1.)
-                                .finish(),
-                        ),
-                ],
-            )
-            .width(600.)
+        dynamic_node(|_: &mut AppState| {
+            scroller(
+                id!(),
+                rect(crate::id!())
+                    .corner_rounding(10.)
+                    .stroke(AlphaColor::from_rgb8(50, 50, 50), 2.)
+                    .fill(AlphaColor::from_rgb8(30, 30, 30))
+                    .finish(),
+                binding!(AppState, scroller),
+                |state, index, _id| {
+                    state.texts.get(index).map(|s| {
+                        column(vec![
+                            if index == 0 {
+                                space().height(10.)
+                            } else {
+                                empty()
+                            },
+                            stack(vec![
+                                rect(id!(index as u64))
+                                    .fill(AlphaColor::from_rgb8(40, 40, 40))
+                                    .corner_rounding(5.)
+                                    .view()
+                                    .transition_duration(0.)
+                                    .finish(),
+                                row(vec![
+                                    text(id!(index as u64), s.clone())
+                                        .fill(Color::WHITE)
+                                        .align(TextAlign::Leading)
+                                        .view()
+                                        .transition_duration(0.)
+                                        .finish()
+                                        .pad(10.),
+                                    svg(id!(index as u64), "assets/tiger.svg")
+                                        .view()
+                                        .transition_duration(0.)
+                                        .finish()
+                                        .height(100.)
+                                        .aspect(1.)
+                                ]),
+                            ]),
+                            space().height(10.)
+                        ]).pad_x(10.)
+                    })
+                },
+            ).pad(10.)
         }),
     )
 }
