@@ -12,6 +12,10 @@ path = "examples/basic/src/main.rs"
 name = "buttons"
 path = "examples/buttons/src/main.rs"
 
+[[example]]
+name = "scroller"
+path = "examples/scroller/src/main.rs"
+
 [dependencies]
 backer = { path = "../backer" }
 lilt = "0.7.0"
