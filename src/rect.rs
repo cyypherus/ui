@@ -5,12 +5,14 @@ use crate::GestureHandler;
 use backer::models::Area;
 use backer::Node;
 use std::time::Instant;
+use vello_svg::vello::kurbo::{self, Affine};
 use vello_svg::vello::peniko::Color;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Rect {
     pub(crate) id: u64,
     pub(crate) shape: Shape,
+    pub(crate) box_shadow: Option<(Color, f32)>,
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +44,7 @@ pub fn rect(id: u64) -> Rect {
             duration: None,
             delay: 0.,
         },
+        box_shadow: None,
     }
 }
 
@@ -58,6 +61,10 @@ impl Rect {
     }
     pub fn stroke(mut self, color: Color, line_width: f32) -> Self {
         self.shape.stroke = Some((color, line_width));
+        self
+    }
+    pub fn box_shadow(mut self, color: Color, radius: f32) -> Self {
+        self.box_shadow = Some((color, radius));
         self
     }
     pub fn view<State>(self) -> View<State, ()> {
@@ -98,6 +105,26 @@ impl Rect {
             return;
         };
         AnimatedRect::update(state.ui.now, self, &mut animated);
+        if let Some((color, radius)) = self.box_shadow {
+            state.ui.cx().scene.draw_blurred_rounded_rect(
+                Affine::IDENTITY,
+                kurbo::Rect::new(
+                    area.x as f64,
+                    area.y as f64,
+                    area.x as f64 + area.width as f64,
+                    area.y as f64 + area.height as f64,
+                ),
+                color,
+                {
+                    if let ShapeType::Rect { corner_rounding } = self.shape.shape {
+                        corner_rounding as f64
+                    } else {
+                        0.0
+                    }
+                },
+                radius as f64,
+            );
+        }
         let now = state.ui.now;
         animated
             .shape

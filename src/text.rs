@@ -230,11 +230,12 @@ impl<'s> Text {
         }) {
             layout.clone()
         } else {
+            let scale = ui.ui.cx().display_scale as f32;
             let mut layout = ui.ui.cx().with_font_layout_ctx(|layout_cx, font_cx| {
                 let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
                 let mut builder = layout_cx.tree_builder(
                     font_cx,
-                    1.,
+                    scale,
                     &TextStyle {
                         brush: [255, 0, 0, 0],
                         font_stack,

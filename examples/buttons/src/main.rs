@@ -7,6 +7,7 @@ struct AppState {
     b1: ButtonState,
     b2: ButtonState,
     b3: ButtonState,
+    t1: ToggleState,
 }
 
 fn main() {
@@ -16,6 +17,7 @@ fn main() {
             row_spaced(
                 20.,
                 vec![
+                    toggle(id!(), binding!(AppState, t1)).finish(),
                     column_spaced(
                         20.,
                         vec![

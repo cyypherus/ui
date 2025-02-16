@@ -1,4 +1,6 @@
-use crate::{dynamic_node, rect, Binding, ClickState, RcUi, DEFAULT_FONT_SIZE};
+use crate::{
+    dynamic_node, rect, Binding, ClickState, RcUi, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE,
+};
 use backer::{nodes::stack, Node};
 use vello_svg::vello::peniko::color::AlphaColor;
 
@@ -71,7 +73,7 @@ impl<'n, State> Button<'n, State> {
                                 (false, false) => AlphaColor::from_rgb8(113, 70, 232),
                             },
                         )
-                        .corner_rounding(self.corner_rounding.unwrap_or(10.))
+                        .corner_rounding(self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
                         .view()
                         .transition_duration(0.)
                         .finish()

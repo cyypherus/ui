@@ -160,7 +160,7 @@ where
                 RoundedRect::from_origin_size(
                     Point::new(area.x.into(), area.y.into()),
                     Size::new(area.width.into(), area.height.into()),
-                    DEFAULT_CORNER_ROUNDING,
+                    DEFAULT_CORNER_ROUNDING as f64,
                 )
                 .to_path(0.001)
             },
@@ -192,7 +192,7 @@ where
             .expand(),
         ),
         rect(crate::id!())
-            .corner_rounding(DEFAULT_CORNER_ROUNDING as f32)
+            .corner_rounding(DEFAULT_CORNER_ROUNDING)
             .fill(Color::TRANSPARENT)
             .view()
             .on_scroll({

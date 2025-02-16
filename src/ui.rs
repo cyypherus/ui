@@ -160,6 +160,7 @@ pub struct UiCx {
     pub(crate) view_state: HashMap<u64, AnimatedView>,
     pub(crate) layout_cache: TextLayoutCache,
     pub(crate) image_scenes: HashMap<String, (Scene, f32, f32)>,
+    pub(crate) display_scale: f64,
 }
 
 impl UiCx {

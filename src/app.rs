@@ -28,6 +28,7 @@ pub struct App<'s, 'n, State: Clone> {
     pub(crate) cached_window: Option<Arc<Window>>,
     pub(crate) cx: Option<UiCx>,
     pub(crate) background_scheduler: BackgroundScheduler<State>,
+    pub(crate) scale_factor: f64,
 }
 
 use std::thread;
@@ -111,10 +112,12 @@ impl<'n, State: Clone + 'static> App<'_, 'n, State> {
                 font_cx: Rc::new(Cell::new(Some(font_cx))),
                 layout_cache: HashMap::new(),
                 image_scenes: HashMap::new(),
+                display_scale: 1.,
             }),
             view,
             gesture_handlers: Some(Vec::new()),
             background_scheduler: BackgroundScheduler::new(),
+            scale_factor: 1.,
         };
         event_loop.run_app(&mut app).expect("run to completion");
     }
@@ -127,6 +130,8 @@ impl<'n, State: Clone + 'static> App<'_, 'n, State> {
             ..
         } = self
         {
+            self.scale_factor = window.scale_factor();
+            self.cx.as_mut().unwrap().display_scale = self.scale_factor;
             let size = window.inner_size();
             let width = size.width;
             let height = size.height;
@@ -316,6 +321,10 @@ impl<State: Clone + 'static> ApplicationHandler for App<'_, '_, State> {
                 event::WindowEvent::Unfocused => {}
                 event::WindowEvent::Closed => event_loop.exit(),
                 event::WindowEvent::RedrawRequested => self.redraw(),
+                event::WindowEvent::ScaleFactorChanged(scale_factor) => {
+                    self.scale_factor = scale_factor;
+                    self.request_redraw();
+                }
             }
         }
     }

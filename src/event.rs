@@ -98,6 +98,8 @@ pub enum WindowEvent {
     /// The window was closed and is no longer stored in the `App`.
     Closed,
 
+    ScaleFactorChanged(f64),
+
     RedrawRequested,
 }
 
@@ -200,9 +202,12 @@ impl WindowEvent {
 
             winit::event::WindowEvent::RedrawRequested => Self::RedrawRequested,
 
+            winit::event::WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
+                Self::ScaleFactorChanged(scale_factor)
+            }
+
             winit::event::WindowEvent::AxisMotion { .. }
-            | winit::event::WindowEvent::ThemeChanged(_)
-            | winit::event::WindowEvent::ScaleFactorChanged { .. } => {
+            | winit::event::WindowEvent::ThemeChanged(_) => {
                 return None;
             }
 
