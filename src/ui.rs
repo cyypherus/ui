@@ -1,3 +1,4 @@
+use crate::EditingPhase;
 use crate::{gestures::InteractionHandler, view::AnimatedView, Editor, GestureHandler};
 pub use backer::models::*;
 use backer::Node;
@@ -14,7 +15,7 @@ pub struct Ui<State> {
     pub gesture_handlers: Vec<(u64, Area, GestureHandler<State>)>,
     pub cx: Option<UiCx>,
     pub(crate) now: Instant,
-    pub(crate) editor: Option<(u64, Area, Editor)>,
+    pub(crate) editor: Option<(u64, Area, Editor, EditingPhase)>,
 }
 
 #[derive(Debug, Clone)]

@@ -11,7 +11,7 @@ fn main() {
             text: TextState {
                 text: "The scale factor is calculated differently on different platforms:"
                     .to_string(),
-                editing: false,
+                editing: EditingPhase::None,
             },
         },
         dynamic_node(|_: &mut AppState| {

@@ -21,7 +21,7 @@ pub fn text<State>(id: u64, text: impl AsRef<str> + 'static) -> Text<State> {
         id,
         state: Binding::constant(TextState {
             text: text.as_ref().to_string(),
-            editing: false,
+            editing: EditingPhase::None,
         }),
         font_size: DEFAULT_FONT_SIZE,
         // font: None,
@@ -87,7 +87,14 @@ impl<State> Clone for Text<State> {
 #[derive(Debug, Clone)]
 pub struct TextState {
     pub text: String,
-    pub editing: bool,
+    pub editing: EditingPhase,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EditingPhase {
+    None,
+    Starting,
+    Editing,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -143,7 +150,7 @@ impl<State> Text<State> {
             .on_click({
                 let binding = binding.clone();
                 move |state, _, _| {
-                    binding.update(state, |s| s.editing = true);
+                    binding.update(state, |s| s.editing = EditingPhase::Starting);
                 }
             })
             .on_edit({
@@ -222,7 +229,10 @@ impl<State> Text<State> {
         if !visible && visible_amount == 0. {
             return;
         }
-        if self.state.get(&state.ui.state).editing && state.ui.editor.is_none() {
+        if let (EditingPhase::None, true) = (
+            self.state.get(&state.ui.state).editing,
+            state.ui.editor.is_none(),
+        ) {
             let mut editor = PlainEditor::new(self.font_size as f32);
             editor.set_text(&self.state.get(&state.ui.state).text);
             editor.set_scale(state.ui.cx().display_scale as f32);
@@ -242,9 +252,9 @@ impl<State> Text<State> {
                 start_time: Default::default(),
                 blink_period: Default::default(),
             };
-            state.ui.editor = Some((self.id, area, editor))
+            state.ui.editor = Some((self.id, area, editor, EditingPhase::Starting));
         }
-        if let Some((id, ref mut edit_area, _)) = &mut state.ui.editor {
+        if let Some((id, ref mut edit_area, _, _)) = &mut state.ui.editor {
             if *id == self.id {
                 *edit_area = area;
                 return;
