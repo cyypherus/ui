@@ -223,19 +223,11 @@ impl<'s> Text {
         available_width: f32,
         ui: &mut RcUi<State>,
     ) -> Layout<[u8; 4]> {
-        if let Some(layout) = ui
-            .ui
-            .cx()
-            .layout_cache
-            .get(&self.id)
-            .and_then(|(text, layout)| {
-                if *text == self.text {
-                    Some(layout)
-                } else {
-                    None
-                }
-            })
-        {
+        if let Some((_, _, layout)) = ui.ui.cx().layout_cache.get(&self.id).and_then(|cached| {
+            cached
+                .iter()
+                .find(|(text, width, _)| *text == self.text && *width == available_width)
+        }) {
             layout.clone()
         } else {
             let mut layout = ui.ui.cx().with_font_layout_ctx(|layout_cx, font_cx| {
@@ -256,10 +248,15 @@ impl<'s> Text {
             });
             layout.break_all_lines(Some(available_width));
             layout.align(Some(available_width), self.alignment.into(), true);
-            ui.ui
-                .cx()
-                .layout_cache
-                .insert(self.id, (self.text.clone(), layout.clone()));
+            let entry = ui.ui.cx().layout_cache.entry(self.id).or_insert(vec![(
+                self.text.clone(),
+                available_width,
+                layout.clone(),
+            )]);
+            entry.push((self.text.clone(), available_width, layout.clone()));
+            if entry.len() > 2 {
+                entry.remove(0);
+            }
             layout
         }
     }

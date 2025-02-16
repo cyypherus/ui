@@ -151,13 +151,14 @@ impl<State> Ui<State> {
     }
 }
 
+type TextLayoutCache = HashMap<u64, Vec<(String, f32, Layout<[u8; 4]>)>>;
 pub struct UiCx {
     pub(crate) animation_bank: AnimationBank,
     pub(crate) scene: Scene,
     pub(crate) font_cx: Rc<Cell<Option<FontContext>>>,
     pub(crate) layout_cx: Rc<Cell<Option<LayoutContext>>>,
     pub(crate) view_state: HashMap<u64, AnimatedView>,
-    pub(crate) layout_cache: HashMap<u64, (String, Layout<[u8; 4]>)>,
+    pub(crate) layout_cache: TextLayoutCache,
     pub(crate) image_scenes: HashMap<String, (Scene, f32, f32)>,
 }
 

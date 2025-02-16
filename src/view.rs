@@ -52,7 +52,7 @@ macro_rules! id {
 macro_rules! binding {
     ($State:ty, $field:ident) => {
         Binding::new(
-            |s: &$State| s.$field,
+            |s: &$State| s.$field.clone(),
             |s: &mut $State, value| s.$field = value,
         )
     };

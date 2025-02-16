@@ -53,10 +53,7 @@ fn main() {
                             .stroke(AlphaColor::from_rgb8(50, 50, 50), 2.)
                             .fill(AlphaColor::from_rgb8(30, 30, 30))
                             .finish(),
-                        Binding::<AppState, ScrollerState>::new(
-                            |s: &AppState| s.scroller.clone(),
-                            |s: &mut AppState, sc| s.scroller = sc,
-                        ),
+                        binding!(AppState, scroller),
                         |state, index, _id| {
                             state.texts.get(index).map(|s| {
                                 column(vec![
