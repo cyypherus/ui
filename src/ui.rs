@@ -1,4 +1,3 @@
-use crate::EditingPhase;
 use crate::{gestures::InteractionHandler, view::AnimatedView, Editor, GestureHandler};
 pub use backer::models::*;
 use backer::Node;
@@ -15,7 +14,7 @@ pub struct Ui<State> {
     pub gesture_handlers: Vec<(u64, Area, GestureHandler<State>)>,
     pub cx: Option<UiCx>,
     pub(crate) now: Instant,
-    pub(crate) editor: Option<(u64, Area, Editor, EditingPhase)>,
+    pub(crate) editor: Option<(u64, Area, Editor, bool)>,
 }
 
 #[derive(Debug, Clone)]
@@ -147,6 +146,18 @@ impl UiCx {
         let mut layout_ctx = self.layout_cx.take().unwrap();
         let mut font_cx = self.font_cx.take().unwrap();
         let result = f(&mut layout_ctx, &mut font_cx);
+        self.layout_cx.set(Some(layout_ctx));
+        self.font_cx.set(Some(font_cx));
+        result
+    }
+    pub(crate) fn with_font_layout_ctx_passthrough<T, U>(
+        &mut self,
+        passthrough: &mut U,
+        f: impl Fn(&mut LayoutContext<Brush>, &mut FontContext, &mut U) -> T,
+    ) -> T {
+        let mut layout_ctx = self.layout_cx.take().unwrap();
+        let mut font_cx = self.font_cx.take().unwrap();
+        let result = f(&mut layout_ctx, &mut font_cx, passthrough);
         self.layout_cx.set(Some(layout_ctx));
         self.font_cx.set(Some(font_cx));
         result

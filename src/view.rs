@@ -1,5 +1,5 @@
 use crate::circle::{AnimatedCircle, Circle};
-use crate::gestures::{ClickLocation, Interaction, InteractionType, ScrollDelta};
+use crate::gestures::{ClickLocation, EditInteraction, Interaction, InteractionType, ScrollDelta};
 use crate::rect::{AnimatedRect, Rect};
 use crate::svg::Svg;
 use crate::text::{AnimatedText, Text};
@@ -165,17 +165,35 @@ pub(crate) enum AnimatedView {
 }
 
 impl<State, T> View<State, T> {
-    pub fn on_edit(mut self, f: impl Fn(&mut State, String) + 'static) -> Self {
+    pub fn on_edit(mut self, f: impl Fn(&mut State, EditInteraction) + 'static) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
                 edit: true,
                 ..Default::default()
             },
             interaction_handler: Some(Rc::new(move |ui, interaction| {
-                let Interaction::Edit(text) = interaction else {
+                let Interaction::Edit(edit_interaction) = interaction else {
                     return;
                 };
-                (f)(&mut ui.ui.state, text);
+                (f)(&mut ui.ui.state, edit_interaction);
+            })),
+        });
+        self
+    }
+    pub fn on_click_system(
+        mut self,
+        f: impl Fn(&mut RcUi<State>, ClickState, ClickLocation) + 'static,
+    ) -> Self {
+        self.gesture_handlers.push(GestureHandler {
+            interaction_type: InteractionType {
+                click: true,
+                ..Default::default()
+            },
+            interaction_handler: Some(Rc::new(move |ui, interaction| {
+                let Interaction::Click(click, location) = interaction else {
+                    return;
+                };
+                (f)(ui, click, location);
             })),
         });
         self

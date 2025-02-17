@@ -1,4 +1,5 @@
 use crate::animated_color::{AnimatedColor, AnimatedU8};
+use crate::gestures::EditInteraction;
 use crate::{
     ui::RcUi,
     view::{AnimatedView, View, ViewType},
@@ -9,6 +10,7 @@ use backer::{models::*, Node};
 use lilt::{Animated, Easing};
 use parley::{FontStack, Layout, PlainEditor, PositionedLayoutItem, StyleProperty, TextStyle};
 use std::time::Instant;
+use vello_svg::vello::kurbo::Point;
 use vello_svg::vello::peniko::color::AlphaColor;
 use vello_svg::vello::peniko::Brush;
 use vello_svg::vello::{
@@ -21,7 +23,7 @@ pub fn text<State>(id: u64, text: impl AsRef<str> + 'static) -> Text<State> {
         id,
         state: Binding::constant(TextState {
             text: text.as_ref().to_string(),
-            editing: EditingPhase::None,
+            editing: false,
         }),
         font_size: DEFAULT_FONT_SIZE,
         // font: None,
@@ -87,14 +89,7 @@ impl<State> Clone for Text<State> {
 #[derive(Debug, Clone)]
 pub struct TextState {
     pub text: String,
-    pub editing: EditingPhase,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum EditingPhase {
-    None,
-    Starting,
-    Editing,
+    pub editing: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -143,20 +138,58 @@ impl<State> Text<State> {
     {
         if self.editable {
             let binding = self.state.clone();
+            let on_click = {
+                let binding = binding.clone();
+                move |ui: &mut RcUi<State>, _, _| {
+                    let editing = binding.get(&ui.ui.state).editing;
+                    if !editing {
+                        binding.update(&mut ui.ui.state, |s| s.editing = true);
+                    }
+                    // if editing && ui.ui.editor.is_none() {
+                    //     let mut editor = PlainEditor::new(self.font_size as f32);
+                    //     editor.set_text(&binding.get(&ui.ui.state).text);
+                    //     editor.set_scale(ui.ui.cx().display_scale as f32);
+                    //     let styles = editor.edit_styles();
+                    //     styles.insert(StyleProperty::LineHeight(self.line_height));
+                    //     styles.insert(parley::FontFamily::Named("Rubik".into()).into());
+                    //     styles.insert(StyleProperty::Brush(self.fill.into()));
+                    //     editor.set_alignment(self.alignment.into());
+                    //     let mut editor = Editor {
+                    //         editor,
+                    //         last_click_time: Default::default(),
+                    //         click_count: Default::default(),
+                    //         pointer_down: Default::default(),
+                    //         cursor_pos: Default::default(),
+                    //         cursor_visible: Default::default(),
+                    //         modifiers: Default::default(),
+                    //         start_time: Default::default(),
+                    //         blink_period: Default::default(),
+                    //     };
+                    //     ui.ui.cx().with_font_layout_ctx_passthrough(
+                    //         &mut editor,
+                    //         |layout_cx, font_cx, editor| {
+                    //             editor.mouse_moved(location.local(), layout_cx, font_cx);
+                    //             editor.mouse_pressed(layout_cx, font_cx);
+                    //             editor.mouse_released();
+                    //         },
+                    //     );
+                    //     ui.ui.editor = Some((self.id, Area::default(), editor, true));
+                    // } else if !editing && ui.ui.editor.is_some() {
+                    //     ui.ui.editor = None;
+                    // }
+                }
+            };
             View {
                 view_type: ViewType::Text(self),
                 gesture_handlers: Vec::new(),
             }
-            .on_click({
-                let binding = binding.clone();
-                move |state, _, _| {
-                    binding.update(state, |s| s.editing = EditingPhase::Starting);
-                }
-            })
+            .on_click_system(on_click)
             .on_edit({
-                let binding = binding.clone();
-                move |state, text| {
-                    binding.update(state, move |s| s.text = text.clone());
+                move |state, edit| {
+                    binding.update(state, move |s| match edit.clone() {
+                        EditInteraction::Update(text) => s.text = text.clone(),
+                        EditInteraction::End => s.editing = false,
+                    });
                 }
             })
         } else {
@@ -229,16 +262,8 @@ impl<State> Text<State> {
         if !visible && visible_amount == 0. {
             return;
         }
-        if let (EditingPhase::Editing, true) = (
-            self.state.get(&state.ui.state).editing,
-            state.ui.editor.is_none(),
-        ) {
-            self.state
-                .update(&mut state.ui.state, |s| s.editing = EditingPhase::None);
-        } else if let (EditingPhase::None, true) = (
-            self.state.get(&state.ui.state).editing,
-            state.ui.editor.is_none(),
-        ) {
+        let editing = self.state.get(&state.ui.state).editing;
+        if editing && state.ui.editor.is_none() {
             let mut editor = PlainEditor::new(self.font_size as f32);
             editor.set_text(&self.state.get(&state.ui.state).text);
             editor.set_scale(state.ui.cx().display_scale as f32);
@@ -247,7 +272,8 @@ impl<State> Text<State> {
             styles.insert(parley::FontFamily::Named("Rubik".into()).into());
             styles.insert(StyleProperty::Brush(self.fill.into()));
             editor.set_alignment(self.alignment.into());
-            let editor = Editor {
+            editor.set_width(Some(area.width));
+            let mut editor = Editor {
                 editor,
                 last_click_time: Default::default(),
                 click_count: Default::default(),
@@ -258,7 +284,19 @@ impl<State> Text<State> {
                 start_time: Default::default(),
                 blink_period: Default::default(),
             };
-            state.ui.editor = Some((self.id, area, editor, EditingPhase::Starting));
+            state.ui.cx().with_font_layout_ctx_passthrough(
+                &mut editor,
+                |layout_cx, font_cx, editor| {
+                    editor.mouse_moved(
+                        Point::new(area.width as f64, area.height as f64),
+                        layout_cx,
+                        font_cx,
+                    );
+                    editor.mouse_pressed(layout_cx, font_cx);
+                    editor.mouse_released();
+                },
+            );
+            state.ui.editor = Some((self.id, Area::default(), editor, true));
         }
         if let Some((id, ref mut edit_area, _, _)) = &mut state.ui.editor {
             if *id == self.id {

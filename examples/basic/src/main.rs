@@ -11,7 +11,7 @@ fn main() {
             text: TextState {
                 text: "The scale factor is calculated differently on different platforms:"
                     .to_string(),
-                editing: EditingPhase::None,
+                editing: false,
             },
         },
         dynamic_node(|_: &mut AppState| {
@@ -19,6 +19,7 @@ fn main() {
                 20.,
                 vec![
                     text_field(id!(), binding!(AppState, text))
+                        .font_size(40)
                         .fill(Color::from_rgb8(0, 200, 200))
                         .finish()
                         .width(200.)

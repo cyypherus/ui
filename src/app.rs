@@ -1,8 +1,6 @@
-use crate::gestures::{ClickLocation, Interaction, ScrollDelta};
+use crate::gestures::{ClickLocation, EditInteraction, Interaction, ScrollDelta};
 use crate::ui::{AnimationBank, Ui, UiCx};
-use crate::{
-    area_contains, ClickState, DragState, EditingPhase, Editor, GestureHandler, Point, RcUi,
-};
+use crate::{area_contains, ClickState, DragState, Editor, GestureHandler, Point, RcUi};
 use crate::{event, ui::RenderState, Area, GestureState, Layout, RUBIK_FONT};
 use backer::Node;
 use parley::{FontContext, LayoutContext};
@@ -31,7 +29,7 @@ pub struct App<'s, 'n, State: Clone> {
     pub(crate) cx: Option<UiCx>,
     pub(crate) background_scheduler: BackgroundScheduler<State>,
     pub(crate) scale_factor: f64,
-    pub(crate) editor: Option<(u64, Area, Editor, EditingPhase)>,
+    pub(crate) editor: Option<(u64, Area, Editor, bool)>,
 }
 
 use std::thread;
@@ -326,7 +324,7 @@ impl<State: Clone + 'static> ApplicationHandler for App<'_, '_, State> {
                     };
                     let App { cx, editor, .. } = self;
                     let mut needs_redraw = false;
-                    if let Some((_, _, editor, EditingPhase::Editing)) = editor {
+                    if let Some((_, _, editor, _)) = editor {
                         let mut layout_cx = cx.as_mut().unwrap().layout_cx.take().unwrap();
                         let mut font_cx = cx.as_mut().unwrap().font_cx.take().unwrap();
                         editor.handle_key(
@@ -348,12 +346,12 @@ impl<State: Clone + 'static> ApplicationHandler for App<'_, '_, State> {
                             } else if handler.2.interaction_type.edit {
                                 needs_redraw = true;
                                 self.with_ui(|ui| {
-                                    if let Some((_, _, editor, EditingPhase::Editing)) =
-                                        &ui.ui.editor
-                                    {
+                                    if let Some((_, _, editor, _)) = &ui.ui.editor {
                                         (interaction_handler)(
                                             ui,
-                                            Interaction::Edit(editor.text().to_string()),
+                                            Interaction::Edit(EditInteraction::Update(
+                                                editor.text().to_string(),
+                                            )),
                                         );
                                     }
                                 });
@@ -403,7 +401,7 @@ impl<State: Clone + 'static> App<'_, '_, State> {
         let mut needs_redraw = false;
         self.cursor_position = Some(pos);
         let App { cx, editor, .. } = self;
-        if let Some((_, area, editor, EditingPhase::Editing)) = editor.as_mut() {
+        if let Some((_, area, editor, _)) = editor.as_mut() {
             needs_redraw = true;
             let mut layout_cx = cx.as_mut().unwrap().layout_cx.take().unwrap();
             let mut font_cx = cx.as_mut().unwrap().font_cx.take().unwrap();
@@ -460,31 +458,32 @@ impl<State: Clone + 'static> App<'_, '_, State> {
         let mut needs_redraw = false;
         if let Some(point) = self.cursor_position {
             let App { cx, editor, .. } = self;
-            if let Some((_, area, editor, EditingPhase::Editing)) = editor.as_mut() {
+            if let Some((_, area, editor, _)) = editor.as_mut() {
                 if area_contains(area, point) {
                     let mut layout_cx = cx.as_mut().unwrap().layout_cx.take().unwrap();
                     let mut font_cx = cx.as_mut().unwrap().font_cx.take().unwrap();
-                    editor.mouse_pressed(&mut layout_cx, &mut font_cx);
-                    cx.as_mut().unwrap().layout_cx.set(Some(layout_cx));
-                    cx.as_mut().unwrap().font_cx.set(Some(font_cx));
-                }
-            } else if let Some((_, area, editor, ref mut phase @ EditingPhase::Starting)) =
-                editor.as_mut()
-            {
-                if area_contains(area, point) {
-                    *phase = EditingPhase::Editing;
-                    let mut layout_cx = cx.as_mut().unwrap().layout_cx.take().unwrap();
-                    let mut font_cx = cx.as_mut().unwrap().font_cx.take().unwrap();
-                    editor.mouse_moved(
-                        Point::new(point.x - area.x as f64, point.y - area.y as f64),
-                        &mut layout_cx,
-                        &mut font_cx,
-                    );
                     editor.mouse_pressed(&mut layout_cx, &mut font_cx);
                     cx.as_mut().unwrap().layout_cx.set(Some(layout_cx));
                     cx.as_mut().unwrap().font_cx.set(Some(font_cx));
                 }
             }
+            // else if let Some((_, area, editor, ref mut phase @ _)) =
+            //     editor.as_mut()
+            // {
+            //     if area_contains(area, point) {
+            //         *phase = EditingPhase::Editing;
+            //         let mut layout_cx = cx.as_mut().unwrap().layout_cx.take().unwrap();
+            //         let mut font_cx = cx.as_mut().unwrap().font_cx.take().unwrap();
+            //         editor.mouse_moved(
+            //             Point::new(point.x - area.x as f64, point.y - area.y as f64),
+            //             &mut layout_cx,
+            //             &mut font_cx,
+            //         );
+            //         editor.mouse_pressed(&mut layout_cx, &mut font_cx);
+            //         cx.as_mut().unwrap().layout_cx.set(Some(layout_cx));
+            //         cx.as_mut().unwrap().font_cx.set(Some(font_cx));
+            //     }
+            // }
 
             if let Some((capturer, area, handler)) = self
                 .gesture_handlers
@@ -523,7 +522,7 @@ impl<State: Clone + 'static> App<'_, '_, State> {
         let mut needs_redraw = false;
         let mut end_editing = false;
         if let Some(point) = self.cursor_position {
-            if let Some((_, area, editor, EditingPhase::Editing)) = self.editor.as_mut() {
+            if let Some((_, area, editor, _)) = self.editor.as_mut() {
                 needs_redraw = true;
                 if area_contains(area, point) {
                     editor.mouse_released();
@@ -534,6 +533,16 @@ impl<State: Clone + 'static> App<'_, '_, State> {
         }
         if end_editing {
             self.editor = None;
+            for handler in self.gesture_handlers.clone().unwrap().iter() {
+                if let Some(ref interaction_handler) = handler.2.interaction_handler {
+                    if handler.2.interaction_type.edit {
+                        needs_redraw = true;
+                        self.with_ui(|ui| {
+                            (interaction_handler)(ui, Interaction::Edit(EditInteraction::End));
+                        });
+                    }
+                }
+            }
         }
         if let Some(current) = self.cursor_position {
             if let GestureState::Dragging { start, capturer } = self.gesture_state {
@@ -545,7 +554,9 @@ impl<State: Clone + 'static> App<'_, '_, State> {
                     .iter()
                     .find(|(id, _, _)| *id == capturer)
                 {
-                    if let Some(ref on_click) = handler.interaction_handler {
+                    if let (Some(ref on_click), true) =
+                        (&handler.interaction_handler, handler.interaction_type.click)
+                    {
                         needs_redraw = true;
                         self.with_ui(|ui| {
                             if area_contains(area, current) {
@@ -567,7 +578,9 @@ impl<State: Clone + 'static> App<'_, '_, State> {
                             }
                         });
                     }
-                    if let Some(ref on_drag) = handler.interaction_handler {
+                    if let (Some(ref on_drag), true) =
+                        (&handler.interaction_handler, handler.interaction_type.drag)
+                    {
                         needs_redraw = true;
                         self.with_ui(|ui| {
                             on_drag(

@@ -44,7 +44,7 @@ impl ClickLocation {
     pub fn global(&self) -> Point {
         self.global
     }
-    pub fn relative(&self) -> Point {
+    pub fn local(&self) -> Point {
         Point {
             x: self.global.x - self.area.x as f64,
             y: self.global.y - self.area.y as f64,
@@ -53,12 +53,18 @@ impl ClickLocation {
 }
 
 pub(crate) enum Interaction {
-    Edit(String),
+    Edit(EditInteraction),
     Click(ClickState, ClickLocation),
     Drag(DragState),
     Hover(bool),
     Key(Key),
     Scroll(ScrollDelta),
+}
+
+#[derive(Debug, Clone)]
+pub enum EditInteraction {
+    Update(String),
+    End,
 }
 
 #[derive(Default, Debug, Clone, Copy)]
