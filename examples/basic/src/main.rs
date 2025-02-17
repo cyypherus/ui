@@ -1,8 +1,10 @@
 use ui::*;
+use vello_svg::vello::peniko::color::AlphaColor;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct AppState {
     text: TextState,
+    toggle: ToggleState,
 }
 
 fn main() {
@@ -13,17 +15,18 @@ fn main() {
                     .to_string(),
                 editing: false,
             },
+            ..Default::default()
         },
         dynamic_node(|_: &mut AppState| {
             column_spaced(
                 20.,
                 vec![
                     text_field(id!(), binding!(AppState, text))
+                        .fill(AlphaColor::WHITE)
                         .font_size(40)
-                        .fill(Color::from_rgb8(0, 200, 200))
                         .finish()
-                        .width(200.)
-                        .attach_under(rect(id!()).stroke(Color::WHITE, 2.).finish()),
+                        .pad(100.),
+                    toggle(id!(), binding!(AppState, toggle)).finish(),
                     // svg(id!(), "assets/tiger.svg").finish().aspect(1.),
                     // text(id!(), s.text.clone())
                     //     .fill(Color::WHITE)
@@ -50,7 +53,6 @@ fn main() {
                     //     ),
                 ],
             )
-            .width(600.)
         }),
     )
 }

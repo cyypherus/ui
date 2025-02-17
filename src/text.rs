@@ -1,11 +1,15 @@
 use crate::animated_color::{AnimatedColor, AnimatedU8};
 use crate::gestures::EditInteraction;
 use crate::{
+    dynamic_node, id, rect, Binding, Editor, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR,
+    DEFAULT_FONT_SIZE, DEFAULT_PADDING,
+};
+use crate::{
     ui::RcUi,
     view::{AnimatedView, View, ViewType},
     DEFAULT_DURATION, DEFAULT_EASING,
 };
-use crate::{Binding, Editor, DEFAULT_FONT_SIZE};
+use backer::nodes::stack;
 use backer::{models::*, Node};
 use lilt::{Animated, Easing};
 use parley::{FontStack, Layout, PlainEditor, PositionedLayoutItem, StyleProperty, TextStyle};
@@ -27,7 +31,7 @@ pub fn text<State>(id: u64, text: impl AsRef<str> + 'static) -> Text<State> {
         }),
         font_size: DEFAULT_FONT_SIZE,
         // font: None,
-        fill: Color::BLACK,
+        fill: DEFAULT_FG_COLOR,
         easing: None,
         duration: None,
         delay: 0.,
@@ -43,7 +47,7 @@ pub fn text_field<State>(id: u64, state: Binding<State, TextState>) -> Text<Stat
         state,
         font_size: DEFAULT_FONT_SIZE,
         // font: None,
-        fill: Color::BLACK,
+        fill: DEFAULT_FG_COLOR,
         easing: None,
         duration: None,
         delay: 0.,
@@ -86,7 +90,7 @@ impl<State> Clone for Text<State> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TextState {
     pub text: String,
     pub editing: bool,
@@ -145,38 +149,6 @@ impl<State> Text<State> {
                     if !editing {
                         binding.update(&mut ui.ui.state, |s| s.editing = true);
                     }
-                    // if editing && ui.ui.editor.is_none() {
-                    //     let mut editor = PlainEditor::new(self.font_size as f32);
-                    //     editor.set_text(&binding.get(&ui.ui.state).text);
-                    //     editor.set_scale(ui.ui.cx().display_scale as f32);
-                    //     let styles = editor.edit_styles();
-                    //     styles.insert(StyleProperty::LineHeight(self.line_height));
-                    //     styles.insert(parley::FontFamily::Named("Rubik".into()).into());
-                    //     styles.insert(StyleProperty::Brush(self.fill.into()));
-                    //     editor.set_alignment(self.alignment.into());
-                    //     let mut editor = Editor {
-                    //         editor,
-                    //         last_click_time: Default::default(),
-                    //         click_count: Default::default(),
-                    //         pointer_down: Default::default(),
-                    //         cursor_pos: Default::default(),
-                    //         cursor_visible: Default::default(),
-                    //         modifiers: Default::default(),
-                    //         start_time: Default::default(),
-                    //         blink_period: Default::default(),
-                    //     };
-                    //     ui.ui.cx().with_font_layout_ctx_passthrough(
-                    //         &mut editor,
-                    //         |layout_cx, font_cx, editor| {
-                    //             editor.mouse_moved(location.local(), layout_cx, font_cx);
-                    //             editor.mouse_pressed(layout_cx, font_cx);
-                    //             editor.mouse_released();
-                    //         },
-                    //     );
-                    //     ui.ui.editor = Some((self.id, Area::default(), editor, true));
-                    // } else if !editing && ui.ui.editor.is_some() {
-                    //     ui.ui.editor = None;
-                    // }
                 }
             };
             View {
@@ -203,7 +175,28 @@ impl<State> Text<State> {
     where
         State: 'static,
     {
-        self.view().finish()
+        let binding = self.state.clone();
+        let id = self.id;
+        stack(vec![self
+            .view()
+            .finish()
+            .pad(DEFAULT_PADDING)
+            .attach_under(dynamic_node({
+                move |s| {
+                    rect(id!(id))
+                        .fill(AlphaColor::from_rgb8(50, 50, 50))
+                        .stroke(
+                            if binding.get(s).editing {
+                                AlphaColor::from_rgb8(113, 70, 232)
+                            } else {
+                                AlphaColor::from_rgb8(60, 60, 60)
+                            },
+                            3.,
+                        )
+                        .corner_rounding(DEFAULT_CORNER_ROUNDING)
+                        .finish()
+                }
+            }))])
     }
 }
 
