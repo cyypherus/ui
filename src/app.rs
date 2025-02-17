@@ -402,7 +402,6 @@ impl<State: Clone + 'static> App<'_, '_, State> {
         self.cursor_position = Some(pos);
         let App { cx, editor, .. } = self;
         if let Some((_, area, editor, _)) = editor.as_mut() {
-            needs_redraw = true;
             let mut layout_cx = cx.as_mut().unwrap().layout_cx.take().unwrap();
             let mut font_cx = cx.as_mut().unwrap().font_cx.take().unwrap();
             editor.mouse_moved(
@@ -503,30 +502,23 @@ impl<State: Clone + 'static> App<'_, '_, State> {
     }
     pub(crate) fn mouse_released(&mut self) {
         let mut needs_redraw = false;
-        let mut end_editing = false;
-        if let Some(point) = self.cursor_position {
-            if let Some((_, area, editor, _)) = self.editor.as_mut() {
-                needs_redraw = true;
-                if area_contains(area, point) {
-                    editor.mouse_released();
-                } else {
-                    end_editing = true;
-                }
-            }
+        if let Some((_, _, editor, _)) = self.editor.as_mut() {
+            needs_redraw = true;
+            editor.mouse_released();
         }
-        if end_editing {
-            self.editor = None;
-            for handler in self.gesture_handlers.clone().unwrap().iter() {
-                if let Some(ref interaction_handler) = handler.2.interaction_handler {
-                    if handler.2.interaction_type.edit {
-                        needs_redraw = true;
-                        self.with_ui(|ui| {
-                            (interaction_handler)(ui, Interaction::Edit(EditInteraction::End));
-                        });
-                    }
-                }
-            }
-        }
+        // if end_editing {
+        //     self.editor = None;
+        //     for handler in self.gesture_handlers.clone().unwrap().iter() {
+        //         if let Some(ref interaction_handler) = handler.2.interaction_handler {
+        //             if handler.2.interaction_type.edit {
+        //                 needs_redraw = true;
+        //                 self.with_ui(|ui| {
+        //                     (interaction_handler)(ui, Interaction::Edit(EditInteraction::End));
+        //                 });
+        //             }
+        //         }
+        //     }
+        // }
         if let Some(current) = self.cursor_position {
             if let GestureState::Dragging { start, capturer } = self.gesture_state {
                 let distance = start.distance(current);

@@ -42,13 +42,13 @@ fn main() {
                 space(),
                 scroller(
                     id!(),
-                    rect(crate::id!())
+                    Some(rect(crate::id!())
                         .corner_rounding(10.)
                         .stroke(AlphaColor::from_rgb8(50, 50, 50), 2.)
                         .fill(AlphaColor::from_rgb8(30, 30, 30))
                         .view()
                         .transition_duration(0.)
-                        .finish(),
+                        .finish()),
                     binding!(AppState, scroller),
                     scroller_cell,
                 ),

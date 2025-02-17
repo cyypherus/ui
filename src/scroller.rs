@@ -1,7 +1,7 @@
 use crate::{clipping, rect, Binding, RcUi, DEFAULT_CORNER_ROUNDING};
 use backer::{
     models::Area,
-    nodes::{area_reader, column, stack},
+    nodes::{area_reader, column, empty, stack},
     Node,
 };
 use vello_svg::vello::{
@@ -146,7 +146,7 @@ impl ScrollerState {
 
 pub fn scroller<'n, State: 'static, CellFn>(
     id: u64,
-    backing: Node<'n, RcUi<State>>,
+    backing: Option<Node<'n, RcUi<State>>>,
     scroller: Binding<State, ScrollerState>,
     cell: CellFn,
 ) -> Node<'n, RcUi<State>>
@@ -154,7 +154,7 @@ where
     CellFn: for<'x> Fn(&'x mut State, usize, u64) -> Option<Node<'n, RcUi<State>>> + Copy + 'static,
 {
     stack(vec![
-        backing,
+        backing.unwrap_or(empty()),
         clipping(
             |area| {
                 RoundedRect::from_origin_size(

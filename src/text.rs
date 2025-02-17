@@ -9,7 +9,7 @@ use crate::{
     view::{AnimatedView, View, ViewType},
     DEFAULT_DURATION, DEFAULT_EASING,
 };
-use backer::nodes::stack;
+use backer::nodes::{space, stack};
 use backer::{models::*, Node};
 use lilt::{Animated, Easing};
 use parley::{FontStack, Layout, PlainEditor, PositionedLayoutItem, StyleProperty, TextStyle};
@@ -177,26 +177,31 @@ impl<State> Text<State> {
     {
         let binding = self.state.clone();
         let id = self.id;
+        let editable = self.editable;
         stack(vec![self
             .view()
             .finish()
-            .pad(DEFAULT_PADDING)
-            .attach_under(dynamic_node({
-                move |s| {
-                    rect(id!(id))
-                        .fill(AlphaColor::from_rgb8(50, 50, 50))
-                        .stroke(
-                            if binding.get(s).editing {
-                                AlphaColor::from_rgb8(113, 70, 232)
-                            } else {
-                                AlphaColor::from_rgb8(60, 60, 60)
-                            },
-                            3.,
-                        )
-                        .corner_rounding(DEFAULT_CORNER_ROUNDING)
-                        .finish()
-                }
-            }))])
+            .pad(if editable { DEFAULT_PADDING } else { 0. })
+            .attach_under(if editable {
+                dynamic_node({
+                    move |s| {
+                        rect(id!(id))
+                            .fill(AlphaColor::from_rgb8(50, 50, 50))
+                            .stroke(
+                                if binding.get(s).editing {
+                                    AlphaColor::from_rgb8(113, 70, 232)
+                                } else {
+                                    AlphaColor::from_rgb8(60, 60, 60)
+                                },
+                                3.,
+                            )
+                            .corner_rounding(DEFAULT_CORNER_ROUNDING)
+                            .finish()
+                    }
+                })
+            } else {
+                space()
+            })])
     }
 }
 
