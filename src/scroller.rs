@@ -1,4 +1,4 @@
-use crate::{clipping, rect, Binding, RcUi, DEFAULT_CORNER_ROUNDING};
+use crate::{app::AppState, clipping, rect, Binding, DEFAULT_CORNER_ROUNDING};
 use backer::{
     models::Area,
     nodes::{area_reader, column, empty, stack},
@@ -146,12 +146,13 @@ impl ScrollerState {
 
 pub fn scroller<'n, State: 'static, CellFn>(
     id: u64,
-    backing: Option<Node<'n, RcUi<State>>>,
-    scroller: Binding<State, ScrollerState>,
+    backing: Option<Node<'n, AppState<State>>>,
+    scroller: Binding<AppState<State>, ScrollerState>,
     cell: CellFn,
-) -> Node<'n, RcUi<State>>
+) -> Node<'n, AppState<State>>
 where
-    CellFn: for<'x> Fn(&'x mut State, usize, u64) -> Option<Node<'n, RcUi<State>>> + Copy + 'static,
+    CellFn:
+        for<'x> Fn(&'x mut State, usize, u64) -> Option<Node<'n, AppState<State>>> + Copy + 'static,
 {
     stack(vec![
         backing.unwrap_or(empty()),
@@ -164,17 +165,17 @@ where
                 )
                 .to_path(0.001)
             },
-            area_reader::<RcUi<State>>({
+            area_reader::<AppState<State>>({
                 let scroller = scroller.clone();
-                move |area, state| {
-                    let mut scroller_state = scroller.get(&state.ui.state);
-                    scroller_state.update(area, state, id, |state, index, id, area| {
-                        cell(&mut state.ui.state, index, id)?.min_height(area, state)
+                move |area, app| {
+                    let mut scroller_state = scroller.get(&app);
+                    scroller_state.update(area, app, id, |app, index, id, area| {
+                        cell(&mut app.state, index, id)?.min_height(area, app)
                     });
                     let window = &scroller_state.visible_window;
                     let mut cells = Vec::new();
                     for element in window {
-                        if let Some(cell) = cell(&mut state.ui.state, element.index, id) {
+                        if let Some(cell) = cell(&mut app.state, element.index, id) {
                             cells.push(cell);
                         }
                     }
@@ -182,7 +183,7 @@ where
                     let comp = scroller_state.compensated;
                     // let limit_offset = scroller_state.limit_offset;
 
-                    scroller.set(&mut state.ui.state, scroller_state);
+                    scroller.set(app, scroller_state);
                     column(cells)
                         //
                         .offset_y(offset + comp)

@@ -1,4 +1,4 @@
-use crate::ui::{RcUi, UiCx};
+use crate::app::AppState;
 use crate::view::{View, ViewType};
 use backer::models::Area;
 use backer::Node;
@@ -39,13 +39,13 @@ impl Svg {
         self.fill = Some(color);
         self
     }
-    pub fn view<State>(self) -> View<State, ()> {
+    pub fn view<State>(self) -> View<State> {
         View {
             view_type: ViewType::Svg(self),
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<'n, State: 'static>(self) -> Node<'n, RcUi<State>> {
+    pub fn finish<'n, State: 'static>(self) -> Node<'n, AppState<State>> {
         self.view().finish()
     }
 }
@@ -54,7 +54,7 @@ impl Svg {
     pub(crate) fn draw<State>(
         &mut self,
         area: Area,
-        state: &mut RcUi<State>,
+        app: &mut AppState<State>,
         visible: bool,
         visible_amount: f32,
     ) {
@@ -62,7 +62,7 @@ impl Svg {
             return;
         }
         #[allow(clippy::map_entry)]
-        if !state.ui.cx().image_scenes.contains_key(&self.source) {
+        if !app.image_scenes.contains_key(&self.source) {
             match std::fs::read(self.source.clone()) {
                 Err(err) => eprintln!("Loading svg failed: {err}"),
                 Ok(image_data) => match vello_svg::usvg::Tree::from_data(
@@ -71,16 +71,13 @@ impl Svg {
                 ) {
                     Err(err) => {
                         eprintln!("Loading svg failed: {err}");
-                        state
-                            .ui
-                            .cx()
-                            .image_scenes
+                        app.image_scenes
                             .insert(self.source.clone(), (Scene::new(), 0., 0.));
                     }
                     Ok(svg) => {
                         let svg_scene = vello_svg::render_tree(&svg);
                         let size = svg.size();
-                        state.ui.cx().image_scenes.insert(
+                        app.image_scenes.insert(
                             self.source.clone(),
                             (svg_scene, size.width(), size.height()),
                         );
@@ -88,11 +85,11 @@ impl Svg {
                 },
             }
         }
-        let UiCx {
+        let AppState {
             image_scenes,
             scene,
             ..
-        } = state.ui.cx();
+        } = app;
         if let Some((svg_scene, width, height)) = image_scenes.get(&self.source) {
             if self.fill.is_some() {
                 scene.push_layer(

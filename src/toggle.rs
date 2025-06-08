@@ -1,5 +1,8 @@
-use crate::{dynamic_node, id, rect, Binding, ClickState, RcUi};
-use backer::{nodes::stack, Node};
+use crate::{app::AppState, id, rect, Binding, ClickState};
+use backer::{
+    nodes::{dynamic, stack},
+    Node,
+};
 use vello_svg::vello::peniko::color::AlphaColor;
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -11,11 +14,11 @@ pub struct ToggleState {
 
 pub struct Toggle<State> {
     id: u64,
-    on_toggle: Option<fn(&mut State, bool)>,
-    state: Binding<State, ToggleState>,
+    on_toggle: Option<fn(&mut AppState<State>, bool)>,
+    state: Binding<AppState<State>, ToggleState>,
 }
 
-pub fn toggle<State>(id: u64, binding: Binding<State, ToggleState>) -> Toggle<State> {
+pub fn toggle<State>(id: u64, binding: Binding<AppState<State>, ToggleState>) -> Toggle<State> {
     Toggle {
         id,
         on_toggle: None,
@@ -24,17 +27,17 @@ pub fn toggle<State>(id: u64, binding: Binding<State, ToggleState>) -> Toggle<St
 }
 
 impl<State> Toggle<State> {
-    pub fn on_toggle(mut self, on_toggle: fn(&mut State, bool)) -> Self {
+    pub fn on_toggle(mut self, on_toggle: fn(&mut AppState<State>, bool)) -> Self {
         self.on_toggle = Some(on_toggle);
         self
     }
-    pub fn finish<'n>(self) -> Node<'n, RcUi<State>>
+    pub fn finish<'n>(self) -> Node<'n, AppState<State>>
     where
         State: 'static,
     {
         let height = 60.;
         let width = 120.;
-        dynamic_node(move |s: &mut State| {
+        dynamic(move |s: &mut AppState<State>| {
             stack(vec![
                 //
                 rect(id!(self.id))
@@ -73,11 +76,11 @@ impl<State> Toggle<State> {
                     .view()
                     .on_hover({
                         let binding = self.state.clone();
-                        move |s: &mut State, h| binding.update(s, |s| s.hovered = h)
+                        move |s: &mut AppState<State>, h| binding.update(s, |s| s.hovered = h)
                     })
                     .on_click({
                         let binding = self.state.clone();
-                        move |s: &mut State, click_state, _| match click_state {
+                        move |s: &mut AppState<State>, click_state, _| match click_state {
                             ClickState::Started => binding.update(s, |s| s.depressed = true),
                             ClickState::Cancelled => binding.update(s, |s| s.depressed = false),
                             ClickState::Completed => {

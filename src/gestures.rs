@@ -1,6 +1,6 @@
 use backer::models::Area;
 
-use crate::{Key, Point, RcUi};
+use crate::{Key, Point};
 use std::rc::Rc;
 
 #[derive(Debug, Clone, Copy)]
@@ -81,7 +81,7 @@ pub struct ScrollDelta {
     pub x: f32,
     pub y: f32,
 }
-pub(crate) type InteractionHandler<State> = Rc<dyn Fn(&mut RcUi<State>, Interaction)>;
+pub(crate) type InteractionHandler<State> = Rc<dyn Fn(&mut State, Interaction)>;
 pub struct GestureHandler<State> {
     pub(crate) interaction_type: InteractionType,
     pub(crate) interaction_handler: Option<InteractionHandler<State>>,

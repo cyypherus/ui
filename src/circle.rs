@@ -1,5 +1,5 @@
+use crate::app::AppState;
 use crate::shape::{AnimatedShape, Shape, ShapeType};
-use crate::ui::RcUi;
 use crate::view::{AnimatedView, View, ViewType};
 use backer::models::Area;
 use backer::Node;
@@ -51,13 +51,13 @@ impl Circle {
         self.shape.stroke = Some((color, line_width));
         self
     }
-    pub fn view<State>(self) -> View<State, ()> {
+    pub fn view<State>(self) -> View<State> {
         View {
             view_type: ViewType::Circle(self),
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<'n, State: 'static>(self) -> Node<'n, RcUi<State>> {
+    pub fn finish<'n, State: 'static>(self) -> Node<'n, AppState<State>> {
         self.view().finish()
     }
 }
@@ -66,33 +66,28 @@ impl Circle {
     pub(crate) fn draw<State>(
         &mut self,
         area: Area,
-        state: &mut RcUi<State>,
+        app: &mut AppState<State>,
         visible: bool,
         visible_amount: f32,
     ) {
         if !visible && visible_amount == 0. {
             return;
         }
-        let AnimatedView::Circle(mut animated) = state
-            .ui
-            .cx()
-            .view_state
-            .remove(&self.id)
-            .unwrap_or(AnimatedView::Circle(Box::new(AnimatedCircle::new_from(
-                self,
-            ))))
+        let AnimatedView::Circle(mut animated) =
+            app.view_state
+                .remove(&self.id)
+                .unwrap_or(AnimatedView::Circle(Box::new(AnimatedCircle::new_from(
+                    self,
+                ))))
         else {
             return;
         };
-        AnimatedCircle::update(state.ui.now, self, &mut animated);
-        let now = state.ui.now;
+        AnimatedCircle::update(app.now, self, &mut animated);
+        let now = app.now;
         animated
             .shape
-            .draw(&mut state.ui.cx().scene, area, now, visible_amount);
-        state
-            .ui
-            .cx()
-            .view_state
+            .draw(&mut app.scene, area, now, visible_amount);
+        app.view_state
             .insert(self.id, AnimatedView::Circle(animated));
     }
 }

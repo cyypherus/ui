@@ -1,9 +1,10 @@
+use crate::app::AppState;
 use crate::circle::{AnimatedCircle, Circle};
 use crate::gestures::{ClickLocation, EditInteraction, Interaction, InteractionType, ScrollDelta};
 use crate::rect::{AnimatedRect, Rect};
 use crate::svg::Svg;
 use crate::text::{AnimatedText, Text};
-use crate::ui::{AnimArea, RcUi};
+use crate::ui::AnimArea;
 use crate::{ClickState, DragState, GestureHandler, Key};
 use backer::nodes::{draw_object, dynamic, intermediate};
 use backer::traits::Drawable;
@@ -52,42 +53,34 @@ macro_rules! id {
 macro_rules! binding {
     ($State:ty, $field:ident) => {
         Binding::new(
-            |s: &$State| s.$field.clone(),
-            |s: &mut $State, value| s.$field = value,
+            |s: &AppState<$State>| s.state.$field.clone(),
+            |s: &mut AppState<$State>, value| s.state.$field = value,
         )
     };
 }
 
-pub fn dynamic_node<'a, State: 'a>(
-    view: impl Fn(&mut State) -> Node<'a, RcUi<State>> + 'a,
-) -> Node<'a, RcUi<State>> {
-    dynamic(move |ui: &mut RcUi<State>| view(&mut ui.ui.state))
-}
-
 pub fn clipping<'a, State: 'a>(
     path: fn(Area) -> BezPath,
-    node: Node<'a, RcUi<State>>,
-) -> Node<'a, RcUi<State>> {
+    node: Node<'a, AppState<State>>,
+) -> Node<'a, AppState<State>> {
     intermediate(
-        move |available_area: Area, ui: &mut RcUi<State>| {
-            ui.ui
-                .cx()
-                .scene
+        move |available_area: Area, app: &mut AppState<State>| {
+            app.scene
                 .push_layer(Mix::Normal, 1., Affine::IDENTITY, &(path)(available_area));
         },
-        move |ui: &mut RcUi<State>| {
-            ui.ui.cx().scene.pop_layer();
+        move |app: &mut AppState<State>| {
+            app.scene.pop_layer();
         },
         node,
     )
 }
 
-pub struct View<State, T> {
-    pub(crate) view_type: ViewType<State, T>,
-    pub(crate) gesture_handlers: Vec<GestureHandler<State>>,
+pub struct View<State> {
+    pub(crate) view_type: ViewType<State>,
+    pub(crate) gesture_handlers: Vec<GestureHandler<AppState<State>>>,
 }
 
-impl<State, T: Clone> Clone for View<State, T> {
+impl<State> Clone for View<State> {
     fn clone(&self) -> Self {
         Self {
             view_type: self.view_type.clone(),
@@ -97,63 +90,21 @@ impl<State, T: Clone> Clone for View<State, T> {
 }
 
 #[derive(Debug)]
-pub(crate) enum ViewType<State, T> {
+pub(crate) enum ViewType<State> {
     Text(Text<State>),
     Rect(Rect),
     Circle(Circle),
     Svg(Svg),
-    External(ExternalView<State, T>),
 }
 
-impl<State, T: Clone> Clone for ViewType<State, T> {
+impl<State> Clone for ViewType<State> {
     fn clone(&self) -> Self {
         match self {
             ViewType::Text(text) => ViewType::Text(text.clone()),
             ViewType::Rect(rect) => ViewType::Rect(*rect),
             ViewType::Circle(circle) => ViewType::Circle(circle.clone()),
             ViewType::Svg(svg) => ViewType::Svg(svg.clone()),
-            ViewType::External(external_view) => ViewType::External(external_view.clone()),
         }
-    }
-}
-
-#[derive(Debug)]
-pub struct ExternalView<State, T> {
-    wrapped: T,
-    get_self_mut: fn(&mut Self) -> &mut T,
-    get_self: fn(&Self) -> &T,
-    id: fn(&Self) -> u64,
-    get_duration: fn(&Self) -> Option<f32>,
-    set_duration: fn(&Self, Option<f32>),
-    set_easing: fn(&mut Self, Option<Easing>),
-    get_easing: fn(&Self) -> Option<Easing>,
-    set_delay: fn(&mut Self, f32),
-    get_delay: fn(&Self) -> f32,
-    draw: fn(&mut Self, area: Area, ui: &mut RcUi<State>, visible_amount: f32),
-}
-
-impl<State, T: Clone> Clone for ExternalView<State, T> {
-    fn clone(&self) -> Self {
-        Self {
-            get_self: self.get_self,
-            id: self.id,
-            draw: self.draw,
-            wrapped: self.wrapped.clone(),
-            get_self_mut: self.get_self_mut,
-            get_duration: self.get_duration,
-            set_duration: self.set_duration,
-            set_easing: self.set_easing,
-            get_easing: self.get_easing,
-            set_delay: self.set_delay,
-            get_delay: self.get_delay,
-        }
-    }
-}
-
-pub fn custom_view<State, T>(view: ExternalView<State, T>) -> View<State, T> {
-    View {
-        view_type: ViewType::External(view),
-        gesture_handlers: Vec::new(),
     }
 }
 
@@ -164,111 +115,96 @@ pub(crate) enum AnimatedView {
     Circle(Box<AnimatedCircle>),
 }
 
-impl<State, T> View<State, T> {
-    pub fn on_edit(mut self, f: impl Fn(&mut State, EditInteraction) + 'static) -> Self {
+impl<State> View<State> {
+    pub fn on_edit(mut self, f: impl Fn(&mut AppState<State>, EditInteraction) + 'static) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
                 edit: true,
                 ..Default::default()
             },
-            interaction_handler: Some(Rc::new(move |ui, interaction| {
+            interaction_handler: Some(Rc::new(move |app_state, interaction| {
                 let Interaction::Edit(edit_interaction) = interaction else {
                     return;
                 };
-                (f)(&mut ui.ui.state, edit_interaction);
+                (f)(app_state, edit_interaction);
             })),
         });
         self
     }
-    pub fn on_click_system(
+    pub fn on_click(
         mut self,
-        f: impl Fn(&mut RcUi<State>, ClickState, ClickLocation) + 'static,
+        f: impl Fn(&mut AppState<State>, ClickState, ClickLocation) + 'static,
     ) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
                 click: true,
                 ..Default::default()
             },
-            interaction_handler: Some(Rc::new(move |ui, interaction| {
+            interaction_handler: Some(Rc::new(move |app_state, interaction| {
                 let Interaction::Click(click, location) = interaction else {
                     return;
                 };
-                (f)(ui, click, location);
+                (f)(app_state, click, location);
             })),
         });
         self
     }
-    pub fn on_click(mut self, f: impl Fn(&mut State, ClickState, ClickLocation) + 'static) -> Self {
-        self.gesture_handlers.push(GestureHandler {
-            interaction_type: InteractionType {
-                click: true,
-                ..Default::default()
-            },
-            interaction_handler: Some(Rc::new(move |ui, interaction| {
-                let Interaction::Click(click, location) = interaction else {
-                    return;
-                };
-                (f)(&mut ui.ui.state, click, location);
-            })),
-        });
-        self
-    }
-    pub fn on_drag(mut self, f: impl Fn(&mut State, DragState) + 'static) -> Self {
+    pub fn on_drag(mut self, f: impl Fn(&mut AppState<State>, DragState) + 'static) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
                 drag: true,
                 ..Default::default()
             },
-            interaction_handler: Some(Rc::new(move |ui, interaction| {
+            interaction_handler: Some(Rc::new(move |app_state, interaction| {
                 let Interaction::Drag(drag) = interaction else {
                     return;
                 };
-                (f)(&mut ui.ui.state, drag);
+                (f)(app_state, drag);
             })),
         });
         self
     }
-    pub fn on_hover(mut self, f: impl Fn(&mut State, bool) + 'static) -> Self {
+    pub fn on_hover(mut self, f: impl Fn(&mut AppState<State>, bool) + 'static) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
                 hover: true,
                 ..Default::default()
             },
-            interaction_handler: Some(Rc::new(move |ui, interaction| {
+            interaction_handler: Some(Rc::new(move |app_state, interaction| {
                 let Interaction::Hover(hovered) = interaction else {
                     return;
                 };
-                (f)(&mut ui.ui.state, hovered);
+                (f)(app_state, hovered);
             })),
         });
         self
     }
-    pub fn on_key(mut self, f: impl Fn(&mut State, Key) + 'static) -> Self {
+    pub fn on_key(mut self, f: impl Fn(&mut AppState<State>, Key) + 'static) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
                 key: true,
                 ..Default::default()
             },
-            interaction_handler: Some(Rc::new(move |ui, interaction| {
+            interaction_handler: Some(Rc::new(move |app_state, interaction| {
                 let Interaction::Key(key) = interaction else {
                     return;
                 };
-                (f)(&mut ui.ui.state, key);
+                (f)(app_state, key);
             })),
         });
         self
     }
-    pub fn on_scroll(mut self, f: impl Fn(&mut State, ScrollDelta) + 'static) -> Self {
+    pub fn on_scroll(mut self, f: impl Fn(&mut AppState<State>, ScrollDelta) + 'static) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
                 scroll: true,
                 ..Default::default()
             },
-            interaction_handler: Some(Rc::new(move |ui, interaction| {
+            interaction_handler: Some(Rc::new(move |app_state, interaction| {
                 let Interaction::Scroll(scroll) = interaction else {
                     return;
                 };
-                (f)(&mut ui.ui.state, scroll);
+                (f)(app_state, scroll);
             })),
         });
         self
@@ -280,7 +216,6 @@ impl<State, T> View<State, T> {
             ViewType::Rect(ref mut view) => view.shape.easing = Some(easing),
             ViewType::Svg(ref mut view) => view.easing = Some(easing),
             ViewType::Circle(ref mut view) => view.shape.easing = Some(easing),
-            ViewType::External(ref mut view) => (view.set_easing)(view, Some(easing)),
         }
         self
     }
@@ -291,7 +226,6 @@ impl<State, T> View<State, T> {
             ViewType::Rect(ref mut view) => view.shape.duration = Some(duration_ms),
             ViewType::Svg(ref mut view) => view.duration = Some(duration_ms),
             ViewType::Circle(ref mut view) => view.shape.duration = Some(duration_ms),
-            ViewType::External(ref mut view) => (view.set_duration)(view, Some(duration_ms)),
         }
         self
     }
@@ -301,7 +235,6 @@ impl<State, T> View<State, T> {
             ViewType::Rect(ref mut view) => view.shape.delay = delay_ms,
             ViewType::Svg(ref mut view) => view.delay = delay_ms,
             ViewType::Circle(ref mut view) => view.shape.delay = delay_ms,
-            ViewType::External(ref mut view) => (view.set_delay)(view, delay_ms),
         }
         self
     }
@@ -311,7 +244,6 @@ impl<State, T> View<State, T> {
             ViewType::Rect(view) => view.id,
             ViewType::Svg(view) => view.id,
             ViewType::Circle(view) => view.id,
-            ViewType::External(view) => (view.id)(view),
         }
     }
     fn get_easing(&self) -> Easing {
@@ -320,7 +252,6 @@ impl<State, T> View<State, T> {
             ViewType::Rect(view) => view.shape.easing,
             ViewType::Svg(view) => view.easing,
             ViewType::Circle(view) => view.shape.easing,
-            ViewType::External(view) => (view.get_easing)(view),
         }
         .unwrap_or(Easing::EaseOut)
     }
@@ -330,7 +261,6 @@ impl<State, T> View<State, T> {
             ViewType::Rect(view) => view.shape.duration,
             ViewType::Svg(view) => view.duration,
             ViewType::Circle(view) => view.shape.duration,
-            ViewType::External(view) => (view.get_duration)(view),
         }
         .unwrap_or(200.)
     }
@@ -340,21 +270,19 @@ impl<State, T> View<State, T> {
             ViewType::Rect(view) => view.shape.delay,
             ViewType::Svg(view) => view.delay,
             ViewType::Circle(view) => view.shape.delay,
-            ViewType::External(view) => (view.get_delay)(view),
         }
     }
 }
 
-impl<State, T> View<State, T> {
-    pub fn finish<'a>(self) -> Node<'a, RcUi<State>>
+impl<State> View<State> {
+    pub fn finish<'a>(self) -> Node<'a, AppState<State>>
     where
-        T: Clone + 'a,
         State: 'static,
     {
-        dynamic(move |ui: &mut RcUi<State>| {
+        dynamic(move |app: &mut AppState<State>| {
             let moved = self.clone();
             if let ViewType::Text(view) = self.view_type.clone() {
-                view.create_node(ui, draw_object(moved))
+                view.create_node(app, draw_object(moved))
             } else {
                 draw_object(moved)
             }
@@ -362,13 +290,9 @@ impl<State, T> View<State, T> {
     }
 }
 
-impl<State, T> Drawable<RcUi<State>> for View<State, T> {
-    fn draw(&mut self, area: Area, state: &mut RcUi<State>, visible: bool) {
-        let mut anim = state
-            .ui
-            .cx
-            .as_mut()
-            .unwrap()
+impl<State> Drawable<AppState<State>> for View<State> {
+    fn draw(&mut self, area: Area, app: &mut AppState<State>, visible: bool) {
+        let mut anim = app
             .animation_bank
             .animations
             .remove(&self.id())
@@ -394,43 +318,35 @@ impl<State, T> Drawable<RcUi<State>> for View<State, T> {
                     .easing(self.get_easing())
                     .delay(self.get_delay()),
             });
-        anim.visible.transition(visible, state.ui.now);
-        anim.x.transition(area.x, state.ui.now);
-        anim.y.transition(area.y, state.ui.now);
-        anim.width.transition(area.width, state.ui.now);
-        anim.height.transition(area.height, state.ui.now);
-        if visible || anim.visible.in_progress(state.ui.now) {
-            let visibility = anim.visible.animate_bool(0., 1., state.ui.now);
+        anim.visible.transition(visible, app.now);
+        anim.x.transition(area.x, app.now);
+        anim.y.transition(area.y, app.now);
+        anim.width.transition(area.width, app.now);
+        anim.height.transition(area.height, app.now);
+        if visible || anim.visible.in_progress(app.now) {
+            let visibility = anim.visible.animate_bool(0., 1., app.now);
             let area = Area {
-                x: anim.x.animate_wrapped(state.ui.now),
-                y: anim.y.animate_wrapped(state.ui.now),
-                width: anim.width.animate_wrapped(state.ui.now),
-                height: anim.height.animate_wrapped(state.ui.now),
+                x: anim.x.animate_wrapped(app.now),
+                y: anim.y.animate_wrapped(app.now),
+                width: anim.width.animate_wrapped(app.now),
+                height: anim.height.animate_wrapped(app.now),
             };
             if !visible || visibility == 0. {
                 return;
             }
             let id = self.id();
-            state.ui.gesture_handlers.extend(
+            app.gesture_handlers.extend(
                 self.gesture_handlers
                     .drain(..)
                     .map(|handler| (id, area, handler)),
             );
             match &mut self.view_type {
-                ViewType::Text(view) => view.draw(area, state, visible, visibility),
-                ViewType::Rect(view) => view.draw(area, state, visible, visibility),
-                ViewType::Svg(view) => view.draw(area, state, visible, visibility),
-                ViewType::Circle(view) => view.draw(area, state, visible, visibility),
-                ViewType::External(view) => (view.draw)(view, area, state, visibility),
+                ViewType::Text(view) => view.draw(area, app, visible, visibility),
+                ViewType::Rect(view) => view.draw(area, app, visible, visibility),
+                ViewType::Svg(view) => view.draw(area, app, visible, visibility),
+                ViewType::Circle(view) => view.draw(area, app, visible, visibility),
             }
         }
-        state
-            .ui
-            .cx
-            .as_mut()
-            .unwrap()
-            .animation_bank
-            .animations
-            .insert(self.id(), anim);
+        app.animation_bank.animations.insert(self.id(), anim);
     }
 }

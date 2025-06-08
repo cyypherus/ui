@@ -1,5 +1,5 @@
+use crate::app::AppState;
 use crate::shape::{AnimatedShape, Shape, ShapeType};
-use crate::ui::RcUi;
 use crate::view::{AnimatedView, View, ViewType};
 use backer::models::Area;
 use backer::Node;
@@ -66,13 +66,13 @@ impl Rect {
         self.box_shadow = Some((color, radius));
         self
     }
-    pub fn view<State>(self) -> View<State, ()> {
+    pub fn view<State>(self) -> View<State> {
         View {
             view_type: ViewType::Rect(self),
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<'n, State: 'static>(self) -> Node<'n, RcUi<State>> {
+    pub fn finish<'n, State: 'static>(self) -> Node<'n, AppState<State>> {
         self.view().finish()
     }
 }
@@ -81,25 +81,23 @@ impl Rect {
     pub(crate) fn draw<State>(
         &mut self,
         area: Area,
-        state: &mut RcUi<State>,
+        app: &mut AppState<State>,
         visible: bool,
         visible_amount: f32,
     ) {
         if !visible && visible_amount == 0. {
             return;
         }
-        let AnimatedView::Rect(mut animated) = state
-            .ui
-            .cx()
+        let AnimatedView::Rect(mut animated) = app
             .view_state
             .remove(&self.id)
             .unwrap_or(AnimatedView::Rect(Box::new(AnimatedRect::new_from(self))))
         else {
             return;
         };
-        AnimatedRect::update(state.ui.now, self, &mut animated);
+        AnimatedRect::update(app.now, self, &mut animated);
         if let Some((color, radius)) = self.box_shadow {
-            state.ui.cx().scene.draw_blurred_rounded_rect(
+            app.scene.draw_blurred_rounded_rect(
                 Affine::IDENTITY,
                 kurbo::Rect::new(
                     area.x as f64,
@@ -118,14 +116,10 @@ impl Rect {
                 radius as f64,
             );
         }
-        let now = state.ui.now;
+        let now = app.now;
         animated
             .shape
-            .draw(&mut state.ui.cx().scene, area, now, visible_amount);
-        state
-            .ui
-            .cx()
-            .view_state
-            .insert(self.id, AnimatedView::Rect(animated));
+            .draw(&mut app.scene, area, now, visible_amount);
+        app.view_state.insert(self.id, AnimatedView::Rect(animated));
     }
 }

@@ -1,15 +1,15 @@
 use crate::animated_color::{AnimatedColor, AnimatedU8};
+use crate::app::AppState;
 use crate::gestures::EditInteraction;
 use crate::{
-    dynamic_node, id, rect, Binding, Editor, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR,
-    DEFAULT_FONT_SIZE, DEFAULT_PADDING,
+    id, rect, Binding, Editor, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR, DEFAULT_FONT_SIZE,
+    DEFAULT_PADDING,
 };
 use crate::{
-    ui::RcUi,
     view::{AnimatedView, View, ViewType},
     DEFAULT_DURATION, DEFAULT_EASING,
 };
-use backer::nodes::{space, stack};
+use backer::nodes::{dynamic, space, stack};
 use backer::{models::*, Node};
 use lilt::{Animated, Easing};
 use parley::{
@@ -44,7 +44,7 @@ pub fn text<State>(id: u64, text: impl AsRef<str> + 'static) -> Text<State> {
     }
 }
 
-pub fn text_field<State>(id: u64, state: Binding<State, TextState>) -> Text<State> {
+pub fn text_field<State>(id: u64, state: Binding<AppState<State>, TextState>) -> Text<State> {
     Text {
         id,
         state,
@@ -63,7 +63,7 @@ pub fn text_field<State>(id: u64, state: Binding<State, TextState>) -> Text<Stat
 #[derive(Debug)]
 pub struct Text<State> {
     pub(crate) id: u64,
-    pub(crate) state: Binding<State, TextState>,
+    pub(crate) state: Binding<AppState<State>, TextState>,
     pub(crate) fill: Color,
     pub(crate) font_size: u32,
     pub(crate) alignment: TextAlign,
@@ -139,7 +139,7 @@ impl<State> Text<State> {
     //     self.font = Some(font_id);
     //     self
     // }
-    pub fn view(self) -> View<State, ()>
+    pub fn view(self) -> View<State>
     where
         State: 'static,
     {
@@ -147,10 +147,10 @@ impl<State> Text<State> {
             let binding = self.state.clone();
             let on_click = {
                 let binding = binding.clone();
-                move |ui: &mut RcUi<State>, _, _| {
-                    let editing = binding.get(&ui.ui.state).editing;
+                move |app: &mut AppState<State>, _, _| {
+                    let editing = binding.get(app).editing;
                     if !editing {
-                        binding.update(&mut ui.ui.state, |s| s.editing = true);
+                        binding.update(app, |s| s.editing = true);
                     }
                 }
             };
@@ -158,7 +158,7 @@ impl<State> Text<State> {
                 view_type: ViewType::Text(self),
                 gesture_handlers: Vec::new(),
             }
-            .on_click_system(on_click)
+            .on_click(on_click)
             .on_edit({
                 move |state, edit| {
                     binding.update(state, move |s| match edit.clone() {
@@ -174,7 +174,7 @@ impl<State> Text<State> {
             }
         }
     }
-    pub fn finish<'n>(self) -> Node<'n, RcUi<State>>
+    pub fn finish<'n>(self) -> Node<'n, AppState<State>>
     where
         State: 'static,
     {
@@ -186,7 +186,7 @@ impl<State> Text<State> {
             .finish()
             .pad(if editable { DEFAULT_PADDING } else { 0. })
             .attach_under(if editable {
-                dynamic_node({
+                dynamic({
                     move |s| {
                         rect(id!(id))
                             .fill(AlphaColor::from_rgb8(50, 50, 50))
@@ -256,18 +256,18 @@ impl<State> Text<State> {
     pub(crate) fn draw(
         &mut self,
         area: Area,
-        state: &mut RcUi<State>,
+        app: &mut AppState<State>,
         visible: bool,
         visible_amount: f32,
     ) {
         if !visible && visible_amount == 0. {
             return;
         }
-        let editing = self.state.get(&state.ui.state).editing;
-        if editing && state.ui.editor.is_none() {
+        let editing = self.state.get(app).editing;
+        if editing && app.editor.is_none() {
             let mut editor = PlainEditor::new(self.font_size as f32);
-            editor.set_text(&self.state.get(&state.ui.state).text);
-            editor.set_scale(state.ui.cx().display_scale as f32);
+            editor.set_text(&self.state.get(app).text);
+            editor.set_scale(app.scale_factor as f32);
             let styles = editor.edit_styles();
             styles.insert(StyleProperty::LineHeight(LineHeight::FontSizeRelative(
                 self.line_height,
@@ -287,43 +287,40 @@ impl<State> Text<State> {
                 start_time: Default::default(),
                 blink_period: Default::default(),
             };
-            state.ui.cx().with_font_layout_ctx_passthrough(
-                &mut editor,
-                |layout_cx, font_cx, editor| {
-                    editor.mouse_moved(
-                        Point::new(area.width as f64, area.height as f64),
-                        layout_cx,
-                        font_cx,
-                    );
-                    editor.mouse_pressed(layout_cx, font_cx);
-                    editor.mouse_released();
-                },
+
+            let AppState {
+                font_cx, layout_cx, ..
+            } = app;
+            editor.mouse_moved(
+                Point::new(area.width as f64, area.height as f64),
+                layout_cx,
+                font_cx,
             );
-            state.ui.editor = Some((self.id, Area::default(), editor, true));
+            editor.mouse_pressed(layout_cx, font_cx);
+            editor.mouse_released();
+            app.editor = Some((self.id, Area::default(), editor, true));
         }
-        if let Some((id, ref mut edit_area, _, _)) = &mut state.ui.editor {
+        if let Some((id, ref mut edit_area, _, _)) = &mut app.editor {
             if *id == self.id {
                 *edit_area = area;
                 return;
             }
         }
-        let AnimatedView::Text(mut animated) = state
-            .ui
-            .cx()
+        let AnimatedView::Text(mut animated) = app
             .view_state
             .remove(&self.id)
             .unwrap_or(AnimatedView::Text(Box::new(AnimatedText::new_from(self))))
         else {
             return;
         };
-        AnimatedText::update(state.ui.now, self, &mut animated);
-        let layout = self.current_layout(area.width, state);
+        AnimatedText::update(app.now, self, &mut animated);
+        let layout = self.current_layout(area.width, app);
 
         let anim_fill = Color::from_rgba8(
-            animated.fill.r.animate_wrapped(state.ui.now).0,
-            animated.fill.g.animate_wrapped(state.ui.now).0,
-            animated.fill.b.animate_wrapped(state.ui.now).0,
-            animated.fill.a.animate_wrapped(state.ui.now).0,
+            animated.fill.r.animate_wrapped(app.now).0,
+            animated.fill.g.animate_wrapped(app.now).0,
+            animated.fill.b.animate_wrapped(app.now).0,
+            animated.fill.a.animate_wrapped(app.now).0,
         )
         .multiply_alpha(visible_amount);
         let transform = Affine::translate((area.x as f64, area.y as f64));
@@ -341,10 +338,7 @@ impl<State> Text<State> {
                 let glyph_xform = synthesis
                     .skew()
                     .map(|angle| Affine::skew(angle.to_radians().tan() as f64, 0.0));
-                state
-                    .ui
-                    .cx()
-                    .scene
+                app.scene
                     .draw_glyphs(font)
                     .brush(anim_fill)
                     .hint(true)
@@ -367,11 +361,7 @@ impl<State> Text<State> {
                     );
             }
         }
-        state
-            .ui
-            .cx()
-            .view_state
-            .insert(self.id, AnimatedView::Text(animated));
+        app.view_state.insert(self.id, AnimatedView::Text(animated));
     }
 }
 
@@ -379,34 +369,33 @@ impl<'s, State> Text<State> {
     pub(crate) fn current_layout(
         &self,
         available_width: f32,
-        ui: &mut RcUi<State>,
+        app: &mut AppState<State>,
     ) -> Layout<Brush> {
-        let current_text = self.state.get(&ui.ui.state).text;
-        if let Some((_, _, layout)) = ui.ui.cx().layout_cache.get(&self.id).and_then(|cached| {
+        let current_text = self.state.get(app).text;
+        if let Some((_, _, layout)) = app.layout_cache.get(&self.id).and_then(|cached| {
             cached
                 .iter()
                 .find(|(text, width, _)| *text == current_text && *width == available_width)
         }) {
             layout.clone()
         } else {
-            let scale = ui.ui.cx().display_scale as f32;
-            let mut layout = ui.ui.cx().with_font_layout_ctx(|layout_cx, font_cx| {
-                let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
-                let mut builder = layout_cx.tree_builder(
-                    font_cx,
-                    scale,
-                    true,
-                    &TextStyle {
-                        brush: Brush::Solid(AlphaColor::WHITE),
-                        font_stack,
-                        line_height: LineHeight::FontSizeRelative(self.line_height),
-                        font_size: self.font_size as f32,
-                        ..Default::default()
-                    },
-                );
-                builder.push_text(&current_text);
-                builder.build().0
-            });
+            let scale = app.scale_factor as f32;
+            let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
+            let mut builder = app.layout_cx.tree_builder(
+                &mut app.font_cx,
+                scale,
+                true,
+                &TextStyle {
+                    brush: Brush::Solid(AlphaColor::WHITE),
+                    font_stack,
+                    line_height: LineHeight::FontSizeRelative(self.line_height),
+                    font_size: self.font_size as f32,
+                    ..Default::default()
+                },
+            );
+            builder.push_text(&current_text);
+            let mut layout = builder.build().0;
+
             layout.break_all_lines(Some(available_width));
             layout.align(
                 Some(available_width),
@@ -415,7 +404,7 @@ impl<'s, State> Text<State> {
                     align_when_overflowing: true,
                 },
             );
-            let entry = ui.ui.cx().layout_cache.entry(self.id).or_insert(vec![(
+            let entry = app.layout_cache.entry(self.id).or_insert(vec![(
                 current_text.clone(),
                 available_width,
                 layout.clone(),
@@ -429,12 +418,12 @@ impl<'s, State> Text<State> {
     }
     pub(crate) fn create_node(
         self,
-        _ui: &mut RcUi<State>,
-        node: Node<'s, RcUi<State>>,
-    ) -> Node<'s, RcUi<State>>
+        _app: &mut AppState<State>,
+        node: Node<'s, AppState<State>>,
+    ) -> Node<'s, AppState<State>>
     where
         State: 'static,
     {
-        node.dynamic_height(move |width, ui| self.current_layout(width, ui).height())
+        node.dynamic_height(move |width, app| self.current_layout(width, app).height())
     }
 }
