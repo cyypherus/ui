@@ -12,7 +12,10 @@ use crate::{
 use backer::nodes::{space, stack};
 use backer::{models::*, Node};
 use lilt::{Animated, Easing};
-use parley::{FontStack, Layout, PlainEditor, PositionedLayoutItem, StyleProperty, TextStyle};
+use parley::{
+    AlignmentOptions, FontStack, Layout, LineHeight, PlainEditor, PositionedLayoutItem,
+    StyleProperty, TextStyle,
+};
 use std::time::Instant;
 use vello_svg::vello::kurbo::Point;
 use vello_svg::vello::peniko::color::AlphaColor;
@@ -266,7 +269,9 @@ impl<State> Text<State> {
             editor.set_text(&self.state.get(&state.ui.state).text);
             editor.set_scale(state.ui.cx().display_scale as f32);
             let styles = editor.edit_styles();
-            styles.insert(StyleProperty::LineHeight(self.line_height));
+            styles.insert(StyleProperty::LineHeight(LineHeight::Absolute(
+                self.line_height,
+            )));
             styles.insert(parley::FontFamily::Named("Rubik".into()).into());
             styles.insert(StyleProperty::Brush(self.fill.into()));
             editor.set_alignment(self.alignment.into());
@@ -390,10 +395,11 @@ impl<'s, State> Text<State> {
                 let mut builder = layout_cx.tree_builder(
                     font_cx,
                     scale,
+                    true,
                     &TextStyle {
                         brush: Brush::Solid(AlphaColor::WHITE),
                         font_stack,
-                        line_height: self.line_height,
+                        line_height: LineHeight::Absolute(self.line_height),
                         font_size: self.font_size as f32,
                         ..Default::default()
                     },
@@ -402,7 +408,13 @@ impl<'s, State> Text<State> {
                 builder.build().0
             });
             layout.break_all_lines(Some(available_width));
-            layout.align(Some(available_width), self.alignment.into(), true);
+            layout.align(
+                Some(available_width),
+                self.alignment.into(),
+                AlignmentOptions {
+                    align_when_overflowing: true,
+                },
+            );
             let entry = ui.ui.cx().layout_cache.entry(self.id).or_insert(vec![(
                 current_text.clone(),
                 available_width,

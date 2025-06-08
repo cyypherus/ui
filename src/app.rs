@@ -3,6 +3,7 @@ use crate::ui::{AnimationBank, Ui, UiCx};
 use crate::{area_contains, ClickState, DragState, Editor, GestureHandler, Point, RcUi};
 use crate::{event, ui::RenderState, Area, GestureState, Layout, RUBIK_FONT};
 use backer::Node;
+use parley::fontique::Blob;
 use parley::{FontContext, LayoutContext};
 use std::cell::Cell;
 use std::collections::HashMap;
@@ -94,7 +95,10 @@ impl<'n, State: Clone + 'static> App<'_, 'n, State> {
         let mut renderers: Vec<Option<Renderer>> = vec![];
 
         let mut font_cx = FontContext::new();
-        font_cx.collection.register_fonts(RUBIK_FONT.to_vec());
+
+        font_cx
+            .collection
+            .register_fonts(Blob::new(Arc::new(RUBIK_FONT)), None);
 
         let render_state = None::<RenderState>;
         let mut app = Self {

@@ -33,7 +33,7 @@ impl Editor {
         editor.set_text(text);
         editor.set_scale(1.0);
         let styles = editor.edit_styles();
-        styles.insert(StyleProperty::LineHeight(1.2));
+        styles.insert(StyleProperty::LineHeight(parley::LineHeight::Absolute(1.2)));
         styles.insert(GenericFamily::SystemUi.into());
         styles.insert(StyleProperty::Brush(palette::css::WHITE.into()));
         Self {
@@ -335,7 +335,7 @@ impl Editor {
     ) -> Generation {
         let transform = Affine::translate((area.x as f64, area.y as f64));
 
-        for rect in self.editor.selection_geometry().iter() {
+        for (rect, _i) in self.editor.selection_geometry().iter() {
             scene.fill(
                 Fill::NonZero,
                 transform,

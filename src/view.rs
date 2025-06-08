@@ -69,13 +69,13 @@ pub fn clipping<'a, State: 'a>(
     node: Node<'a, RcUi<State>>,
 ) -> Node<'a, RcUi<State>> {
     intermediate(
-        move |ui: &mut RcUi<State>, available_area: Area| {
+        move |available_area: Area, ui: &mut RcUi<State>| {
             ui.ui
                 .cx()
                 .scene
                 .push_layer(Mix::Normal, 1., Affine::IDENTITY, &(path)(available_area));
         },
-        move |ui: &mut RcUi<State>, _: Area| {
+        move |ui: &mut RcUi<State>| {
             ui.ui.cx().scene.pop_layer();
         },
         node,

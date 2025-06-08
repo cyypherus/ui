@@ -17,10 +17,10 @@ name = "scroller"
 path = "examples/scroller/src/main.rs"
 
 [dependencies]
-backer = { path = "../backer" }
+backer = { git = "https://github.com/cyypherus/backer", branch = "ui-1" }
 clipboard-rs = "0.2.4"
 lilt = "0.7.0"
-parley = { git = "https://github.com/linebender/parley", branch = "main" }
+parley = "0.5.0"
 pollster = "0.4.0"
 tokio = { version = "1.43.0", features = ["full"] }
 vello_svg = { version = "0.6.0", features = ["wgpu"] }
