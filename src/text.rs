@@ -269,7 +269,7 @@ impl<State> Text<State> {
             editor.set_text(&self.state.get(&state.ui.state).text);
             editor.set_scale(state.ui.cx().display_scale as f32);
             let styles = editor.edit_styles();
-            styles.insert(StyleProperty::LineHeight(LineHeight::Absolute(
+            styles.insert(StyleProperty::LineHeight(LineHeight::FontSizeRelative(
                 self.line_height,
             )));
             styles.insert(parley::FontFamily::Named("Rubik".into()).into());
@@ -399,7 +399,7 @@ impl<'s, State> Text<State> {
                     &TextStyle {
                         brush: Brush::Solid(AlphaColor::WHITE),
                         font_stack,
-                        line_height: LineHeight::Absolute(self.line_height),
+                        line_height: LineHeight::FontSizeRelative(self.line_height),
                         font_size: self.font_size as f32,
                         ..Default::default()
                     },
