@@ -1,5 +1,7 @@
+use crate::AppState;
 use crate::{gestures::InteractionHandler, view::AnimatedView, Editor, GestureHandler};
 pub use backer::models::*;
+use backer::nodes::scope;
 use backer::Node;
 use lilt::Animated;
 use parley::{FontContext, Layout, LayoutContext};
@@ -53,10 +55,37 @@ pub(crate) struct AnimArea {
 // pub fn scoper<'n, State, Scoped: 'n + 'static>(
 //     scope: impl Fn(&mut State) -> Scoped + 'static + Copy,
 //     embed: impl Fn(&mut State, Scoped) + 'static + Copy,
-//     node: Node<'n, RcUi<Scoped>>,
-// ) -> Node<'n, RcUi<State>> {
-//     backer::nodes::scope_owned(
-//         move |ui: &mut RcUi<State>| RcUi {
+//     node: Node<'n, AppState<Scoped>>,
+// ) -> Node<'n, AppState<State>> {
+// backer::nodes::scope(
+//     |app: &mut AppState<State>| {
+//         //
+//         AppState {
+//             state: scope(&mut app.state),
+//             view: app.view,
+//             cursor_position: todo!(),
+//             gesture_state: todo!(),
+//             gesture_handlers: todo!(),
+//             background_scheduler: todo!(),
+//             scale_factor: todo!(),
+//             editor: todo!(),
+//             animation_bank: todo!(),
+//             scene: todo!(),
+//             font_cx: todo!(),
+//             layout_cx: todo!(),
+//             view_state: todo!(),
+//             layout_cache: todo!(),
+//             image_scenes: todo!(),
+//             modifiers: todo!(),
+//             now: todo!(),
+//         };
+
+//         ()
+//     },
+//     node,
+// )
+// backer::nodes::scope_owned(move |ui: &mut AppState<State>|
+// RcUi {
 //             ui: Ui {
 //                 state: scope(&mut ui.ui.state),
 //                 gesture_handlers: Vec::new(),
@@ -64,7 +93,7 @@ pub(crate) struct AnimArea {
 //                 now: ui.ui.now,
 //                 editor: ui.ui.editor.take(),
 //             },
-//         },
+// },
 //         move |ui: &mut RcUi<State>, mut embedded: RcUi<Scoped>| {
 //             ui.ui.cx = embedded.ui.cx.take();
 //             ui.ui.gesture_handlers.append(
@@ -103,8 +132,7 @@ pub(crate) struct AnimArea {
 //             );
 //             embed(&mut ui.ui.state, embedded.ui.state)
 //         },
-//         node,
-//     )
+// node)
 // }
 
 // impl<State> Ui<State> {

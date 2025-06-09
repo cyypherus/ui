@@ -2,14 +2,14 @@ use ui::*;
 use vello_svg::vello::peniko::color::AlphaColor;
 
 #[derive(Clone, Default)]
-struct AppState {
+struct State {
     texts: Vec<String>,
     scroller: ScrollerState,
 }
 
 fn main() {
     App::start(
-        AppState {
+        State {
             texts: vec![
                 "Rendering must not wait for logic resolution unless explicitly requested.".to_string(),
                 "Event dispatch latency is a function of input queuing and frame scheduling.".to_string(),
@@ -37,7 +37,8 @@ fn main() {
             ],
             scroller: ScrollerState::default(),
         },
-        dynamic_node(|_: &mut AppState| {
+        || {
+        dynamic(|_: &mut AppState<State>| {
             let vec = vec![
                 space(),
                 scroller(
@@ -49,7 +50,7 @@ fn main() {
                         .view()
                         .transition_duration(0.)
                         .finish()),
-                    binding!(AppState, scroller),
+                    binding!(State, scroller),
                     scroller_cell,
                 ),
                 space()
@@ -57,15 +58,16 @@ fn main() {
             let elements = vec;
             row(elements)
             .pad_y(25.)
-        }),
+        })
+        }
     )
 }
 
 fn scroller_cell<'n>(
-    state: &mut AppState,
+    state: &mut State,
     index: usize,
     _id: u64,
-) -> Option<Node<'n, RcUi<AppState>>> {
+) -> Option<Node<'n, AppState<State>>> {
     state.texts.get(index).map(|s| {
         column(vec![
             if index == 0 {

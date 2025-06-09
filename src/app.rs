@@ -34,7 +34,7 @@ pub(crate) struct RenderState<'surface> {
 type TextLayoutCache = HashMap<u64, Vec<(String, f32, parley::Layout<Brush>)>>;
 pub struct AppState<State> {
     pub state: State,
-    view: fn() -> Node<'static, Self>,
+    pub(crate) view: fn() -> Node<'static, Self>,
     pub(crate) cursor_position: Option<Point>,
     pub(crate) gesture_state: GestureState,
     pub gesture_handlers: Vec<(u64, Area, GestureHandler<Self>)>,
@@ -160,7 +160,7 @@ impl<'n, State: Clone + 'static> App<'_, State> {
     }
 
     fn redraw(&mut self) {
-        let now = Instant::now();
+        self.app_state.now = Instant::now();
         self.app_state.gesture_handlers.clear();
         if let Self {
             context,
@@ -181,8 +181,8 @@ impl<'n, State: Clone + 'static> App<'_, State> {
                 Area {
                     x: 0.,
                     y: 0.,
-                    width: surface.config.width as f32,
-                    height: surface.config.height as f32,
+                    width: width as f32,
+                    height: height as f32,
                 },
                 &mut self.app_state,
             );
@@ -247,8 +247,11 @@ impl<'n, State: Clone + 'static> App<'_, State> {
             .device
             .poll(vello_svg::vello::wgpu::Maintain::Wait);
         scene.reset();
-        if self.app_state.animation_bank.in_progress(now)
-            || self.app_state.animations_in_progress(now)
+        if self
+            .app_state
+            .animation_bank
+            .in_progress(self.app_state.now)
+            || self.app_state.animations_in_progress(self.app_state.now)
         {
             self.request_redraw();
         }
