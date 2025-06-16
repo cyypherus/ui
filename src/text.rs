@@ -44,7 +44,7 @@ pub fn text<State>(id: u64, text: impl AsRef<str> + 'static) -> Text<State> {
     }
 }
 
-pub fn text_field<State>(id: u64, state: Binding<AppState<State>, TextState>) -> Text<State> {
+pub fn text_field<State>(id: u64, state: Binding<State, TextState>) -> Text<State> {
     Text {
         id,
         state,
@@ -63,7 +63,7 @@ pub fn text_field<State>(id: u64, state: Binding<AppState<State>, TextState>) ->
 #[derive(Debug)]
 pub struct Text<State> {
     pub(crate) id: u64,
-    pub(crate) state: Binding<AppState<State>, TextState>,
+    pub(crate) state: Binding<State, TextState>,
     pub(crate) fill: Color,
     pub(crate) font_size: u32,
     pub(crate) alignment: TextAlign,
@@ -147,10 +147,10 @@ impl<State> Text<State> {
             let binding = self.state.clone();
             let on_click = {
                 let binding = binding.clone();
-                move |app: &mut AppState<State>, _, _| {
-                    let editing = binding.get(app).editing;
+                move |state: &mut State, _, _, _| {
+                    let editing = binding.get(state).editing;
                     if !editing {
-                        binding.update(app, |s| s.editing = true);
+                        binding.update(state, |s| s.editing = true);
                     }
                 }
             };
@@ -160,7 +160,7 @@ impl<State> Text<State> {
             }
             .on_click(on_click)
             .on_edit({
-                move |state, edit| {
+                move |state, app, edit| {
                     binding.update(state, move |s| match edit.clone() {
                         EditInteraction::Update(text) => s.text = text.clone(),
                         EditInteraction::End => s.editing = false,
@@ -174,7 +174,7 @@ impl<State> Text<State> {
             }
         }
     }
-    pub fn finish<'n>(self) -> Node<'n, AppState<State>>
+    pub fn finish<'n>(self) -> Node<'n, State, AppState>
     where
         State: 'static,
     {
@@ -187,7 +187,7 @@ impl<State> Text<State> {
             .pad(if editable { DEFAULT_PADDING } else { 0. })
             .attach_under(if editable {
                 dynamic({
-                    move |s| {
+                    move |s, a| {
                         rect(id!(id))
                             .fill(AlphaColor::from_rgb8(50, 50, 50))
                             .stroke(
@@ -256,17 +256,18 @@ impl<State> Text<State> {
     pub(crate) fn draw(
         &mut self,
         area: Area,
-        app: &mut AppState<State>,
+        state: &mut State,
+        app: &mut AppState,
         visible: bool,
         visible_amount: f32,
     ) {
         if !visible && visible_amount == 0. {
             return;
         }
-        let editing = self.state.get(app).editing;
+        let editing = self.state.get(state).editing;
         if editing && app.editor.is_none() {
             let mut editor = PlainEditor::new(self.font_size as f32);
-            editor.set_text(&self.state.get(app).text);
+            editor.set_text(&self.state.get(state).text);
             editor.set_scale(app.scale_factor as f32);
             let styles = editor.edit_styles();
             styles.insert(StyleProperty::LineHeight(LineHeight::FontSizeRelative(
@@ -314,7 +315,7 @@ impl<State> Text<State> {
             return;
         };
         AnimatedText::update(app.now, self, &mut animated);
-        let layout = self.current_layout(area.width, app);
+        let layout = self.current_layout(area.width, state, app);
 
         let anim_fill = Color::from_rgba8(
             animated.fill.r.animate_wrapped(app.now).0,
@@ -369,9 +370,10 @@ impl<'s, State> Text<State> {
     pub(crate) fn current_layout(
         &self,
         available_width: f32,
-        app: &mut AppState<State>,
+        state: &mut State,
+        app: &mut AppState,
     ) -> Layout<Brush> {
-        let current_text = self.state.get(app).text;
+        let current_text = self.state.get(state).text;
         if let Some((_, _, layout)) = app.layout_cache.get(&self.id).and_then(|cached| {
             cached
                 .iter()
@@ -418,12 +420,15 @@ impl<'s, State> Text<State> {
     }
     pub(crate) fn create_node(
         self,
-        _app: &mut AppState<State>,
-        node: Node<'s, AppState<State>>,
-    ) -> Node<'s, AppState<State>>
+        state: &mut State,
+        app: &mut AppState,
+        node: Node<'s, State, AppState>,
+    ) -> Node<'s, State, AppState>
     where
         State: 'static,
     {
-        node.dynamic_height(move |width, app| self.current_layout(width, app).height())
+        node.dynamic_height(move |width, state, app| {
+            self.current_layout(width, state, app).height()
+        })
     }
 }

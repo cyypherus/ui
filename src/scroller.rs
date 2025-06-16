@@ -29,11 +29,12 @@ impl ScrollerState {
     fn fill_forwards<State, CellFn>(
         &mut self,
         state: &mut State,
+        app: &mut AppState,
         available_area: Area,
         id: u64,
         cell: CellFn,
     ) where
-        CellFn: Fn(&mut State, usize, u64, Area) -> Option<f32> + Copy,
+        CellFn: Fn(&mut State, &mut AppState, usize, u64, Area) -> Option<f32> + Copy,
     {
         let mut current_height = self.visible_window.iter().fold(0., |acc, e| acc + e.height);
         let mut index = self.visible_window.last().map(|l| l.index).unwrap_or(0) + {
@@ -44,7 +45,7 @@ impl ScrollerState {
             }
         };
         while current_height + self.compensated < available_area.height {
-            if let Some(added_height) = cell(state, index, id, available_area) {
+            if let Some(added_height) = cell(state, app, index, id, available_area) {
                 current_height += added_height;
                 self.visible_window.push(Element {
                     height: added_height,
@@ -60,20 +61,22 @@ impl ScrollerState {
         &mut self,
         available_area: Area,
         state: &mut State,
+        app: &mut AppState,
         id: u64,
         cell: CellFn,
     ) where
-        CellFn: Fn(&mut State, usize, u64, Area) -> Option<f32> + Copy,
+        CellFn: Fn(&mut State, &mut AppState, usize, u64, Area) -> Option<f32> + Copy,
     {
         if self.area != available_area && self.visible_window.len() > 1 {
             // This handles "re-layout" when the available area changes, anchored to the first element
             self.visible_window.drain(1..);
             let index = self.visible_window[0].index;
-            self.visible_window[0].height = cell(state, index, id, available_area).unwrap_or(0.);
-            self.fill_forwards(state, available_area, id, cell);
+            self.visible_window[0].height =
+                cell(state, app, index, id, available_area).unwrap_or(0.);
+            self.fill_forwards(state, app, available_area, id, cell);
         }
         if self.visible_window.is_empty() {
-            self.fill_forwards(state, available_area, id, cell);
+            self.fill_forwards(state, app, available_area, id, cell);
         }
         if self.dt != 0. {
             if self.dt.is_sign_negative() {
@@ -82,7 +85,7 @@ impl ScrollerState {
                 if self
                     .visible_window
                     .last()
-                    .and_then(|l| cell(state, l.index + 1, id, available_area))
+                    .and_then(|l| cell(state, app, l.index + 1, id, available_area))
                     .is_none()
                 {
                     self.compensated = self.compensated.max(
@@ -98,7 +101,7 @@ impl ScrollerState {
                         let removed = self.visible_window.remove(0);
                         self.compensated += removed.height;
                     }
-                    self.fill_forwards(state, available_area, id, cell)
+                    self.fill_forwards(state, app, available_area, id, cell)
                 }
             } else if self.dt.is_sign_positive() {
                 self.compensated += self.dt;
@@ -106,7 +109,7 @@ impl ScrollerState {
                 while let Some((cell_height, true, index)) =
                     self.visible_window.first().and_then(|f| {
                         if f.index > 0 {
-                            cell(state, f.index - 1, id, available_area).map(|cell_height| {
+                            cell(state, app, f.index - 1, id, available_area).map(|cell_height| {
                                 (cell_height, self.compensated >= 0., f.index - 1)
                             })
                         } else {
@@ -146,13 +149,14 @@ impl ScrollerState {
 
 pub fn scroller<'n, State: 'static, CellFn>(
     id: u64,
-    backing: Option<Node<'n, AppState<State>>>,
-    scroller: Binding<AppState<State>, ScrollerState>,
+    backing: Option<Node<'n, State, AppState>>,
+    scroller: Binding<State, ScrollerState>,
     cell: CellFn,
-) -> Node<'n, AppState<State>>
+) -> Node<'n, State, AppState>
 where
-    CellFn:
-        for<'x> Fn(&'x mut State, usize, u64) -> Option<Node<'n, AppState<State>>> + Copy + 'static,
+    CellFn: for<'x> Fn(&'x mut State, &'x mut AppState, usize, u64) -> Option<Node<'n, State, AppState>>
+        + Copy
+        + 'static,
 {
     stack(vec![
         backing.unwrap_or(empty()),
@@ -165,17 +169,17 @@ where
                 )
                 .to_path(0.001)
             },
-            area_reader::<AppState<State>>({
+            area_reader::<State, AppState>({
                 let scroller = scroller.clone();
-                move |area, app| {
-                    let mut scroller_state = scroller.get(&app);
-                    scroller_state.update(area, app, id, |app, index, id, area| {
-                        cell(&mut app.state, index, id)?.min_height(area, app)
+                move |area, state, app| {
+                    let mut scroller_state = scroller.get(&state);
+                    scroller_state.update(area, state, app, id, |state, app, index, id, area| {
+                        cell(state, app, index, id)?.min_height(area, state, app)
                     });
                     let window = &scroller_state.visible_window;
                     let mut cells = Vec::new();
                     for element in window {
-                        if let Some(cell) = cell(&mut app.state, element.index, id) {
+                        if let Some(cell) = cell(state, app, element.index, id) {
                             cells.push(cell);
                         }
                     }
@@ -183,7 +187,7 @@ where
                     let comp = scroller_state.compensated;
                     // let limit_offset = scroller_state.limit_offset;
 
-                    scroller.set(app, scroller_state);
+                    scroller.set(state, scroller_state);
                     column(cells)
                         //
                         .offset_y(offset + comp)
@@ -198,7 +202,7 @@ where
             .view()
             .on_scroll({
                 let scroller = scroller.clone();
-                move |s, dt| {
+                move |s, a, dt| {
                     let mut sc = scroller.get(s);
                     sc.dt += dt.y;
                     scroller.set(s, sc);

@@ -14,11 +14,11 @@ pub struct ToggleState {
 
 pub struct Toggle<State> {
     id: u64,
-    on_toggle: Option<fn(&mut AppState<State>, bool)>,
-    state: Binding<AppState<State>, ToggleState>,
+    on_toggle: Option<fn(&mut State, &mut AppState, bool)>,
+    state: Binding<State, ToggleState>,
 }
 
-pub fn toggle<State>(id: u64, binding: Binding<AppState<State>, ToggleState>) -> Toggle<State> {
+pub fn toggle<State>(id: u64, binding: Binding<State, ToggleState>) -> Toggle<State> {
     Toggle {
         id,
         on_toggle: None,
@@ -27,21 +27,21 @@ pub fn toggle<State>(id: u64, binding: Binding<AppState<State>, ToggleState>) ->
 }
 
 impl<State> Toggle<State> {
-    pub fn on_toggle(mut self, on_toggle: fn(&mut AppState<State>, bool)) -> Self {
+    pub fn on_toggle(mut self, on_toggle: fn(&mut State, &mut AppState, bool)) -> Self {
         self.on_toggle = Some(on_toggle);
         self
     }
-    pub fn finish<'n>(self) -> Node<'n, AppState<State>>
+    pub fn finish<'n>(self) -> Node<'n, State, AppState>
     where
         State: 'static,
     {
         let height = 60.;
         let width = 120.;
-        dynamic(move |s: &mut AppState<State>| {
+        dynamic(move |state, app: &mut AppState| {
             stack(vec![
                 //
                 rect(id!(self.id))
-                    .fill(if self.state.get(s).on {
+                    .fill(if self.state.get(state).on {
                         AlphaColor::from_rgb8(113, 70, 232)
                     } else {
                         AlphaColor::from_rgb8(50, 50, 50)
@@ -52,7 +52,10 @@ impl<State> Toggle<State> {
                     .width(width),
                 rect(id!(self.id))
                     .fill(
-                        match (self.state.get(s).depressed, self.state.get(s).hovered) {
+                        match (
+                            self.state.get(state).depressed,
+                            self.state.get(state).hovered,
+                        ) {
                             (true, _) => AlphaColor::from_rgb8(190, 190, 190),
                             (false, true) => AlphaColor::from_rgb8(255, 255, 255),
                             (false, false) => AlphaColor::from_rgb8(230, 230, 230),
@@ -65,7 +68,7 @@ impl<State> Toggle<State> {
                     .height(height)
                     .width(height)
                     .offset_x({
-                        if self.state.get(s).on {
+                        if self.state.get(state).on {
                             width * 0.25
                         } else {
                             -width * 0.25
@@ -76,21 +79,29 @@ impl<State> Toggle<State> {
                     .view()
                     .on_hover({
                         let binding = self.state.clone();
-                        move |s: &mut AppState<State>, h| binding.update(s, |s| s.hovered = h)
+                        move |state: &mut State, app: &mut AppState, h| {
+                            binding.update(state, |s| s.hovered = h)
+                        }
                     })
                     .on_click({
                         let binding = self.state.clone();
-                        move |s: &mut AppState<State>, click_state, _| match click_state {
-                            ClickState::Started => binding.update(s, |s| s.depressed = true),
-                            ClickState::Cancelled => binding.update(s, |s| s.depressed = false),
-                            ClickState::Completed => {
-                                if let Some(f) = self.on_toggle {
-                                    f(s, binding.get(s).on);
+                        move |state: &mut State, app: &mut AppState, click_state, _| {
+                            match click_state {
+                                ClickState::Started => {
+                                    binding.update(state, |s| s.depressed = true)
                                 }
-                                binding.update(s, |s| {
-                                    s.on = !s.on;
-                                    s.depressed = false
-                                })
+                                ClickState::Cancelled => {
+                                    binding.update(state, |s| s.depressed = false)
+                                }
+                                ClickState::Completed => {
+                                    if let Some(f) = self.on_toggle {
+                                        f(state, app, binding.get(state).on);
+                                    }
+                                    binding.update(state, |s| {
+                                        s.on = !s.on;
+                                        s.depressed = false
+                                    })
+                                }
                             }
                         }
                     })

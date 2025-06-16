@@ -21,7 +21,9 @@ pub struct App<'s, State> {
     pub(crate) renderers: Vec<Option<Renderer>>,
     pub(crate) render_state: Option<RenderState<'s>>,
     pub(crate) cached_window: Option<Arc<Window>>,
-    pub(crate) app_state: AppState<State>,
+    pub(crate) app_state: AppState,
+    pub state: State,
+    pub(crate) view: fn() -> Node<'static, State, AppState>,
 }
 
 pub(crate) struct RenderState<'surface> {
@@ -32,13 +34,11 @@ pub(crate) struct RenderState<'surface> {
 }
 
 type TextLayoutCache = HashMap<u64, Vec<(String, f32, parley::Layout<Brush>)>>;
-pub struct AppState<State> {
-    pub state: State,
-    pub(crate) view: fn() -> Node<'static, Self>,
+pub struct AppState {
     pub(crate) cursor_position: Option<Point>,
     pub(crate) gesture_state: GestureState,
-    pub gesture_handlers: Vec<(u64, Area, GestureHandler<Self>)>,
-    pub(crate) background_scheduler: BackgroundScheduler<State>,
+    pub gesture_handlers: Vec<(u64, Area, GestureHandler<State, Self>)>,
+    // pub(crate) background_scheduler: BackgroundScheduler<State>,
     pub(crate) scale_factor: f64,
     pub(crate) editor: Option<(u64, Area, Editor, bool)>,
     pub(crate) animation_bank: AnimationBank,
@@ -52,7 +52,7 @@ pub struct AppState<State> {
     pub(crate) now: Instant,
 }
 
-impl<State> AppState<State> {
+impl AppState {
     pub(crate) fn animations_in_progress(&self, now: Instant) -> bool {
         self.view_state.values().any(|v| match v {
             AnimatedView::Rect(animated_rect) => animated_rect.shape.in_progress(now),
@@ -88,24 +88,24 @@ impl<State: 'static> BackgroundScheduler<State> {
 }
 
 impl<'n, State: Clone + 'static> App<'_, State> {
-    pub fn spawn<F, R>(&self, task: F)
-    where
-        F: FnOnce() -> R + Send + 'static,
-        R: FnOnce(&mut State) + Send + 'static,
-    {
-        _ = self
-            .app_state
-            .background_scheduler
-            .sender
-            .blocking_send(Box::new(|| Box::new(task())));
-    }
+    // pub fn spawn<F, R>(&self, task: F)
+    // where
+    //     F: FnOnce() -> R + Send + 'static,
+    //     R: FnOnce(&mut State) + Send + 'static,
+    // {
+    //     _ = self
+    //         .app_state
+    //         .background_scheduler
+    //         .sender
+    //         .blocking_send(Box::new(|| Box::new(task())));
+    // }
     fn request_redraw(&self) {
         let Some(RenderState { window, .. }) = &self.render_state else {
             return;
         };
         window.request_redraw();
     }
-    pub fn start(state: State, view: fn() -> Node<'static, AppState<State>>) {
+    pub fn start(state: State, view: fn() -> Node<'static, State, AppState>) {
         let event_loop = EventLoop::new().expect("Could not create event loop");
         #[allow(unused_mut)]
         let mut render_cx = RenderContext::new();
@@ -119,7 +119,7 @@ impl<'n, State: Clone + 'static> App<'_, State> {
         event_loop: EventLoop<()>,
         render_cx: RenderContext,
         #[cfg(target_arch = "wasm32")] render_state: RenderState,
-        view: fn() -> Node<'static, AppState<State>>,
+        view: fn() -> Node<'static, State, AppState>,
     ) {
         #[allow(unused_mut)]
         let mut renderers: Vec<Option<Renderer>> = vec![];
@@ -136,13 +136,13 @@ impl<'n, State: Clone + 'static> App<'_, State> {
             renderers,
             render_state,
             cached_window: None,
+            state,
+            view,
             app_state: AppState {
-                state,
                 cursor_position: None,
                 gesture_state: GestureState::None,
-                view,
                 gesture_handlers: Vec::new(),
-                background_scheduler: BackgroundScheduler::new(),
+                // background_scheduler: BackgroundScheduler::new(),
                 scale_factor: 1.,
                 editor: None,
                 view_state: HashMap::new(),
@@ -176,7 +176,7 @@ impl<'n, State: Clone + 'static> App<'_, State> {
                 context.resize_surface(surface, width, height);
             }
 
-            let view = self.app_state.view;
+            let view = self.view;
             Layout::new(view()).draw(
                 Area {
                     x: 0.,
@@ -184,6 +184,7 @@ impl<'n, State: Clone + 'static> App<'_, State> {
                     width: width as f32,
                     height: height as f32,
                 },
+                &mut self.state,
                 &mut self.app_state,
             );
             if let Some((_, area, ref mut editor, _)) = self.app_state.editor {

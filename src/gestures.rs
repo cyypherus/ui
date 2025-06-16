@@ -81,13 +81,13 @@ pub struct ScrollDelta {
     pub x: f32,
     pub y: f32,
 }
-pub(crate) type InteractionHandler<State> = Rc<dyn Fn(&mut State, Interaction)>;
-pub struct GestureHandler<State> {
+pub(crate) type InteractionHandler<T, U> = Rc<dyn Fn(&mut T, &mut U, Interaction)>;
+pub struct GestureHandler<T, U> {
     pub(crate) interaction_type: InteractionType,
-    pub(crate) interaction_handler: Option<InteractionHandler<State>>,
+    pub(crate) interaction_handler: Option<InteractionHandler<T, U>>,
 }
 
-impl<State> Default for GestureHandler<State> {
+impl<T, U> Default for GestureHandler<T, U> {
     fn default() -> Self {
         GestureHandler {
             interaction_type: InteractionType::default(),
@@ -96,7 +96,7 @@ impl<State> Default for GestureHandler<State> {
     }
 }
 
-impl<State> Clone for GestureHandler<State> {
+impl<T, U> Clone for GestureHandler<T, U> {
     fn clone(&self) -> Self {
         Self {
             interaction_type: self.interaction_type,

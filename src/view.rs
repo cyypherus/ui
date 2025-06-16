@@ -61,14 +61,14 @@ macro_rules! binding {
 
 pub fn clipping<'a, State: 'a>(
     path: fn(Area) -> BezPath,
-    node: Node<'a, AppState<State>>,
-) -> Node<'a, AppState<State>> {
+    node: Node<'a, State, AppState>,
+) -> Node<'a, State, AppState> {
     intermediate(
-        move |available_area: Area, app: &mut AppState<State>| {
+        move |available_area: Area, state: &mut State, app: &mut AppState| {
             app.scene
                 .push_layer(Mix::Normal, 1., Affine::IDENTITY, &(path)(available_area));
         },
-        move |app: &mut AppState<State>| {
+        move |state: &mut State, app: &mut AppState| {
             app.scene.pop_layer();
         },
         node,
@@ -77,7 +77,7 @@ pub fn clipping<'a, State: 'a>(
 
 pub struct View<State> {
     pub(crate) view_type: ViewType<State>,
-    pub(crate) gesture_handlers: Vec<GestureHandler<AppState<State>>>,
+    pub(crate) gesture_handlers: Vec<GestureHandler<State, AppState>>,
 }
 
 impl<State> Clone for View<State> {
@@ -116,95 +116,101 @@ pub(crate) enum AnimatedView {
 }
 
 impl<State> View<State> {
-    pub fn on_edit(mut self, f: impl Fn(&mut AppState<State>, EditInteraction) + 'static) -> Self {
+    pub fn on_edit(
+        mut self,
+        f: impl Fn(&mut State, &mut AppState, EditInteraction) + 'static,
+    ) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
                 edit: true,
                 ..Default::default()
             },
-            interaction_handler: Some(Rc::new(move |app_state, interaction| {
+            interaction_handler: Some(Rc::new(move |state, app_state, interaction| {
                 let Interaction::Edit(edit_interaction) = interaction else {
                     return;
                 };
-                (f)(app_state, edit_interaction);
+                (f)(state, app_state, edit_interaction);
             })),
         });
         self
     }
     pub fn on_click(
         mut self,
-        f: impl Fn(&mut AppState<State>, ClickState, ClickLocation) + 'static,
+        f: impl Fn(&mut State, &mut AppState, ClickState, ClickLocation) + 'static,
     ) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
                 click: true,
                 ..Default::default()
             },
-            interaction_handler: Some(Rc::new(move |app_state, interaction| {
+            interaction_handler: Some(Rc::new(move |state, app_state, interaction| {
                 let Interaction::Click(click, location) = interaction else {
                     return;
                 };
-                (f)(app_state, click, location);
+                (f)(state, app_state, click, location);
             })),
         });
         self
     }
-    pub fn on_drag(mut self, f: impl Fn(&mut AppState<State>, DragState) + 'static) -> Self {
+    pub fn on_drag(mut self, f: impl Fn(&mut State, &mut AppState, DragState) + 'static) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
                 drag: true,
                 ..Default::default()
             },
-            interaction_handler: Some(Rc::new(move |app_state, interaction| {
+            interaction_handler: Some(Rc::new(move |state, app_state, interaction| {
                 let Interaction::Drag(drag) = interaction else {
                     return;
                 };
-                (f)(app_state, drag);
+                (f)(state, app_state, drag);
             })),
         });
         self
     }
-    pub fn on_hover(mut self, f: impl Fn(&mut AppState<State>, bool) + 'static) -> Self {
+    pub fn on_hover(mut self, f: impl Fn(&mut State, &mut AppState, bool) + 'static) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
                 hover: true,
                 ..Default::default()
             },
-            interaction_handler: Some(Rc::new(move |app_state, interaction| {
+            interaction_handler: Some(Rc::new(move |state, app_state, interaction| {
                 let Interaction::Hover(hovered) = interaction else {
                     return;
                 };
-                (f)(app_state, hovered);
+                (f)(state, app_state, hovered);
             })),
         });
         self
     }
-    pub fn on_key(mut self, f: impl Fn(&mut AppState<State>, Key) + 'static) -> Self {
+    pub fn on_key(mut self, f: impl Fn(&mut State, &mut AppState, Key) + 'static) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
                 key: true,
                 ..Default::default()
             },
-            interaction_handler: Some(Rc::new(move |app_state, interaction| {
+            interaction_handler: Some(Rc::new(move |state, app_state, interaction| {
                 let Interaction::Key(key) = interaction else {
                     return;
                 };
-                (f)(app_state, key);
+                (f)(state, app_state, key);
             })),
         });
         self
     }
-    pub fn on_scroll(mut self, f: impl Fn(&mut AppState<State>, ScrollDelta) + 'static) -> Self {
+    pub fn on_scroll(
+        mut self,
+        f: impl Fn(&mut State, &mut AppState, ScrollDelta) + 'static,
+    ) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
                 scroll: true,
                 ..Default::default()
             },
-            interaction_handler: Some(Rc::new(move |app_state, interaction| {
+            interaction_handler: Some(Rc::new(move |state, app_state, interaction| {
                 let Interaction::Scroll(scroll) = interaction else {
                     return;
                 };
-                (f)(app_state, scroll);
+                (f)(state, app_state, scroll);
             })),
         });
         self
@@ -275,14 +281,14 @@ impl<State> View<State> {
 }
 
 impl<State> View<State> {
-    pub fn finish<'a>(self) -> Node<'a, AppState<State>>
+    pub fn finish<'a>(self) -> Node<'a, State, AppState>
     where
         State: 'static,
     {
-        dynamic(move |app: &mut AppState<State>| {
+        dynamic(move |state: &mut State, app: &mut AppState| {
             let moved = self.clone();
             if let ViewType::Text(view) = self.view_type.clone() {
-                view.create_node(app, draw_object(moved))
+                view.create_node(state, app, draw_object(moved))
             } else {
                 draw_object(moved)
             }
@@ -290,8 +296,8 @@ impl<State> View<State> {
     }
 }
 
-impl<State> Drawable<AppState<State>> for View<State> {
-    fn draw(&mut self, area: Area, app: &mut AppState<State>, visible: bool) {
+impl<State> Drawable<State, AppState> for View<State> {
+    fn draw(&mut self, area: Area, state: &mut State, app: &mut AppState, visible: bool) {
         let mut anim = app
             .animation_bank
             .animations
@@ -341,9 +347,9 @@ impl<State> Drawable<AppState<State>> for View<State> {
                     .map(|handler| (id, area, handler)),
             );
             match &mut self.view_type {
-                ViewType::Text(view) => view.draw(area, app, visible, visibility),
+                ViewType::Text(view) => view.draw(area, state, app, visible, visibility),
                 ViewType::Rect(view) => view.draw(area, app, visible, visibility),
-                ViewType::Svg(view) => view.draw(area, app, visible, visibility),
+                ViewType::Svg(view) => view.draw(area, state, app, visible, visibility),
                 ViewType::Circle(view) => view.draw(area, app, visible, visibility),
             }
         }
