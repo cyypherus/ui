@@ -14,7 +14,7 @@ pub struct ToggleState {
 
 pub struct Toggle<State> {
     id: u64,
-    on_toggle: Option<fn(&mut State, &mut AppState, bool)>,
+    on_toggle: Option<fn(&mut State, &mut AppState<State>, bool)>,
     state: Binding<State, ToggleState>,
 }
 
@@ -27,17 +27,17 @@ pub fn toggle<State>(id: u64, binding: Binding<State, ToggleState>) -> Toggle<St
 }
 
 impl<State> Toggle<State> {
-    pub fn on_toggle(mut self, on_toggle: fn(&mut State, &mut AppState, bool)) -> Self {
+    pub fn on_toggle(mut self, on_toggle: fn(&mut State, &mut AppState<State>, bool)) -> Self {
         self.on_toggle = Some(on_toggle);
         self
     }
-    pub fn finish<'n>(self) -> Node<'n, State, AppState>
+    pub fn finish<'n>(self) -> Node<'n, State, AppState<State>>
     where
         State: 'static,
     {
         let height = 60.;
         let width = 120.;
-        dynamic(move |state, app: &mut AppState| {
+        dynamic(move |state, _app: &mut AppState<State>| {
             stack(vec![
                 //
                 rect(id!(self.id))
@@ -79,13 +79,13 @@ impl<State> Toggle<State> {
                     .view()
                     .on_hover({
                         let binding = self.state.clone();
-                        move |state: &mut State, app: &mut AppState, h| {
+                        move |state: &mut State, _app: &mut AppState<State>, h| {
                             binding.update(state, |s| s.hovered = h)
                         }
                     })
                     .on_click({
                         let binding = self.state.clone();
-                        move |state: &mut State, app: &mut AppState, click_state, _| {
+                        move |state: &mut State, app: &mut AppState<State>, click_state, _| {
                             match click_state {
                                 ClickState::Started => {
                                     binding.update(state, |s| s.depressed = true)

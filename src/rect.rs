@@ -72,7 +72,7 @@ impl Rect {
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<'n, State: 'static>(self) -> Node<'n, State, AppState> {
+    pub fn finish<'n, State: 'static>(self) -> Node<'n, State, AppState<State>> {
         self.view().finish()
     }
 }
@@ -82,7 +82,7 @@ impl Rect {
         &mut self,
         area: Area,
         _state: &mut State,
-        app: &mut AppState,
+        app: &mut AppState<State>,
         visible: bool,
         visible_amount: f32,
     ) {

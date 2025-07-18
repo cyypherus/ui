@@ -145,7 +145,11 @@ impl<State> Text<State> {
     {
         if self.editable {
             let binding = self.state.clone();
-            let on_click = {
+            View {
+                view_type: ViewType::Text(self),
+                gesture_handlers: Vec::new(),
+            }
+            .on_click({
                 let binding = binding.clone();
                 move |state: &mut State, _, _, _| {
                     let editing = binding.get(state).editing;
@@ -153,14 +157,9 @@ impl<State> Text<State> {
                         binding.update(state, |s| s.editing = true);
                     }
                 }
-            };
-            View {
-                view_type: ViewType::Text(self),
-                gesture_handlers: Vec::new(),
-            }
-            .on_click(on_click)
+            })
             .on_edit({
-                move |state, app, edit| {
+                move |state, _app, edit| {
                     binding.update(state, move |s| match edit.clone() {
                         EditInteraction::Update(text) => s.text = text.clone(),
                         EditInteraction::End => s.editing = false,
@@ -174,7 +173,7 @@ impl<State> Text<State> {
             }
         }
     }
-    pub fn finish<'n>(self) -> Node<'n, State, AppState>
+    pub fn finish<'n>(self) -> Node<'n, State, AppState<State>>
     where
         State: 'static,
     {
@@ -187,7 +186,7 @@ impl<State> Text<State> {
             .pad(if editable { DEFAULT_PADDING } else { 0. })
             .attach_under(if editable {
                 dynamic({
-                    move |s, a| {
+                    move |s, _a| {
                         rect(id!(id))
                             .fill(AlphaColor::from_rgb8(50, 50, 50))
                             .stroke(
@@ -257,7 +256,7 @@ impl<State> Text<State> {
         &mut self,
         area: Area,
         state: &mut State,
-        app: &mut AppState,
+        app: &mut AppState<State>,
         visible: bool,
         visible_amount: f32,
     ) {
@@ -371,7 +370,7 @@ impl<'s, State> Text<State> {
         &self,
         available_width: f32,
         state: &mut State,
-        app: &mut AppState,
+        app: &mut AppState<State>,
     ) -> Layout<Brush> {
         let current_text = self.state.get(state).text;
         if let Some((_, _, layout)) = app.layout_cache.get(&self.id).and_then(|cached| {
@@ -420,10 +419,10 @@ impl<'s, State> Text<State> {
     }
     pub(crate) fn create_node(
         self,
-        state: &mut State,
-        app: &mut AppState,
-        node: Node<'s, State, AppState>,
-    ) -> Node<'s, State, AppState>
+        _state: &mut State,
+        _app: &mut AppState<State>,
+        node: Node<'s, State, AppState<State>>,
+    ) -> Node<'s, State, AppState<State>>
     where
         State: 'static,
     {

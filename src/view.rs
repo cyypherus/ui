@@ -53,22 +53,22 @@ macro_rules! id {
 macro_rules! binding {
     ($State:ty, $field:ident) => {
         Binding::new(
-            |s: &AppState<$State>| s.state.$field.clone(),
-            |s: &mut AppState<$State>, value| s.state.$field = value,
+            |s: &$State| s.$field.clone(),
+            |s: &mut $State, value| s.$field = value,
         )
     };
 }
 
 pub fn clipping<'a, State: 'a>(
     path: fn(Area) -> BezPath,
-    node: Node<'a, State, AppState>,
-) -> Node<'a, State, AppState> {
+    node: Node<'a, State, AppState<State>>,
+) -> Node<'a, State, AppState<State>> {
     intermediate(
-        move |available_area: Area, state: &mut State, app: &mut AppState| {
+        move |available_area: Area, _state: &mut State, app: &mut AppState<State>| {
             app.scene
                 .push_layer(Mix::Normal, 1., Affine::IDENTITY, &(path)(available_area));
         },
-        move |state: &mut State, app: &mut AppState| {
+        move |_state: &mut State, app: &mut AppState<State>| {
             app.scene.pop_layer();
         },
         node,
@@ -77,7 +77,7 @@ pub fn clipping<'a, State: 'a>(
 
 pub struct View<State> {
     pub(crate) view_type: ViewType<State>,
-    pub(crate) gesture_handlers: Vec<GestureHandler<State, AppState>>,
+    pub(crate) gesture_handlers: Vec<GestureHandler<State, AppState<State>>>,
 }
 
 impl<State> Clone for View<State> {
@@ -118,7 +118,7 @@ pub(crate) enum AnimatedView {
 impl<State> View<State> {
     pub fn on_edit(
         mut self,
-        f: impl Fn(&mut State, &mut AppState, EditInteraction) + 'static,
+        f: impl Fn(&mut State, &mut AppState<State>, EditInteraction) + 'static,
     ) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
@@ -136,7 +136,7 @@ impl<State> View<State> {
     }
     pub fn on_click(
         mut self,
-        f: impl Fn(&mut State, &mut AppState, ClickState, ClickLocation) + 'static,
+        f: impl Fn(&mut State, &mut AppState<State>, ClickState, ClickLocation) + 'static,
     ) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
@@ -152,7 +152,10 @@ impl<State> View<State> {
         });
         self
     }
-    pub fn on_drag(mut self, f: impl Fn(&mut State, &mut AppState, DragState) + 'static) -> Self {
+    pub fn on_drag(
+        mut self,
+        f: impl Fn(&mut State, &mut AppState<State>, DragState) + 'static,
+    ) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
                 drag: true,
@@ -167,7 +170,10 @@ impl<State> View<State> {
         });
         self
     }
-    pub fn on_hover(mut self, f: impl Fn(&mut State, &mut AppState, bool) + 'static) -> Self {
+    pub fn on_hover(
+        mut self,
+        f: impl Fn(&mut State, &mut AppState<State>, bool) + 'static,
+    ) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
                 hover: true,
@@ -182,7 +188,7 @@ impl<State> View<State> {
         });
         self
     }
-    pub fn on_key(mut self, f: impl Fn(&mut State, &mut AppState, Key) + 'static) -> Self {
+    pub fn on_key(mut self, f: impl Fn(&mut State, &mut AppState<State>, Key) + 'static) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
                 key: true,
@@ -199,7 +205,7 @@ impl<State> View<State> {
     }
     pub fn on_scroll(
         mut self,
-        f: impl Fn(&mut State, &mut AppState, ScrollDelta) + 'static,
+        f: impl Fn(&mut State, &mut AppState<State>, ScrollDelta) + 'static,
     ) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
@@ -281,11 +287,11 @@ impl<State> View<State> {
 }
 
 impl<State> View<State> {
-    pub fn finish<'a>(self) -> Node<'a, State, AppState>
+    pub fn finish<'a>(self) -> Node<'a, State, AppState<State>>
     where
         State: 'static,
     {
-        dynamic(move |state: &mut State, app: &mut AppState| {
+        dynamic(move |state: &mut State, app: &mut AppState<State>| {
             let moved = self.clone();
             if let ViewType::Text(view) = self.view_type.clone() {
                 view.create_node(state, app, draw_object(moved))
@@ -296,8 +302,8 @@ impl<State> View<State> {
     }
 }
 
-impl<State> Drawable<State, AppState> for View<State> {
-    fn draw(&mut self, area: Area, state: &mut State, app: &mut AppState, visible: bool) {
+impl<State> Drawable<State, AppState<State>> for View<State> {
+    fn draw(&mut self, area: Area, state: &mut State, app: &mut AppState<State>, visible: bool) {
         let mut anim = app
             .animation_bank
             .animations
@@ -348,9 +354,9 @@ impl<State> Drawable<State, AppState> for View<State> {
             );
             match &mut self.view_type {
                 ViewType::Text(view) => view.draw(area, state, app, visible, visibility),
-                ViewType::Rect(view) => view.draw(area, app, visible, visibility),
+                ViewType::Rect(view) => view.draw(area, state, app, visible, visibility),
                 ViewType::Svg(view) => view.draw(area, state, app, visible, visibility),
-                ViewType::Circle(view) => view.draw(area, app, visible, visibility),
+                ViewType::Circle(view) => view.draw(area, state, app, visible, visibility),
             }
         }
         app.animation_bank.animations.insert(self.id(), anim);

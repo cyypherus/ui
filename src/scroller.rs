@@ -29,12 +29,12 @@ impl ScrollerState {
     fn fill_forwards<State, CellFn>(
         &mut self,
         state: &mut State,
-        app: &mut AppState,
+        app: &mut AppState<State>,
         available_area: Area,
         id: u64,
         cell: CellFn,
     ) where
-        CellFn: Fn(&mut State, &mut AppState, usize, u64, Area) -> Option<f32> + Copy,
+        CellFn: Fn(&mut State, &mut AppState<State>, usize, u64, Area) -> Option<f32> + Copy,
     {
         let mut current_height = self.visible_window.iter().fold(0., |acc, e| acc + e.height);
         let mut index = self.visible_window.last().map(|l| l.index).unwrap_or(0) + {
@@ -61,11 +61,11 @@ impl ScrollerState {
         &mut self,
         available_area: Area,
         state: &mut State,
-        app: &mut AppState,
+        app: &mut AppState<State>,
         id: u64,
         cell: CellFn,
     ) where
-        CellFn: Fn(&mut State, &mut AppState, usize, u64, Area) -> Option<f32> + Copy,
+        CellFn: Fn(&mut State, &mut AppState<State>, usize, u64, Area) -> Option<f32> + Copy,
     {
         if self.area != available_area && self.visible_window.len() > 1 {
             // This handles "re-layout" when the available area changes, anchored to the first element
@@ -149,12 +149,17 @@ impl ScrollerState {
 
 pub fn scroller<'n, State: 'static, CellFn>(
     id: u64,
-    backing: Option<Node<'n, State, AppState>>,
+    backing: Option<Node<'n, State, AppState<State>>>,
     scroller: Binding<State, ScrollerState>,
     cell: CellFn,
-) -> Node<'n, State, AppState>
+) -> Node<'n, State, AppState<State>>
 where
-    CellFn: for<'x> Fn(&'x mut State, &'x mut AppState, usize, u64) -> Option<Node<'n, State, AppState>>
+    CellFn: for<'x> Fn(
+            &'x mut State,
+            &'x mut AppState<State>,
+            usize,
+            u64,
+        ) -> Option<Node<'n, State, AppState<State>>>
         + Copy
         + 'static,
 {
@@ -169,7 +174,7 @@ where
                 )
                 .to_path(0.001)
             },
-            area_reader::<State, AppState>({
+            area_reader::<State, AppState<State>>({
                 let scroller = scroller.clone();
                 move |area, state, app| {
                     let mut scroller_state = scroller.get(&state);
@@ -202,7 +207,7 @@ where
             .view()
             .on_scroll({
                 let scroller = scroller.clone();
-                move |s, a, dt| {
+                move |s, _, dt| {
                     let mut sc = scroller.get(s);
                     sc.dt += dt.y;
                     scroller.set(s, sc);

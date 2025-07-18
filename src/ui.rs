@@ -1,4 +1,3 @@
-use crate::AppState;
 use crate::{gestures::InteractionHandler, view::AnimatedView, Editor, GestureHandler};
 pub use backer::models::*;
 use backer::nodes::scope;

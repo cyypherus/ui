@@ -21,9 +21,9 @@ pub struct App<'s, State> {
     pub(crate) renderers: Vec<Option<Renderer>>,
     pub(crate) render_state: Option<RenderState<'s>>,
     pub(crate) cached_window: Option<Arc<Window>>,
-    pub(crate) app_state: AppState,
+    pub(crate) app_state: AppState<State>,
     pub state: State,
-    pub(crate) view: fn() -> Node<'static, State, AppState>,
+    pub(crate) view: fn() -> Node<'static, State, AppState<State>>,
 }
 
 pub(crate) struct RenderState<'surface> {
@@ -34,7 +34,7 @@ pub(crate) struct RenderState<'surface> {
 }
 
 type TextLayoutCache = HashMap<u64, Vec<(String, f32, parley::Layout<Brush>)>>;
-pub struct AppState {
+pub struct AppState<State> {
     pub(crate) cursor_position: Option<Point>,
     pub(crate) gesture_state: GestureState,
     pub gesture_handlers: Vec<(u64, Area, GestureHandler<State, Self>)>,
@@ -52,7 +52,7 @@ pub struct AppState {
     pub(crate) now: Instant,
 }
 
-impl AppState {
+impl<State> AppState<State> {
     pub(crate) fn animations_in_progress(&self, now: Instant) -> bool {
         self.view_state.values().any(|v| match v {
             AnimatedView::Rect(animated_rect) => animated_rect.shape.in_progress(now),
@@ -62,30 +62,30 @@ impl AppState {
     }
 }
 
-use std::thread;
-use tokio::{runtime::Runtime, sync::mpsc, task};
+// use std::thread;
+// use tokio::{runtime::Runtime, sync::mpsc, task};
 
-type BackgroundTask<State> = Box<dyn FnOnce() -> BackgroundTaskCompletion<State> + Send + 'static>;
-type BackgroundTaskCompletion<State> = Box<dyn FnOnce(&mut State) + Send>;
+// type BackgroundTask<State> = Box<dyn FnOnce() -> BackgroundTaskCompletion<State> + Send + 'static>;
+// type BackgroundTaskCompletion<State> = Box<dyn FnOnce(&mut State) + Send>;
 
-pub struct BackgroundScheduler<State> {
-    sender: mpsc::Sender<BackgroundTask<State>>,
-}
+// pub struct BackgroundScheduler<State> {
+//     sender: mpsc::Sender<BackgroundTask<State>>,
+// }
 
-impl<State: 'static> BackgroundScheduler<State> {
-    pub fn new() -> Self {
-        let (tx, mut rx) = mpsc::channel::<BackgroundTask<State>>(100);
-        thread::spawn(move || {
-            let rt = Runtime::new().unwrap();
-            rt.block_on(async move {
-                while let Some(task) = rx.recv().await {
-                    task::spawn_blocking(move || task());
-                }
-            });
-        });
-        Self { sender: tx }
-    }
-}
+// impl<State: 'static> BackgroundScheduler<State> {
+//     pub fn new() -> Self {
+//         let (tx, mut rx) = mpsc::channel::<BackgroundTask<State>>(100);
+//         thread::spawn(move || {
+//             let rt = Runtime::new().unwrap();
+//             rt.block_on(async move {
+//                 while let Some(task) = rx.recv().await {
+//                     task::spawn_blocking(move || task());
+//                 }
+//             });
+//         });
+//         Self { sender: tx }
+//     }
+// }
 
 impl<'n, State: Clone + 'static> App<'_, State> {
     // pub fn spawn<F, R>(&self, task: F)
@@ -105,7 +105,7 @@ impl<'n, State: Clone + 'static> App<'_, State> {
         };
         window.request_redraw();
     }
-    pub fn start(state: State, view: fn() -> Node<'static, State, AppState>) {
+    pub fn start(state: State, view: fn() -> Node<'static, State, AppState<State>>) {
         let event_loop = EventLoop::new().expect("Could not create event loop");
         #[allow(unused_mut)]
         let mut render_cx = RenderContext::new();
@@ -119,7 +119,7 @@ impl<'n, State: Clone + 'static> App<'_, State> {
         event_loop: EventLoop<()>,
         render_cx: RenderContext,
         #[cfg(target_arch = "wasm32")] render_state: RenderState,
-        view: fn() -> Node<'static, State, AppState>,
+        view: fn() -> Node<'static, State, AppState<State>>,
     ) {
         #[allow(unused_mut)]
         let mut renderers: Vec<Option<Renderer>> = vec![];
@@ -348,6 +348,7 @@ impl<State: Clone + 'static> ApplicationHandler for App<'_, State> {
                             if handler.2.interaction_type.key {
                                 needs_redraw = true;
                                 interaction_handler(
+                                    &mut self.state,
                                     &mut self.app_state,
                                     Interaction::Key(key.clone()),
                                 );
@@ -355,6 +356,7 @@ impl<State: Clone + 'static> ApplicationHandler for App<'_, State> {
                                 needs_redraw = true;
                                 if let Some((_, _, editor, _)) = &self.app_state.editor.clone() {
                                     (interaction_handler)(
+                                        &mut self.state,
                                         &mut self.app_state,
                                         Interaction::Edit(EditInteraction::Update(
                                             editor.text().to_string(),
@@ -432,6 +434,7 @@ impl<State: Clone + 'static> App<'_, State> {
                     if let Some(ref on_hover) = gh.interaction_handler {
                         needs_redraw = true;
                         (on_hover)(
+                            &mut self.state,
                             &mut self.app_state,
                             Interaction::Hover(area_contains(area, pos)),
                         );
@@ -449,6 +452,7 @@ impl<State: Clone + 'static> App<'_, State> {
                     needs_redraw = true;
                     if let Some(handler) = &gh.interaction_handler {
                         (handler)(
+                            &mut self.state,
                             &mut self.app_state,
                             Interaction::Drag(DragState::Updated {
                                 start,
@@ -496,6 +500,7 @@ impl<State: Clone + 'static> App<'_, State> {
                 needs_redraw = true;
                 if let Some(ref on_click) = handler.interaction_handler {
                     on_click(
+                        &mut self.state,
                         &mut self.app_state,
                         Interaction::Click(ClickState::Started, ClickLocation::new(point, *area)),
                     );
@@ -544,6 +549,7 @@ impl<State: Clone + 'static> App<'_, State> {
                             needs_redraw = true;
                             if area_contains(area, current) {
                                 on_click(
+                                    &mut self.state,
                                     &mut self.app_state,
                                     Interaction::Click(
                                         ClickState::Completed,
@@ -552,6 +558,7 @@ impl<State: Clone + 'static> App<'_, State> {
                                 );
                             } else {
                                 on_click(
+                                    &mut self.state,
                                     &mut self.app_state,
                                     Interaction::Click(
                                         ClickState::Cancelled,
@@ -565,6 +572,7 @@ impl<State: Clone + 'static> App<'_, State> {
                         {
                             needs_redraw = true;
                             on_drag(
+                                &mut self.state,
                                 &mut self.app_state,
                                 Interaction::Drag(DragState::Completed {
                                     start,
@@ -597,6 +605,7 @@ impl<State: Clone + 'static> App<'_, State> {
                 if let Some(ref on_scroll) = handler.interaction_handler {
                     needs_redraw = true;
                     on_scroll(
+                        &mut self.state,
                         &mut self.app_state,
                         Interaction::Scroll(match delta {
                             MouseScrollDelta::LineDelta(x, y) => ScrollDelta {

@@ -12,7 +12,7 @@ struct State {
 
 fn main() {
     App::start(State::default(), || {
-        dynamic(|_: &mut AppState<State>| {
+        dynamic(|_, _: &mut AppState<State>| {
             row_spaced(
                 20.,
                 vec![
@@ -23,10 +23,10 @@ fn main() {
                             text(id!(), "Custom Label Text")
                                 .fill(AlphaColor::WHITE)
                                 .finish(),
-                            dynamic(|s: &mut AppState<State>| {
+                            dynamic(|s: &mut State, _: &mut AppState<State>| {
                                 button(id!(), binding!(State, b1))
-                                    .text_label(format!("Click count {}", s.state.count))
-                                    .on_click(|s| s.state.count += 1)
+                                    .text_label(format!("Click count {}", s.count))
+                                    .on_click(|s, _| s.count += 1)
                                     .finish()
                             }),
                         ],
@@ -38,7 +38,7 @@ fn main() {
                         vec![
                             text(id!(), "Custom Body").fill(AlphaColor::WHITE).finish(),
                             button(id!(), binding!(State, b2))
-                                .on_click(|s| s.state.count += 1)
+                                .on_click(|s, _| s.count += 1)
                                 .body(|button| {
                                     rect(id!())
                                         .fill({
@@ -63,7 +63,7 @@ fn main() {
                         vec![
                             text(id!(), "Svg Label").fill(AlphaColor::WHITE).finish(),
                             button(id!(), binding!(State, b3))
-                                .on_click(|s| s.state.count += 1)
+                                .on_click(|s, _| s.count += 1)
                                 .label(|button| {
                                     svg(id!(), "assets/download.svg")
                                         .fill(match (button.depressed, button.hovered) {

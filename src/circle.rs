@@ -57,7 +57,7 @@ impl Circle {
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<'n, State: 'static>(self) -> Node<'n, AppState<State>> {
+    pub fn finish<'n, State: 'static>(self) -> Node<'n, State, AppState<State>> {
         self.view().finish()
     }
 }
@@ -66,6 +66,7 @@ impl Circle {
     pub(crate) fn draw<State>(
         &mut self,
         area: Area,
+        _state: &mut State,
         app: &mut AppState<State>,
         visible: bool,
         visible_amount: f32,

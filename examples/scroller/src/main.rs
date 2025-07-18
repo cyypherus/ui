@@ -38,7 +38,7 @@ fn main() {
             scroller: ScrollerState::default(),
         },
         || {
-        dynamic(|_: &mut AppState<State>| {
+        dynamic(|_, _: &mut AppState<State>| {
             let vec = vec![
                 space(),
                 scroller(
@@ -65,9 +65,10 @@ fn main() {
 
 fn scroller_cell<'n>(
     state: &mut State,
+    _app: &mut AppState<State>,
     index: usize,
     _id: u64,
-) -> Option<Node<'n, AppState<State>>> {
+) -> Option<Node<'n, State, AppState<State>>> {
     state.texts.get(index).map(|s| {
         column(vec![
             if index == 0 {

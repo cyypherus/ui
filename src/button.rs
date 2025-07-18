@@ -11,8 +11,8 @@ pub struct ButtonState {
     pub depressed: bool,
 }
 
-type BodyFn<'n, State> = fn(ButtonState) -> Node<'n, State, AppState>;
-type LabelFn<'n, State> = fn(ButtonState) -> Node<'n, State, AppState>;
+type BodyFn<'n, State> = fn(ButtonState) -> Node<'n, State, AppState<State>>;
+type LabelFn<'n, State> = fn(ButtonState) -> Node<'n, State, AppState<State>>;
 
 pub struct Button<'n, State> {
     id: u64,
@@ -20,7 +20,7 @@ pub struct Button<'n, State> {
     label: Option<LabelFn<'n, State>>,
     text_label: Option<String>,
     corner_rounding: Option<f32>,
-    on_click: Option<fn(&mut State, &mut AppState)>,
+    on_click: Option<fn(&mut State, &mut AppState<State>)>,
     state: Binding<State, ButtonState>,
 }
 
@@ -37,11 +37,11 @@ pub fn button<'n, State>(id: u64, binding: Binding<State, ButtonState>) -> Butto
 }
 
 impl<'n, State> Button<'n, State> {
-    pub fn body(mut self, body: fn(ButtonState) -> Node<'n, State, AppState>) -> Self {
+    pub fn body(mut self, body: fn(ButtonState) -> Node<'n, State, AppState<State>>) -> Self {
         self.body = Some(body);
         self
     }
-    pub fn label(mut self, label: fn(ButtonState) -> Node<'n, State, AppState>) -> Self {
+    pub fn label(mut self, label: fn(ButtonState) -> Node<'n, State, AppState<State>>) -> Self {
         self.label = Some(label);
         self
     }
@@ -53,15 +53,15 @@ impl<'n, State> Button<'n, State> {
         self.corner_rounding = Some(corner_rounding);
         self
     }
-    pub fn on_click(mut self, on_click: fn(&mut State, &mut AppState)) -> Self {
+    pub fn on_click(mut self, on_click: fn(&mut State, &mut AppState<State>)) -> Self {
         self.on_click = Some(on_click);
         self
     }
-    pub fn finish(self) -> Node<'n, State, AppState>
+    pub fn finish(self) -> Node<'n, State, AppState<State>>
     where
         State: 'static,
     {
-        dynamic(move |state: &mut State, app: &mut AppState| {
+        dynamic(move |state: &mut State, _app: &mut AppState<State>| {
             stack(vec![
                 if let Some(body) = self.body {
                     body(self.state.get(state))
@@ -109,21 +109,25 @@ impl<'n, State> Button<'n, State> {
                     .view()
                     .on_hover({
                         let binding = self.state.clone();
-                        move |state, app: &mut AppState, h| binding.update(app, |s| s.hovered = h)
+                        move |state, _app: &mut AppState<State>, h| {
+                            binding.update(state, |s| s.hovered = h)
+                        }
                     })
                     .on_click({
                         let binding = self.state.clone();
-                        move |state: &mut State, app: &mut AppState, click_state, _| {
+                        move |state: &mut State, app: &mut AppState<State>, click_state, _| {
                             match click_state {
-                                ClickState::Started => binding.update(app, |s| s.depressed = true),
+                                ClickState::Started => {
+                                    binding.update(state, |s| s.depressed = true)
+                                }
                                 ClickState::Cancelled => {
-                                    binding.update(app, |s| s.depressed = false)
+                                    binding.update(state, |s| s.depressed = false)
                                 }
                                 ClickState::Completed => {
                                     if let Some(f) = self.on_click {
-                                        f(app);
+                                        f(state, app);
                                     }
-                                    binding.update(app, |s| s.depressed = false)
+                                    binding.update(state, |s| s.depressed = false)
                                 }
                             }
                         }

@@ -17,10 +17,11 @@ fn main() {
             toggle: ToggleState::default(),
         },
         || {
-            dynamic(|_: &mut AppState<State>| {
+            dynamic(|_, _: &mut AppState<State>| {
                 column_spaced(
                     20.,
                     vec![
+                        space(),
                         text_field(id!(), binding!(State, text))
                             .font_size(40)
                             .finish(),
