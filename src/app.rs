@@ -13,14 +13,62 @@ use vello_svg::vello::peniko::{Brush, Color};
 use vello_svg::vello::util::{RenderContext, RenderSurface};
 use vello_svg::vello::{Renderer, RendererOptions, Scene};
 use winit::event::{Modifiers, MouseScrollDelta};
+use winit::platform::macos::WindowAttributesExtMacOS;
 use winit::{application::ApplicationHandler, event_loop::EventLoop, window::Window};
 use winit::{dpi::LogicalSize, event::MouseButton};
+
+pub struct AppBuilder<State> {
+    state: State,
+    view: fn() -> Node<'static, State, AppState<State>>,
+    inner_size: Option<(u32, u32)>,
+    resizable: Option<bool>,
+}
+
+impl<State: Clone + 'static> AppBuilder<State> {
+    pub fn new(state: State, view: fn() -> Node<'static, State, AppState<State>>) -> Self {
+        Self {
+            state,
+            view,
+            inner_size: None,
+            resizable: None,
+        }
+    }
+
+    pub fn inner_size(mut self, width: u32, height: u32) -> Self {
+        self.inner_size = Some((width, height));
+        self
+    }
+
+    pub fn resizable(mut self, resizable: bool) -> Self {
+        self.resizable = Some(resizable);
+        self
+    }
+
+    pub fn start(self) {
+        let event_loop = EventLoop::new().expect("Could not create event loop");
+        #[allow(unused_mut)]
+        let mut render_cx = RenderContext::new();
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            App::run(
+                self.state,
+                event_loop,
+                render_cx,
+                self.view,
+                self.inner_size,
+                self.resizable,
+            );
+        }
+    }
+}
 
 pub struct App<'s, State> {
     pub(crate) context: RenderContext,
     pub(crate) renderers: Vec<Option<Renderer>>,
     pub(crate) render_state: Option<RenderState<'s>>,
     pub(crate) cached_window: Option<Arc<Window>>,
+    pub(crate) window_inner_size: Option<(u32, u32)>,
+    pub(crate) window_resizable: Option<bool>,
     pub(crate) app_state: AppState<State>,
     pub state: State,
     pub(crate) view: fn() -> Node<'static, State, AppState<State>>,
@@ -64,7 +112,6 @@ impl<State> AppState<State> {
 
 // use std::thread;
 // use tokio::{runtime::Runtime, sync::mpsc, task};
-
 // type BackgroundTask<State> = Box<dyn FnOnce() -> BackgroundTaskCompletion<State> + Send + 'static>;
 // type BackgroundTaskCompletion<State> = Box<dyn FnOnce(&mut State) + Send>;
 
@@ -106,13 +153,14 @@ impl<'n, State: Clone + 'static> App<'_, State> {
         window.request_redraw();
     }
     pub fn start(state: State, view: fn() -> Node<'static, State, AppState<State>>) {
-        let event_loop = EventLoop::new().expect("Could not create event loop");
-        #[allow(unused_mut)]
-        let mut render_cx = RenderContext::new();
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            Self::run(state, event_loop, render_cx, view);
-        }
+        AppBuilder::new(state, view).start();
+    }
+
+    pub fn builder(
+        state: State,
+        view: fn() -> Node<'static, State, AppState<State>>,
+    ) -> AppBuilder<State> {
+        AppBuilder::new(state, view)
     }
     fn run(
         state: State,
@@ -120,6 +168,8 @@ impl<'n, State: Clone + 'static> App<'_, State> {
         render_cx: RenderContext,
         #[cfg(target_arch = "wasm32")] render_state: RenderState,
         view: fn() -> Node<'static, State, AppState<State>>,
+        inner_size: Option<(u32, u32)>,
+        resizable: Option<bool>,
     ) {
         #[allow(unused_mut)]
         let mut renderers: Vec<Option<Renderer>> = vec![];
@@ -136,6 +186,8 @@ impl<'n, State: Clone + 'static> App<'_, State> {
             renderers,
             render_state,
             cached_window: None,
+            window_inner_size: inner_size,
+            window_resizable: resizable,
             state,
             view,
             app_state: AppState {
@@ -265,15 +317,19 @@ impl<State: Clone + 'static> ApplicationHandler for App<'_, State> {
             return;
         };
         let window = self.cached_window.take().unwrap_or_else(|| {
-            Arc::new(
-                event_loop
-                    .create_window(
-                        Window::default_attributes()
-                            .with_inner_size(LogicalSize::new(1044, 800))
-                            .with_resizable(true),
-                    )
-                    .unwrap(),
-            )
+            let inner_size = self.window_inner_size.take().unwrap_or((1044, 800));
+            let resizable = self.window_resizable.take().unwrap_or(true);
+
+            let attributes = Window::default_attributes()
+                .with_inner_size(LogicalSize::new(inner_size.0, inner_size.1))
+                .with_resizable(resizable)
+                .with_decorations(true)
+                .with_titlebar_hidden(false)
+                .with_titlebar_transparent(true)
+                .with_title_hidden(true)
+                .with_fullsize_content_view(true);
+
+            Arc::new(event_loop.create_window(attributes).unwrap())
         });
         let size = window.inner_size();
         let surface_future = self.context.create_surface(

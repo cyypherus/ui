@@ -7,7 +7,7 @@ struct State {
 }
 
 fn main() {
-    App::start(
+    App::builder(
         State {
             text: TextState {
                 text: "The scale factor is calculated differently on different platforms:"
@@ -32,4 +32,7 @@ fn main() {
             })
         },
     )
+    .inner_size(800, 600)
+    .resizable(false)
+    .start()
 }
