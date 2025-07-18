@@ -1,8 +1,8 @@
 use std::{fmt::Debug, rc::Rc};
-
-use crate::Area;
 use vello_svg::vello::kurbo::Point;
 use winit::keyboard::{NamedKey, SmolStr};
+
+pub use backer::models::*;
 
 pub(crate) fn area_contains(area: &Area, point: Point) -> bool {
     let x = point.x;

@@ -16,7 +16,7 @@ mod ui;
 mod view;
 
 pub use app::{App, AppBuilder, AppState};
-pub use backer::{models::*, nodes::*, Layout, Node};
+pub use backer::{nodes::*, Layout, Node};
 pub use button::*;
 pub use circle::circle;
 pub use editor::*;
@@ -28,7 +28,7 @@ pub use svg::svg;
 pub use text::*;
 pub use toggle::*;
 // pub use ui::scoper;
-pub use vello_svg::vello::kurbo::*;
+use vello_svg::vello::kurbo::*;
 use vello_svg::vello::peniko::color::AlphaColor;
 use vello_svg::vello::peniko::color::Srgb;
 pub use vello_svg::vello::peniko::Color;

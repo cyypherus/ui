@@ -16,6 +16,10 @@ path = "examples/buttons/src/main.rs"
 name = "scroller"
 path = "examples/scroller/src/main.rs"
 
+[[example]]
+name = "idle-hue"
+path = "examples/idle-hue/src/main.rs"
+
 [dependencies]
 backer = { git = "https://github.com/cyypherus/backer", branch = "tu" }
 clipboard-rs = "0.2.4"
