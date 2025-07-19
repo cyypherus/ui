@@ -1,5 +1,5 @@
 use arboard::Clipboard;
-use color::{parse_color, Srgb};
+use color::{Srgb, parse_color};
 use serde::{Deserialize, Serialize};
 use ui::*;
 
@@ -71,28 +71,30 @@ fn main() {
             column_spaced(
                 20.,
                 if !s.loaded {
-                    vec![circle(id!())
-                        .stroke(Color::WHITE, 5.)
-                        .view()
-                        .on_appear(|_state: &mut State, app| {
-                            println!("Loading saved state...");
-                            app.spawn_with_result(
-                                async move { load_state_from_file().await },
-                                |state, result| match result {
-                                    Ok(saved_state) => {
-                                        state.text.text = saved_state.text;
-                                        state.loaded = true;
-                                        if state.text.text.is_empty() {
-                                            state.text.text = "000000".to_string();
+                    vec![
+                        circle(id!())
+                            .stroke(Color::WHITE, 5.)
+                            .view()
+                            .on_appear(|_state: &mut State, app| {
+                                println!("Loading saved state...");
+                                app.spawn_with_result(
+                                    async move { load_state_from_file().await },
+                                    |state, result| match result {
+                                        Ok(saved_state) => {
+                                            state.text.text = saved_state.text;
+                                            state.loaded = true;
+                                            if state.text.text.is_empty() {
+                                                state.text.text = "000000".to_string();
+                                            }
                                         }
-                                    }
-                                    Err(_) => (),
-                                },
-                            );
-                        })
-                        .finish()
-                        .width(10.)
-                        .height(10.)]
+                                        Err(_) => (),
+                                    },
+                                );
+                            })
+                            .finish()
+                            .width(10.)
+                            .height(10.),
+                    ]
                 } else {
                     vec![
                         rect(id!())
@@ -118,7 +120,7 @@ fn hex_row<'n>() -> Node<'n, State, AppState<State>> {
         text(id!(), "#").font_size(40).finish().width(20.),
         text_field(id!(), binding!(State, text))
             .font_size(40)
-            // .background_fill(None)
+            .background_fill(None)
             .no_background_stroke()
             .on_edit(|_, a, edit| {
                 let EditInteraction::Update(text) = edit else {
