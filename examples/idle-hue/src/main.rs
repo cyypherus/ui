@@ -3,17 +3,15 @@ use ui::*;
 #[derive(Clone, Default)]
 struct State {
     text: TextState,
-    toggle: ToggleState,
 }
 
 fn main() {
     App::builder(
         State {
             text: TextState {
-                text: "#000000".to_string(),
+                text: "000000".to_string(),
                 editing: false,
             },
-            toggle: ToggleState::default(),
         },
         || {
             dynamic(|_, _: &mut AppState<State>| {
@@ -21,10 +19,16 @@ fn main() {
                     20.,
                     vec![
                         space(),
-                        text_field(id!(), binding!(State, text))
-                            .font_size(40)
-                            .finish(),
-                        // toggle(id!(), binding!(State, toggle)).finish(),
+                        row(vec![
+                            text(id!(), "#").font_size(40).finish().width(20.),
+                            space().width(10.),
+                            text_field(id!(), binding!(State, text))
+                                .font_size(40)
+                                // .background_fill(None)
+                                // .no_background_stroke()
+                                .finish(),
+                        ])
+                        .align_contents(Align::CenterY),
                     ],
                 )
                 .pad(20.)
@@ -32,6 +36,6 @@ fn main() {
         },
     )
     .inner_size(400, 300)
-    .resizable(false)
+    // .resizable(false)
     .start()
 }

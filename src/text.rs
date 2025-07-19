@@ -41,6 +41,11 @@ pub fn text<State>(id: u64, text: impl AsRef<str> + 'static) -> Text<State> {
         alignment: TextAlign::Centered,
         editable: false,
         line_height: 1.,
+        background_fill: None,
+        background_stroke: None,
+        background_corner_rounding: DEFAULT_CORNER_ROUNDING,
+        background_padding: DEFAULT_PADDING,
+        wrap: false,
     }
 }
 
@@ -57,6 +62,15 @@ pub fn text_field<State>(id: u64, state: Binding<State, TextState>) -> Text<Stat
         alignment: TextAlign::Centered,
         editable: true,
         line_height: 1.,
+        background_fill: Some(AlphaColor::from_rgb8(50, 50, 50)),
+        background_stroke: Some((
+            AlphaColor::from_rgb8(60, 60, 60),
+            AlphaColor::from_rgb8(113, 70, 232),
+            3.,
+        )),
+        background_corner_rounding: DEFAULT_CORNER_ROUNDING,
+        background_padding: DEFAULT_PADDING,
+        wrap: false,
     }
 }
 
@@ -73,6 +87,11 @@ pub struct Text<State> {
     pub(crate) duration: Option<f32>,
     pub(crate) delay: f32,
     pub(crate) line_height: f32,
+    pub(crate) background_fill: Option<Color>,
+    pub(crate) background_stroke: Option<(Color, Color, f32)>, // (normal, focused, width)
+    pub(crate) background_corner_rounding: f32,
+    pub(crate) background_padding: f32,
+    pub(crate) wrap: bool,
 }
 
 impl<State> Clone for Text<State> {
@@ -89,6 +108,11 @@ impl<State> Clone for Text<State> {
             duration: self.duration,
             delay: self.delay,
             line_height: self.line_height,
+            background_fill: self.background_fill,
+            background_stroke: self.background_stroke,
+            background_corner_rounding: self.background_corner_rounding,
+            background_padding: self.background_padding,
+            wrap: self.wrap,
         }
     }
 }
@@ -133,6 +157,26 @@ impl<State> Text<State> {
     }
     pub fn editable(mut self) -> Self {
         self.editable = true;
+        self
+    }
+    pub fn background_fill(mut self, color: Option<Color>) -> Self {
+        self.background_fill = color;
+        self
+    }
+    pub fn background_stroke(mut self, normal: Color, focused: Color, width: f32) -> Self {
+        self.background_stroke = Some((normal, focused, width));
+        self
+    }
+    pub fn no_background_stroke(mut self) -> Self {
+        self.background_stroke = None;
+        self
+    }
+    pub fn background_corner_rounding(mut self, rounding: f32) -> Self {
+        self.background_corner_rounding = rounding;
+        self
+    }
+    pub fn background_padding(mut self, padding: f32) -> Self {
+        self.background_padding = padding;
         self
     }
     // pub(crate) fn font(mut self, font_id: font::Id) -> Self {
@@ -180,30 +224,39 @@ impl<State> Text<State> {
         let binding = self.state.clone();
         let id = self.id;
         let editable = self.editable;
+        let bg_fill = self.background_fill;
+        let bg_stroke = self.background_stroke;
+        let bg_rounding = self.background_corner_rounding;
+        let bg_padding = self.background_padding;
         stack(vec![self
             .view()
             .finish()
-            .pad(if editable { DEFAULT_PADDING } else { 0. })
-            .attach_under(if editable {
-                dynamic({
-                    move |s, _a| {
-                        rect(id!(id))
-                            .fill(AlphaColor::from_rgb8(50, 50, 50))
-                            .stroke(
-                                if binding.get(s).editing {
-                                    AlphaColor::from_rgb8(113, 70, 232)
-                                } else {
-                                    AlphaColor::from_rgb8(60, 60, 60)
-                                },
-                                3.,
-                            )
-                            .corner_rounding(DEFAULT_CORNER_ROUNDING)
-                            .finish()
-                    }
-                })
-            } else {
-                space()
-            })])
+            .pad(if editable { bg_padding } else { 0. })
+            .attach_under(
+                if editable && (bg_fill.is_some() || bg_stroke.is_some()) {
+                    dynamic({
+                        move |s, _a| {
+                            let mut rect_node = rect(id!(id));
+                            if let Some(fill) = bg_fill {
+                                rect_node = rect_node.fill(fill);
+                            }
+                            if let Some((normal, focused, width)) = bg_stroke {
+                                rect_node = rect_node.stroke(
+                                    if binding.get(s).editing {
+                                        focused
+                                    } else {
+                                        normal
+                                    },
+                                    width,
+                                );
+                            }
+                            rect_node.corner_rounding(bg_rounding).finish()
+                        }
+                    })
+                } else {
+                    space()
+                },
+            )])
     }
 }
 
@@ -291,16 +344,18 @@ impl<State> Text<State> {
             let AppState {
                 font_cx, layout_cx, ..
             } = app;
-            editor.mouse_moved(
-                Point::new(area.width as f64, area.height as f64),
-                layout_cx,
-                font_cx,
-            );
-            editor.mouse_pressed(layout_cx, font_cx);
-            editor.mouse_released();
-            app.editor = Some((self.id, Area::default(), editor, true));
+            if let Some(pos) = app.cursor_position {
+                editor.mouse_moved(
+                    Point::new(pos.x - area.x as f64, pos.y - area.y as f64),
+                    layout_cx,
+                    font_cx,
+                );
+                editor.mouse_pressed(layout_cx, font_cx);
+                // editor.mouse_released();
+            }
+            app.editor = Some((self.id, area, editor, true, self.state.clone()));
         }
-        if let Some((id, ref mut edit_area, _, _)) = &mut app.editor {
+        if let Some((id, ref mut edit_area, _, _, _)) = &mut app.editor {
             if *id == self.id {
                 *edit_area = area;
                 return;
@@ -419,15 +474,20 @@ impl<'s, State> Text<State> {
     }
     pub(crate) fn create_node(
         self,
-        _state: &mut State,
-        _app: &mut AppState<State>,
+        state: &mut State,
+        app: &mut AppState<State>,
         node: Node<'s, State, AppState<State>>,
     ) -> Node<'s, State, AppState<State>>
     where
         State: 'static,
     {
-        node.dynamic_height(move |width, state, app| {
-            self.current_layout(width, state, app).height()
-        })
+        if self.wrap {
+            node.dynamic_height(move |width, state, app| {
+                self.current_layout(width, state, app).height()
+            })
+        } else {
+            let layout = self.current_layout(10000., state, app);
+            node.height(layout.height()).width(layout.width())
+        }
     }
 }

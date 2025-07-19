@@ -1,7 +1,9 @@
 use crate::gestures::{ClickLocation, EditInteraction, Interaction, ScrollDelta};
 use crate::ui::AnimationBank;
 use crate::view::AnimatedView;
-use crate::{area_contains, ClickState, DragState, Editor, GestureHandler, Point};
+use crate::{
+    area_contains, Binding, ClickState, DragState, Editor, GestureHandler, Point, TextState,
+};
 use crate::{event, Area, GestureState, RUBIK_FONT};
 use backer::{Layout, Node};
 use parley::fontique::Blob;
@@ -88,7 +90,7 @@ pub struct AppState<State> {
     pub gesture_handlers: Vec<(u64, Area, GestureHandler<State, Self>)>,
     // pub(crate) background_scheduler: BackgroundScheduler<State>,
     pub(crate) scale_factor: f64,
-    pub(crate) editor: Option<(u64, Area, Editor, bool)>,
+    pub(crate) editor: Option<(u64, Area, Editor, bool, Binding<State, TextState>)>,
     pub(crate) animation_bank: AnimationBank,
     pub(crate) scene: Scene,
     pub(crate) font_cx: FontContext,
@@ -239,7 +241,7 @@ impl<'n, State: Clone + 'static> App<'_, State> {
                 &mut self.state,
                 &mut self.app_state,
             );
-            if let Some((_, area, ref mut editor, _)) = self.app_state.editor {
+            if let Some((_, area, ref mut editor, _, _)) = self.app_state.editor {
                 editor.draw(
                     area,
                     &mut self.app_state.scene,
@@ -396,7 +398,7 @@ impl<State: Clone + 'static> ApplicationHandler for App<'_, State> {
                         ..
                     } = self;
                     let mut needs_redraw = false;
-                    if let Some((_, _, editor, _)) = editor {
+                    if let Some((_, _, editor, _, _)) = editor {
                         editor.handle_key(key.clone(), layout_cx, font_cx, modifiers.clone());
                     }
                     for handler in self.app_state.gesture_handlers.clone().iter() {
@@ -410,7 +412,7 @@ impl<State: Clone + 'static> ApplicationHandler for App<'_, State> {
                                 );
                             } else if handler.2.interaction_type.edit {
                                 needs_redraw = true;
-                                if let Some((_, _, editor, _)) = &self.app_state.editor.clone() {
+                                if let Some((_, _, editor, _, _)) = &self.app_state.editor.clone() {
                                     (interaction_handler)(
                                         &mut self.state,
                                         &mut self.app_state,
@@ -474,7 +476,8 @@ impl<State: Clone + 'static> App<'_, State> {
                 },
             ..
         } = self;
-        if let Some((_, area, editor, _)) = editor.as_mut() {
+        if let Some((_, area, editor, _, _)) = editor.as_mut() {
+            needs_redraw = true;
             editor.mouse_moved(
                 Point::new(pos.x - area.x as f64, pos.y - area.y as f64),
                 layout_cx,
@@ -536,7 +539,7 @@ impl<State: Clone + 'static> App<'_, State> {
                     },
                 ..
             } = self;
-            if let Some((_, area, editor, _)) = editor.as_mut() {
+            if let Some((_, area, editor, _, _)) = editor.as_mut() {
                 if area_contains(area, point) {
                     editor.mouse_pressed(layout_cx, font_cx);
                 }
@@ -573,10 +576,6 @@ impl<State: Clone + 'static> App<'_, State> {
     }
     pub(crate) fn mouse_released(&mut self) {
         let mut needs_redraw = false;
-        if let Some((_, _, editor, _)) = self.app_state.editor.as_mut() {
-            needs_redraw = true;
-            editor.mouse_released();
-        }
         // if end_editing {
         //     self.editor = None;
         //     for handler in self.gesture_handlers.clone().unwrap().iter() {
@@ -591,6 +590,23 @@ impl<State: Clone + 'static> App<'_, State> {
         //     }
         // }
         if let Some(current) = self.app_state.cursor_position {
+            if let Some((_, area, editor, _, binding)) = self.app_state.editor.as_mut() {
+                editor.mouse_released();
+                needs_redraw = true;
+                if area_contains(area, current) {
+                } else if !matches!(self.app_state.gesture_state, GestureState::Dragging { .. }) {
+                    // detect click outside editor & end editing
+                    let current = binding.get(&self.state);
+                    binding.set(
+                        &mut self.state,
+                        TextState {
+                            text: current.text,
+                            editing: false,
+                        },
+                    );
+                    self.app_state.editor = None;
+                }
+            }
             if let GestureState::Dragging { start, capturer } = self.app_state.gesture_state {
                 let distance = start.distance(current);
                 self.app_state
@@ -638,6 +654,7 @@ impl<State: Clone + 'static> App<'_, State> {
                             );
                         }
                     });
+            } else {
             }
         }
         self.app_state.gesture_state = GestureState::None;
