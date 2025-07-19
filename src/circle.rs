@@ -87,7 +87,7 @@ impl Circle {
         let now = app.now;
         animated
             .shape
-            .draw(&mut app.scene, area, now, visible_amount);
+            .draw(&mut app.scene, area, app.scale_factor, now, visible_amount);
         app.view_state
             .insert(self.id, AnimatedView::Circle(animated));
     }

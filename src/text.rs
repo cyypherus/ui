@@ -17,7 +17,7 @@ use parley::{
     StyleProperty, TextStyle,
 };
 use std::time::Instant;
-use vello_svg::vello::kurbo::Point;
+use vello_svg::vello::kurbo::{Point, Vec2};
 use vello_svg::vello::peniko::color::AlphaColor;
 use vello_svg::vello::peniko::Brush;
 use vello_svg::vello::{
@@ -318,7 +318,6 @@ impl<State> Text<State> {
         if editing && app.editor.is_none() {
             let mut editor = PlainEditor::new(self.font_size as f32);
             editor.set_text(&self.state.get(state).text);
-            editor.set_scale(app.scale_factor as f32);
             let styles = editor.edit_styles();
             styles.insert(StyleProperty::LineHeight(LineHeight::FontSizeRelative(
                 self.line_height,
@@ -349,7 +348,6 @@ impl<State> Text<State> {
                     font_cx,
                 );
                 editor.mouse_pressed(layout_cx, font_cx);
-                // editor.mouse_released();
             }
             app.editor = Some((self.id, area, editor, true, self.state.clone()));
         }
@@ -376,7 +374,8 @@ impl<State> Text<State> {
             animated.fill.a.animate_wrapped(app.now).0,
         )
         .multiply_alpha(visible_amount);
-        let transform = Affine::translate((area.x as f64, area.y as f64));
+        let transform =
+            Affine::translate((area.x as f64, area.y as f64)).then_scale(app.scale_factor);
         for line in layout.lines() {
             for item in line.items() {
                 let PositionedLayoutItem::GlyphRun(glyph_run) = item else {
@@ -425,6 +424,7 @@ impl<'s, State> Text<State> {
         state: &mut State,
         app: &mut AppState<State>,
     ) -> Layout<Brush> {
+        let available_width = available_width;
         let current_text = self.state.get(state).text;
         if let Some((_, _, layout)) = app.layout_cache.get(&self.id).and_then(|cached| {
             cached
@@ -433,11 +433,10 @@ impl<'s, State> Text<State> {
         }) {
             layout.clone()
         } else {
-            let scale = app.scale_factor as f32;
             let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
             let mut builder = app.layout_cx.tree_builder(
                 &mut app.font_cx,
-                scale,
+                1.,
                 true,
                 &TextStyle {
                     brush: Brush::Solid(AlphaColor::WHITE),

@@ -138,6 +138,7 @@ impl AnimatedShape {
         &mut self,
         scene: &mut Scene,
         area: Area,
+        scale_factor: f64,
         now: Instant,
         visible_amount: f32,
     ) {
@@ -149,16 +150,22 @@ impl AnimatedShape {
                         (area.x + (area.width * 0.5)) as f64,
                         (area.y + (area.height * 0.5)) as f64,
                     ),
-                    radius as f64,
+                    radius as f64 * scale_factor,
                 )
                 .to_path(0.01)
             }
             AnimatedShapeType::Rect { corner_rounding } => RoundedRect::from_rect(
                 vello_svg::vello::kurbo::Rect::from_origin_size(
-                    vello_svg::vello::kurbo::Point::new(area.x as f64, area.y as f64),
-                    vello_svg::vello::kurbo::Size::new(area.width as f64, area.height as f64),
+                    vello_svg::vello::kurbo::Point::new(
+                        area.x as f64 * scale_factor,
+                        area.y as f64 * scale_factor,
+                    ),
+                    vello_svg::vello::kurbo::Size::new(
+                        area.width as f64 * scale_factor,
+                        area.height as f64 * scale_factor,
+                    ),
                 ),
-                corner_rounding.animate_wrapped(now) as f64,
+                corner_rounding.animate_wrapped(now) as f64 * scale_factor,
             )
             .to_path(0.01),
         };
@@ -189,7 +196,7 @@ impl AnimatedShape {
             }
             if let Some((stroke, width)) = &self.stroke {
                 scene.stroke(
-                    &Stroke::new(width.animate_wrapped(now) as f64),
+                    &Stroke::new(width.animate_wrapped(now) as f64 * scale_factor),
                     Affine::IDENTITY,
                     &Brush::Solid(
                         Color::from_rgba8(

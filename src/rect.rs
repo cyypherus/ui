@@ -101,10 +101,10 @@ impl Rect {
             app.scene.draw_blurred_rounded_rect(
                 Affine::IDENTITY,
                 kurbo::Rect::new(
-                    area.x as f64,
-                    area.y as f64,
-                    area.x as f64 + area.width as f64,
-                    area.y as f64 + area.height as f64,
+                    area.x as f64 / app.scale_factor,
+                    area.y as f64 / app.scale_factor,
+                    area.x as f64 + area.width as f64 / app.scale_factor,
+                    area.y as f64 + area.height as f64 / app.scale_factor,
                 ),
                 color,
                 {
@@ -114,13 +114,13 @@ impl Rect {
                         0.0
                     }
                 },
-                radius as f64,
+                radius as f64 / app.scale_factor,
             );
         }
         let now = app.now;
         animated
             .shape
-            .draw(&mut app.scene, area, now, visible_amount);
+            .draw(&mut app.scene, area, app.scale_factor, now, visible_amount);
         app.view_state.insert(self.id, AnimatedView::Rect(animated));
     }
 }

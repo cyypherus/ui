@@ -330,12 +330,15 @@ impl Editor {
         &mut self,
         area: Area,
         scene: &mut Scene,
+        scale: f64,
         layout_cx: &mut LayoutContext<Brush>,
         font_cx: &mut FontContext,
         _visible: bool,
         _visible_amount: f32,
     ) -> Generation {
-        let transform = Affine::translate((area.x as f64, area.y as f64));
+        let transform = Affine::translate((area.x as f64, area.y as f64)).then_scale(scale);
+
+        // let transform = Affine::translate((area.x as f64 * scale, area.y as f64 * scale));
 
         for (rect, _i) in self.editor.selection_geometry().iter() {
             scene.fill(

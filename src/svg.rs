@@ -89,6 +89,12 @@ impl Svg {
             ..
         } = app;
         if let Some((svg_scene, width, height)) = image_scenes.get(&self.content) {
+            let width = *width as f64;
+            let height = *height as f64;
+            let area_x = area.x as f64 * app.scale_factor;
+            let area_y = area.y as f64 * app.scale_factor;
+            let area_width = area.width as f64 * app.scale_factor;
+            let area_height = area.height as f64 * app.scale_factor;
             if self.fill.is_some() {
                 scene.push_layer(
                     peniko::BlendMode {
@@ -98,8 +104,8 @@ impl Svg {
                     1.0,
                     Affine::IDENTITY,
                     &kurbo::Rect::from_origin_size(
-                        kurbo::Point::new(area.x as f64, area.y as f64),
-                        kurbo::Size::new(area.width as f64, area.height as f64),
+                        kurbo::Point::new(area_x, area_y),
+                        kurbo::Size::new(area_width, area_height),
                     ),
                 );
             }
@@ -107,15 +113,12 @@ impl Svg {
                 svg_scene,
                 Some(if self.unlocked_aspect_ratio {
                     Affine::IDENTITY
-                        .then_scale_non_uniform(
-                            (area.width / width) as f64,
-                            (area.height / height) as f64,
-                        )
-                        .then_translate(Vec2::new(area.x as f64, area.y as f64))
+                        .then_scale_non_uniform(area_width / width, area_height / height)
+                        .then_translate(Vec2::new(area_x, area_y))
                 } else {
-                    let scale = (area.width / width).min(area.height / height) as f64;
-                    let dx = area.x as f64 + (area.width as f64 - *width as f64 * scale) / 2.0;
-                    let dy = area.y as f64 + (area.height as f64 - *height as f64 * scale) / 2.0;
+                    let scale = (area_width / width).min(area_height / height);
+                    let dx = area_x + (area_width - width * scale) / 2.0;
+                    let dy = area_y + (area_height - height * scale) / 2.0;
                     Affine::IDENTITY
                         .then_scale(scale)
                         .then_translate(Vec2::new(dx, dy))
@@ -130,8 +133,8 @@ impl Svg {
                     1.0,
                     Affine::IDENTITY,
                     &kurbo::Rect::from_origin_size(
-                        kurbo::Point::new(area.x as f64, area.y as f64),
-                        kurbo::Size::new(area.width as f64, area.height as f64),
+                        kurbo::Point::new(area_x, area_y),
+                        kurbo::Size::new(area_width, area_height),
                     ),
                 );
 
@@ -141,8 +144,8 @@ impl Svg {
                     fill,
                     None,
                     &kurbo::Rect::from_origin_size(
-                        kurbo::Point::new(area.x as f64, area.y as f64),
-                        kurbo::Size::new(area.width as f64, area.height as f64),
+                        kurbo::Point::new(area_x, area_y),
+                        kurbo::Size::new(area_width, area_height),
                     ),
                 );
                 scene.pop_layer();

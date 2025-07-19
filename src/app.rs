@@ -235,8 +235,8 @@ impl<'n, State: Clone + 'static> App<'_, State> {
                 Area {
                     x: 0.,
                     y: 0.,
-                    width: width as f32,
-                    height: height as f32,
+                    width: ((width as f64) / self.app_state.scale_factor) as f32,
+                    height: ((height as f64) / self.app_state.scale_factor) as f32,
                 },
                 &mut self.state,
                 &mut self.app_state,
@@ -245,6 +245,7 @@ impl<'n, State: Clone + 'static> App<'_, State> {
                 editor.draw(
                     area,
                     &mut self.app_state.scene,
+                    self.app_state.scale_factor,
                     &mut self.app_state.layout_cx,
                     &mut self.app_state.font_cx,
                     true,
@@ -268,8 +269,6 @@ impl<'n, State: Clone + 'static> App<'_, State> {
         let height = size.height;
 
         let device_handle = &context.devices[surface.dev_id];
-
-        window.set_title("haven-ui");
 
         let render_params = vello_svg::vello::RenderParams {
             base_color: Color::BLACK,
@@ -453,6 +452,7 @@ impl<State: Clone + 'static> ApplicationHandler for App<'_, State> {
                 event::WindowEvent::RedrawRequested => self.redraw(),
                 event::WindowEvent::ScaleFactorChanged(scale_factor) => {
                     self.app_state.scale_factor = scale_factor;
+                    self.app_state.layout_cache.clear();
                     self.request_redraw();
                 }
                 event::WindowEvent::ModifiersChanged(modifiers) => {
@@ -464,6 +464,10 @@ impl<State: Clone + 'static> ApplicationHandler for App<'_, State> {
 }
 impl<State: Clone + 'static> App<'_, State> {
     pub(crate) fn mouse_moved(&mut self, pos: Point) {
+        let pos = Point::new(
+            pos.x / self.app_state.scale_factor,
+            pos.y / self.app_state.scale_factor,
+        );
         let mut needs_redraw = false;
         self.app_state.cursor_position = Some(pos);
         let App {

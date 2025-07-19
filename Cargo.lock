@@ -2356,6 +2356,7 @@ dependencies = [
  "arboard",
  "backer",
  "clipboard-rs",
+ "color 0.3.1",
  "lilt",
  "parley",
  "pollster",
