@@ -17,7 +17,7 @@ use parley::{
     StyleProperty, TextStyle,
 };
 use std::time::Instant;
-use vello_svg::vello::kurbo::{Point, Vec2};
+use vello_svg::vello::kurbo::Point;
 use vello_svg::vello::peniko::color::AlphaColor;
 use vello_svg::vello::peniko::Brush;
 use vello_svg::vello::{
