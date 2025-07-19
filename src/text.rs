@@ -48,6 +48,7 @@ pub fn text<State>(id: u64, text: impl AsRef<str> + 'static) -> Text<State> {
         background_corner_rounding: DEFAULT_CORNER_ROUNDING,
         background_padding: DEFAULT_PADDING,
         wrap: false,
+        on_edit: None,
     }
 }
 
@@ -69,6 +70,7 @@ pub fn text_field<State>(id: u64, state: Binding<State, TextState>) -> Text<Stat
         background_corner_rounding: DEFAULT_CORNER_ROUNDING,
         background_padding: DEFAULT_PADDING,
         wrap: false,
+        on_edit: None,
     }
 }
 
@@ -90,6 +92,7 @@ pub struct Text<State> {
     pub(crate) background_corner_rounding: f32,
     pub(crate) background_padding: f32,
     pub(crate) wrap: bool,
+    on_edit: Option<fn(&mut State, &mut AppState<State>, EditInteraction)>,
 }
 
 impl<State> Clone for Text<State> {
@@ -111,6 +114,7 @@ impl<State> Clone for Text<State> {
             background_corner_rounding: self.background_corner_rounding,
             background_padding: self.background_padding,
             wrap: self.wrap,
+            on_edit: self.on_edit,
         }
     }
 }
@@ -177,6 +181,13 @@ impl<State> Text<State> {
         self.background_padding = padding;
         self
     }
+    pub fn on_edit(
+        mut self,
+        on_edit: fn(&mut State, &mut AppState<State>, EditInteraction),
+    ) -> Self {
+        self.on_edit = Some(on_edit);
+        self
+    }
     // pub(crate) fn font(mut self, font_id: font::Id) -> Self {
     //     self.font = Some(font_id);
     //     self
@@ -187,6 +198,7 @@ impl<State> Text<State> {
     {
         if self.editable {
             let binding = self.state.clone();
+            let on_edit = self.on_edit;
             View {
                 view_type: ViewType::Text(self),
                 gesture_handlers: Vec::new(),
@@ -202,6 +214,9 @@ impl<State> Text<State> {
             })
             .on_edit({
                 move |state, _app, edit| {
+                    if let Some(on_edit) = on_edit {
+                        on_edit(state, _app, edit.clone());
+                    }
                     binding.update(state, move |s| match edit.clone() {
                         EditInteraction::Update(text) => s.text = text.clone(),
                         EditInteraction::End => s.editing = false,

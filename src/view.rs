@@ -221,6 +221,21 @@ impl<State> View<State> {
         });
         self
     }
+    pub fn on_appear(mut self, f: impl Fn(&mut State, &mut AppState<State>) + 'static) -> Self {
+        self.gesture_handlers.push(GestureHandler {
+            interaction_type: InteractionType {
+                appear: true,
+                ..Default::default()
+            },
+            interaction_handler: Some(Rc::new(move |state, app_state, interaction| {
+                let Interaction::Appear = interaction else {
+                    return;
+                };
+                (f)(state, app_state);
+            })),
+        });
+        self
+    }
     pub fn easing(mut self, easing: lilt::Easing) -> Self {
         match self.view_type {
             ViewType::Text(ref mut view) => view.easing = Some(easing),
@@ -347,11 +362,28 @@ impl<State> Drawable<State, AppState<State>> for View<State> {
                 return;
             }
             let id = self.id();
-            app.gesture_handlers.extend(
-                self.gesture_handlers
-                    .drain(..)
-                    .map(|handler| (id, area, handler)),
-            );
+
+            // Check if this view is appearing for the first time
+            if !app.appeared_views.contains(&id) {
+                app.appeared_views.insert(id);
+                // Trigger appear handlers
+                for handler in &self.gesture_handlers {
+                    if handler.interaction_type.appear {
+                        if let Some(ref interaction_handler) = handler.interaction_handler {
+                            interaction_handler(state, app, crate::gestures::Interaction::Appear);
+                        }
+                    }
+                }
+            }
+
+            // Filter out appear handlers and add the rest to gesture_handlers
+            let mut remaining_handlers = Vec::new();
+            for handler in self.gesture_handlers.drain(..) {
+                if !handler.interaction_type.appear {
+                    remaining_handlers.push((id, area, handler));
+                }
+            }
+            app.gesture_handlers.extend(remaining_handlers);
             match &mut self.view_type {
                 ViewType::Text(view) => view.draw(area, state, app, visible, visibility),
                 ViewType::Rect(view) => view.draw(area, state, app, visible, visibility),

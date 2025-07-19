@@ -20,7 +20,7 @@ pub use backer::{nodes::*, Layout, Node};
 pub use button::*;
 pub use circle::circle;
 pub use editor::*;
-pub use gestures::{ClickState, DragState, GestureHandler, GestureState};
+pub use gestures::{ClickState, DragState, EditInteraction, GestureHandler, GestureState};
 use lilt::Easing;
 pub use rect::rect;
 pub use scroller::*;

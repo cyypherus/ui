@@ -100,6 +100,7 @@ pub struct AppState<State> {
     pub(crate) image_scenes: HashMap<String, (Scene, f32, f32)>,
     pub(crate) modifiers: Option<Modifiers>,
     pub(crate) now: Instant,
+    pub(crate) appeared_views: std::collections::HashSet<u64>,
 }
 
 impl<State> AppState<State> {
@@ -180,10 +181,13 @@ impl<State: 'static> BackgroundScheduler<State> {
         }
     }
 
-    pub fn process_completions(&self, state: &mut State) {
+    pub fn process_completions(&self, state: &mut State) -> bool {
+        let mut completions = false;
         while let Ok(completion) = self.completion_receiver.try_recv() {
             completion(state);
+            completions = true;
         }
+        completions
     }
 }
 
@@ -248,15 +252,13 @@ impl<'n, State: Clone + 'static> App<'_, State> {
                 image_scenes: HashMap::new(),
                 modifiers: None,
                 now: Instant::now(),
+                appeared_views: std::collections::HashSet::new(),
             },
         };
         event_loop.run_app(&mut app).expect("run to completion");
     }
 
     fn redraw(&mut self) {
-        self.app_state
-            .background_scheduler
-            .process_completions(&mut self.state);
         self.app_state.now = Instant::now();
         self.app_state.gesture_handlers.clear();
         if let Self {
@@ -356,6 +358,21 @@ impl<'n, State: Clone + 'static> App<'_, State> {
 }
 
 impl<State: Clone + 'static> ApplicationHandler for App<'_, State> {
+    fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        let needs_redraw = self
+            .app_state
+            .background_scheduler
+            .process_completions(&mut self.state);
+
+        if needs_redraw {
+            self.request_redraw();
+        }
+
+        event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
+            std::time::Instant::now() + std::time::Duration::from_millis(100),
+        ));
+    }
+
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         let Option::None = self.render_state else {
             return;

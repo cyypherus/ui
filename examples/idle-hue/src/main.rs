@@ -1,14 +1,13 @@
 use arboard::Clipboard;
 use color::{parse_color, Srgb};
 use serde::{Deserialize, Serialize};
-
 use ui::*;
 
 #[derive(Clone, Default)]
 struct State {
     text: TextState,
     copy_button: ButtonState,
-    save_button: ButtonState,
+    loaded: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -38,33 +37,14 @@ impl State {
         }
     }
 
-    fn get_saved_state(&self) -> SavedState {
-        SavedState {
-            text: self.text.text.clone(),
-        }
-    }
-
-    fn load_from_file() -> Self {
-        match tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(load_state_from_file())
-        {
-            Ok(saved_state) => State {
-                text: TextState {
-                    text: saved_state.text,
-                    editing: false,
-                },
-                copy_button: ButtonState::default(),
-                save_button: ButtonState::default(),
+    fn default() -> Self {
+        State {
+            text: TextState {
+                text: "000000".to_string(),
+                editing: false,
             },
-            Err(_) => State {
-                text: TextState {
-                    text: "000000".to_string(),
-                    editing: false,
-                },
-                copy_button: ButtonState::default(),
-                save_button: ButtonState::default(),
-            },
+            copy_button: ButtonState::default(),
+            loaded: false,
         }
     }
 }
@@ -78,6 +58,7 @@ async fn save_state_to_file(state: &SavedState) -> Result<(), String> {
 }
 
 async fn load_state_from_file() -> Result<SavedState, String> {
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     let content = tokio::fs::read_to_string("idle-hue-state.json")
         .await
         .map_err(|e| e.to_string())?;
@@ -86,34 +67,39 @@ async fn load_state_from_file() -> Result<SavedState, String> {
 }
 
 fn main() {
-    App::builder(State::load_from_file(), || {
+    App::builder(State::default(), || {
         dynamic(|s: &mut State, _: &mut AppState<State>| {
             column_spaced(
                 20.,
-                vec![
-                    rect(id!())
-                        .fill(s.current_color().unwrap_or(Color::TRANSPARENT))
-                        .corner_rounding(5.)
-                        .stroke(Color::WHITE, 3.)
-                        .finish(),
-                    hex_row(),
-                    row(vec![button(id!(), binding!(State, save_button))
-                        .corner_rounding(5.)
-                        .label(|_| text(id!(), "Save").finish().pad(8.))
-                        .on_click(|s, app| {
-                            let saved_state = s.get_saved_state();
+                if !s.loaded {
+                    vec![circle(id!())
+                        .stroke(Color::WHITE, 5.)
+                        .view()
+                        .on_appear(|_state: &mut State, app| {
+                            println!("Loading saved state...");
                             app.spawn_with_result(
-                                async move { save_state_to_file(&saved_state).await },
-                                |_state, result| match result {
-                                    Ok(_) => println!("State saved successfully!"),
-                                    Err(e) => eprintln!("Failed to save state: {}", e),
+                                async move { load_state_from_file().await },
+                                |state, result| match result {
+                                    Ok(saved_state) => {
+                                        state.text.text = saved_state.text;
+                                        state.loaded = true;
+                                    }
+                                    Err(_) => (),
                                 },
                             );
                         })
-                        .finish()
-                        .height(30.)])
-                    .pad_top(10.),
-                ],
+                        .finish()]
+                } else {
+                    vec![
+                        rect(id!())
+                            .fill(s.current_color().unwrap_or(Color::TRANSPARENT))
+                            .corner_rounding(5.)
+                            .stroke(Color::WHITE, 3.)
+                            .view()
+                            .finish(),
+                        hex_row(),
+                    ]
+                },
             )
             .pad(20.)
             .pad_top(15.)
@@ -131,6 +117,15 @@ fn hex_row<'n>() -> Node<'n, State, AppState<State>> {
             .font_size(40)
             .background_fill(None)
             .no_background_stroke()
+            .on_edit(|s, a, edit| {
+                let EditInteraction::Update(text) = edit else {
+                    return;
+                };
+                let state = SavedState {
+                    text: text.to_string(),
+                };
+                a.spawn(async move { _ = save_state_to_file(&state).await });
+            })
             .finish(),
         button(id!(), binding!(State, copy_button))
             .corner_rounding(10.)

@@ -59,6 +59,7 @@ pub(crate) enum Interaction {
     Hover(bool),
     Key(Key),
     Scroll(ScrollDelta),
+    Appear,
 }
 
 #[derive(Debug, Clone)]
@@ -67,7 +68,7 @@ pub enum EditInteraction {
     End,
 }
 
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct InteractionType {
     pub(crate) edit: bool,
     pub(crate) click: bool,
@@ -75,6 +76,21 @@ pub(crate) struct InteractionType {
     pub(crate) hover: bool,
     pub(crate) key: bool,
     pub(crate) scroll: bool,
+    pub(crate) appear: bool,
+}
+
+impl Default for InteractionType {
+    fn default() -> Self {
+        Self {
+            edit: false,
+            click: false,
+            drag: false,
+            hover: false,
+            key: false,
+            scroll: false,
+            appear: false,
+        }
+    }
 }
 
 pub struct ScrollDelta {
