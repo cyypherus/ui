@@ -30,8 +30,7 @@ impl State {
 
     fn copy_to_clipboard(&self) {
         if let Ok(mut clipboard) = Clipboard::new() {
-            let hex_code = format!("#{}", self.text.text);
-            if let Err(e) = clipboard.set_text(hex_code) {
+            if let Err(e) = clipboard.set_text(self.text.text.clone()) {
                 eprintln!("Failed to copy to clipboard: {}", e);
             }
         }
@@ -83,12 +82,17 @@ fn main() {
                                     Ok(saved_state) => {
                                         state.text.text = saved_state.text;
                                         state.loaded = true;
+                                        if state.text.text.is_empty() {
+                                            state.text.text = "000000".to_string();
+                                        }
                                     }
                                     Err(_) => (),
                                 },
                             );
                         })
-                        .finish()]
+                        .finish()
+                        .width(10.)
+                        .height(10.)]
                 } else {
                     vec![
                         rect(id!())
@@ -112,12 +116,11 @@ fn main() {
 fn hex_row<'n>() -> Node<'n, State, AppState<State>> {
     row(vec![
         text(id!(), "#").font_size(40).finish().width(20.),
-        space().width(10.),
         text_field(id!(), binding!(State, text))
             .font_size(40)
-            .background_fill(None)
+            // .background_fill(None)
             .no_background_stroke()
-            .on_edit(|s, a, edit| {
+            .on_edit(|_, a, edit| {
                 let EditInteraction::Update(text) = edit else {
                     return;
                 };

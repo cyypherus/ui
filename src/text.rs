@@ -2,15 +2,15 @@ use crate::animated_color::{AnimatedColor, AnimatedU8};
 use crate::app::AppState;
 use crate::gestures::EditInteraction;
 use crate::{
-    id, rect, Binding, Editor, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR, DEFAULT_FONT_SIZE,
-    DEFAULT_PADDING,
+    Binding, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR, DEFAULT_FONT_SIZE, DEFAULT_PADDING, Editor,
+    id, rect,
 };
 use crate::{
-    view::{AnimatedView, View, ViewType},
     DEFAULT_DURATION, DEFAULT_EASING,
+    view::{AnimatedView, View, ViewType},
 };
 use backer::nodes::{dynamic, space, stack};
-use backer::{models::*, Node};
+use backer::{Node, models::*};
 use lilt::{Animated, Easing};
 use parley::{
     AlignmentOptions, FontStack, Layout, LineHeight, PlainEditor, PositionedLayoutItem,
@@ -18,8 +18,8 @@ use parley::{
 };
 use std::time::Instant;
 use vello_svg::vello::kurbo::Point;
-use vello_svg::vello::peniko::color::AlphaColor;
 use vello_svg::vello::peniko::Brush;
+use vello_svg::vello::peniko::color::AlphaColor;
 use vello_svg::vello::{
     kurbo::Affine,
     peniko::{Color, Fill},
@@ -241,12 +241,11 @@ impl<State> Text<State> {
         let bg_stroke = self.background_stroke;
         let bg_rounding = self.background_corner_rounding;
         let bg_padding = self.background_padding;
-        stack(vec![self
-            .view()
-            .finish()
-            .pad(if editable { bg_padding } else { 0. })
-            .attach_under(
-                if editable && (bg_fill.is_some() || bg_stroke.is_some()) {
+        stack(vec![
+            self.view()
+                .finish()
+                .pad(if editable { bg_padding } else { 0. })
+                .attach_under(if editable && (bg_fill.is_some() || bg_stroke.is_some()) {
                     dynamic({
                         move |s, _a| {
                             let mut rect_node = rect(id!(id));
@@ -268,8 +267,8 @@ impl<State> Text<State> {
                     })
                 } else {
                     space()
-                },
-            )])
+                }),
+        ])
     }
 }
 
@@ -366,7 +365,7 @@ impl<State> Text<State> {
             }
             app.editor = Some((self.id, area, editor, true, self.state.clone()));
         }
-        if let Some((id, ref mut edit_area, _, _, _)) = &mut app.editor {
+        if let Some((id, edit_area, _, _, _)) = &mut app.editor {
             if *id == self.id {
                 *edit_area = area;
                 return;
@@ -440,12 +439,19 @@ impl<'s, State> Text<State> {
         app: &mut AppState<State>,
     ) -> Layout<Brush> {
         let available_width = available_width;
-        let current_text = self.state.get(state).text;
-        if let Some((_, _, layout)) = app.layout_cache.get(&self.id).and_then(|cached| {
-            cached
-                .iter()
-                .find(|(text, width, _)| *text == current_text && *width == available_width)
-        }) {
+        let text = self.state.get(state).text;
+        let current_text = if text.is_empty() {
+            " ".to_string()
+        } else {
+            text
+        };
+        if !current_text.is_empty()
+            && let Some((_, _, layout)) = app.layout_cache.get(&self.id).and_then(|cached| {
+                cached
+                    .iter()
+                    .find(|(text, width, _)| *text == current_text && *width == available_width)
+            })
+        {
             layout.clone()
         } else {
             let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
@@ -499,7 +505,7 @@ impl<'s, State> Text<State> {
             })
         } else {
             let layout = self.current_layout(10000., state, app);
-            node.height(layout.height()).width(layout.width())
+            node.height(layout.height()).width(layout.width().max(10.))
         }
     }
 }

@@ -1,10 +1,10 @@
 use crate::gestures::{ClickLocation, EditInteraction, Interaction, ScrollDelta};
 use crate::ui::AnimationBank;
 use crate::view::AnimatedView;
+use crate::{Area, GestureState, RUBIK_FONT, event};
 use crate::{
-    area_contains, Binding, ClickState, DragState, Editor, GestureHandler, Point, TextState,
+    Binding, ClickState, DragState, Editor, GestureHandler, Point, TextState, area_contains,
 };
-use crate::{event, Area, GestureState, RUBIK_FONT};
 use backer::{Layout, Node};
 use parley::fontique::Blob;
 use parley::{FontContext, LayoutContext};
@@ -679,7 +679,7 @@ impl<State: Clone + 'static> App<'_, State> {
                     .iter()
                     .filter(|(id, _, _)| *id == capturer)
                     .for_each(|(_, area, gh)| {
-                        if let (Some(ref on_click), true) =
+                        if let (Some(on_click), true) =
                             (&gh.interaction_handler, gh.interaction_type.click)
                         {
                             needs_redraw = true;
@@ -703,7 +703,7 @@ impl<State: Clone + 'static> App<'_, State> {
                                 );
                             }
                         }
-                        if let (Some(ref on_drag), true) =
+                        if let (Some(on_drag), true) =
                             (&gh.interaction_handler, gh.interaction_type.drag)
                         {
                             needs_redraw = true;
