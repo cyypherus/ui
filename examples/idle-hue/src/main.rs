@@ -1,11 +1,19 @@
 use arboard::Clipboard;
 use color::{parse_color, Srgb};
+use serde::{Deserialize, Serialize};
+
 use ui::*;
 
 #[derive(Clone, Default)]
 struct State {
     text: TextState,
     copy_button: ButtonState,
+    save_button: ButtonState,
+}
+
+#[derive(Serialize, Deserialize)]
+struct SavedState {
+    text: String,
 }
 
 impl State {
@@ -20,6 +28,7 @@ impl State {
             (components[2] * 255.0) as u8,
         ))
     }
+
     fn copy_to_clipboard(&self) {
         if let Ok(mut clipboard) = Clipboard::new() {
             let hex_code = format!("#{}", self.text.text);
@@ -28,35 +37,88 @@ impl State {
             }
         }
     }
+
+    fn get_saved_state(&self) -> SavedState {
+        SavedState {
+            text: self.text.text.clone(),
+        }
+    }
+
+    fn load_from_file() -> Self {
+        match tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(load_state_from_file())
+        {
+            Ok(saved_state) => State {
+                text: TextState {
+                    text: saved_state.text,
+                    editing: false,
+                },
+                copy_button: ButtonState::default(),
+                save_button: ButtonState::default(),
+            },
+            Err(_) => State {
+                text: TextState {
+                    text: "000000".to_string(),
+                    editing: false,
+                },
+                copy_button: ButtonState::default(),
+                save_button: ButtonState::default(),
+            },
+        }
+    }
+}
+
+async fn save_state_to_file(state: &SavedState) -> Result<(), String> {
+    let json = serde_json::to_string_pretty(state).map_err(|e| e.to_string())?;
+    tokio::fs::write("idle-hue-state.json", json)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+async fn load_state_from_file() -> Result<SavedState, String> {
+    let content = tokio::fs::read_to_string("idle-hue-state.json")
+        .await
+        .map_err(|e| e.to_string())?;
+    let state: SavedState = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+    Ok(state)
 }
 
 fn main() {
-    App::builder(
-        State {
-            text: TextState {
-                text: "000000".to_string(),
-                editing: false,
-            },
-            copy_button: ButtonState::default(),
-        },
-        || {
-            dynamic(|s: &mut State, _: &mut AppState<State>| {
-                column_spaced(
-                    20.,
-                    vec![
-                        rect(id!())
-                            .fill(s.current_color().unwrap_or(Color::TRANSPARENT))
-                            .corner_rounding(5.)
-                            .stroke(Color::WHITE, 3.)
-                            .finish(),
-                        hex_row(),
-                    ],
-                )
-                .pad(20.)
-                .pad_top(15.)
-            })
-        },
-    )
+    App::builder(State::load_from_file(), || {
+        dynamic(|s: &mut State, _: &mut AppState<State>| {
+            column_spaced(
+                20.,
+                vec![
+                    rect(id!())
+                        .fill(s.current_color().unwrap_or(Color::TRANSPARENT))
+                        .corner_rounding(5.)
+                        .stroke(Color::WHITE, 3.)
+                        .finish(),
+                    hex_row(),
+                    row(vec![button(id!(), binding!(State, save_button))
+                        .corner_rounding(5.)
+                        .label(|_| text(id!(), "Save").finish().pad(8.))
+                        .on_click(|s, app| {
+                            let saved_state = s.get_saved_state();
+                            app.spawn_with_result(
+                                async move { save_state_to_file(&saved_state).await },
+                                |_state, result| match result {
+                                    Ok(_) => println!("State saved successfully!"),
+                                    Err(e) => eprintln!("Failed to save state: {}", e),
+                                },
+                            );
+                        })
+                        .finish()
+                        .height(30.)])
+                    .pad_top(10.),
+                ],
+            )
+            .pad(20.)
+            .pad_top(15.)
+        })
+    })
     .inner_size(400, 300)
     .start()
 }

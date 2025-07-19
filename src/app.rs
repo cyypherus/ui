@@ -88,7 +88,7 @@ pub struct AppState<State> {
     pub(crate) cursor_position: Option<Point>,
     pub(crate) gesture_state: GestureState,
     pub gesture_handlers: Vec<(u64, Area, GestureHandler<State, Self>)>,
-    // pub(crate) background_scheduler: BackgroundScheduler<State>,
+    pub(crate) background_scheduler: BackgroundScheduler<State>,
     pub(crate) scale_factor: f64,
     pub(crate) editor: Option<(u64, Area, Editor, bool, Binding<State, TextState>)>,
     pub(crate) animation_bank: AnimationBank,
@@ -110,44 +110,84 @@ impl<State> AppState<State> {
             AnimatedView::Circle(animated_circle) => animated_circle.shape.in_progress(now),
         })
     }
+
+    pub fn spawn<Fut>(&self, task: Fut)
+    where
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        let _ = self.background_scheduler.sender.try_send(Box::new(|| {
+            Box::pin(async move {
+                task.await;
+                Box::new(|_state: &mut State| {}) as Box<dyn FnOnce(&mut State) + Send>
+            })
+        }));
+    }
+
+    pub fn spawn_with_result<Fut, T, F>(&self, task: Fut, completion: F)
+    where
+        Fut: std::future::Future<Output = T> + Send + 'static,
+        T: Send + 'static,
+        F: FnOnce(&mut State, T) + Send + 'static,
+    {
+        let _ = self.background_scheduler.sender.try_send(Box::new(|| {
+            Box::pin(async move {
+                let result = task.await;
+                Box::new(move |state: &mut State| completion(state, result))
+                    as Box<dyn FnOnce(&mut State) + Send>
+            })
+        }));
+    }
 }
 
-// use std::thread;
-// use tokio::{runtime::Runtime, sync::mpsc, task};
-// type BackgroundTask<State> = Box<dyn FnOnce() -> BackgroundTaskCompletion<State> + Send + 'static>;
-// type BackgroundTaskCompletion<State> = Box<dyn FnOnce(&mut State) + Send>;
+use std::thread;
+use tokio::{runtime::Runtime, sync::mpsc, task};
+type BackgroundTask<State> = Box<
+    dyn FnOnce() -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = BackgroundTaskCompletion<State>> + Send>,
+        > + Send
+        + 'static,
+>;
+type BackgroundTaskCompletion<State> = Box<dyn FnOnce(&mut State) + Send>;
 
-// pub struct BackgroundScheduler<State> {
-//     sender: mpsc::Sender<BackgroundTask<State>>,
-// }
+pub struct BackgroundScheduler<State> {
+    sender: mpsc::Sender<BackgroundTask<State>>,
+    completion_receiver: std::sync::mpsc::Receiver<BackgroundTaskCompletion<State>>,
+}
 
-// impl<State: 'static> BackgroundScheduler<State> {
-//     pub fn new() -> Self {
-//         let (tx, mut rx) = mpsc::channel::<BackgroundTask<State>>(100);
-//         thread::spawn(move || {
-//             let rt = Runtime::new().unwrap();
-//             rt.block_on(async move {
-//                 while let Some(task) = rx.recv().await {
-//                     task::spawn_blocking(move || task());
-//                 }
-//             });
-//         });
-//         Self { sender: tx }
-//     }
-// }
+impl<State: 'static> BackgroundScheduler<State> {
+    pub fn new() -> Self {
+        let (tx, mut rx) = mpsc::channel::<BackgroundTask<State>>(100);
+        let (completion_tx, completion_rx) =
+            std::sync::mpsc::channel::<BackgroundTaskCompletion<State>>();
+
+        thread::spawn(move || {
+            let rt = Runtime::new().unwrap();
+            rt.block_on(async move {
+                while let Some(task) = rx.recv().await {
+                    let completion_tx = completion_tx.clone();
+                    task::spawn(async move {
+                        let future = task();
+                        let completion = future.await;
+                        let _ = completion_tx.send(completion);
+                    });
+                }
+            });
+        });
+
+        Self {
+            sender: tx,
+            completion_receiver: completion_rx,
+        }
+    }
+
+    pub fn process_completions(&self, state: &mut State) {
+        while let Ok(completion) = self.completion_receiver.try_recv() {
+            completion(state);
+        }
+    }
+}
 
 impl<'n, State: Clone + 'static> App<'_, State> {
-    // pub fn spawn<F, R>(&self, task: F)
-    // where
-    //     F: FnOnce() -> R + Send + 'static,
-    //     R: FnOnce(&mut State) + Send + 'static,
-    // {
-    //     _ = self
-    //         .app_state
-    //         .background_scheduler
-    //         .sender
-    //         .blocking_send(Box::new(|| Box::new(task())));
-    // }
     fn request_redraw(&self) {
         let Some(RenderState { window, .. }) = &self.render_state else {
             return;
@@ -196,7 +236,7 @@ impl<'n, State: Clone + 'static> App<'_, State> {
                 cursor_position: None,
                 gesture_state: GestureState::None,
                 gesture_handlers: Vec::new(),
-                // background_scheduler: BackgroundScheduler::new(),
+                background_scheduler: BackgroundScheduler::new(),
                 scale_factor: 1.,
                 editor: None,
                 view_state: HashMap::new(),
@@ -214,6 +254,9 @@ impl<'n, State: Clone + 'static> App<'_, State> {
     }
 
     fn redraw(&mut self) {
+        self.app_state
+            .background_scheduler
+            .process_completions(&mut self.state);
         self.app_state.now = Instant::now();
         self.app_state.gesture_handlers.clear();
         if let Self {
