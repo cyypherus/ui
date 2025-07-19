@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 haven-ui = { path = "../../" }
+arboard = "3.4"

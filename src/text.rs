@@ -25,6 +25,8 @@ use vello_svg::vello::{
     peniko::{Color, Fill},
 };
 
+pub(crate) const DEEP_PURP: Color = AlphaColor::from_rgb8(113, 70, 232);
+
 pub fn text<State>(id: u64, text: impl AsRef<str> + 'static) -> Text<State> {
     Text {
         id,
@@ -63,11 +65,7 @@ pub fn text_field<State>(id: u64, state: Binding<State, TextState>) -> Text<Stat
         editable: true,
         line_height: 1.,
         background_fill: Some(AlphaColor::from_rgb8(50, 50, 50)),
-        background_stroke: Some((
-            AlphaColor::from_rgb8(60, 60, 60),
-            AlphaColor::from_rgb8(113, 70, 232),
-            3.,
-        )),
+        background_stroke: Some((AlphaColor::from_rgb8(60, 60, 60), DEEP_PURP, 3.)),
         background_corner_rounding: DEFAULT_CORNER_ROUNDING,
         background_padding: DEFAULT_PADDING,
         wrap: false,

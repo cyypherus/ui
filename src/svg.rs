@@ -10,7 +10,7 @@ use vello_svg::vello::{peniko, Scene};
 #[derive(Debug, Clone)]
 pub struct Svg {
     pub(crate) id: u64,
-    pub(crate) source: String,
+    pub(crate) content: String,
     pub(crate) unlocked_aspect_ratio: bool,
     pub(crate) fill: Option<Color>,
     pub(crate) easing: Option<Easing>,
@@ -18,10 +18,10 @@ pub struct Svg {
     pub(crate) delay: f32,
 }
 
-pub fn svg(id: u64, source: impl AsRef<str>) -> Svg {
+pub fn svg(id: u64, content: impl AsRef<str>) -> Svg {
     Svg {
         id,
-        source: source.as_ref().to_string(),
+        content: content.as_ref().to_string(),
         easing: None,
         duration: None,
         delay: 0.,
@@ -63,27 +63,24 @@ impl Svg {
             return;
         }
         #[allow(clippy::map_entry)]
-        if !app.image_scenes.contains_key(&self.source) {
-            match std::fs::read(self.source.clone()) {
-                Err(err) => eprintln!("Loading svg failed: {err}"),
-                Ok(image_data) => match vello_svg::usvg::Tree::from_data(
-                    image_data.as_slice(),
-                    &vello_svg::usvg::Options::default(),
-                ) {
-                    Err(err) => {
-                        eprintln!("Loading svg failed: {err}");
-                        app.image_scenes
-                            .insert(self.source.clone(), (Scene::new(), 0., 0.));
-                    }
-                    Ok(svg) => {
-                        let svg_scene = vello_svg::render_tree(&svg);
-                        let size = svg.size();
-                        app.image_scenes.insert(
-                            self.source.clone(),
-                            (svg_scene, size.width(), size.height()),
-                        );
-                    }
-                },
+        if !app.image_scenes.contains_key(&self.content) {
+            match vello_svg::usvg::Tree::from_data(
+                self.content.as_bytes(),
+                &vello_svg::usvg::Options::default(),
+            ) {
+                Err(err) => {
+                    eprintln!("Loading svg failed: {err}");
+                    app.image_scenes
+                        .insert(self.content.clone(), (Scene::new(), 0., 0.));
+                }
+                Ok(svg) => {
+                    let svg_scene = vello_svg::render_tree(&svg);
+                    let size = svg.size();
+                    app.image_scenes.insert(
+                        self.content.clone(),
+                        (svg_scene, size.width(), size.height()),
+                    );
+                }
             }
         }
         let AppState {
@@ -91,7 +88,7 @@ impl Svg {
             scene,
             ..
         } = app;
-        if let Some((svg_scene, width, height)) = image_scenes.get(&self.source) {
+        if let Some((svg_scene, width, height)) = image_scenes.get(&self.content) {
             if self.fill.is_some() {
                 scene.push_layer(
                     peniko::BlendMode {

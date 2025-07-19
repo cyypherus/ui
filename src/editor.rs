@@ -3,7 +3,7 @@ use core::default::Default;
 use parley::{editor::SplitString, layout::PositionedLayoutItem, GenericFamily, StyleProperty};
 use std::time::{Duration, Instant};
 use vello_svg::vello::{
-    kurbo::{Affine, Line, Point, Stroke},
+    kurbo::{Affine, Line, Point, RoundedRect, Stroke},
     peniko::{color::palette, Brush, Fill},
     Scene,
 };
@@ -12,7 +12,7 @@ use winit::{event::Modifiers, keyboard::NamedKey};
 pub use parley::layout::editor::Generation;
 use parley::{FontContext, LayoutContext, PlainEditor, PlainEditorDriver};
 
-use crate::Key;
+use crate::{Key, DEEP_PURP};
 
 #[derive(Clone)]
 pub struct Editor {
@@ -341,14 +341,25 @@ impl Editor {
             scene.fill(
                 Fill::NonZero,
                 transform,
-                palette::css::STEEL_BLUE,
+                DEEP_PURP,
                 None,
-                &rect,
+                &RoundedRect::from_rect(*rect, 5.),
             );
         }
         if self.cursor_visible {
             if let Some(cursor) = self.editor.cursor_geometry(1.5) {
-                scene.fill(Fill::NonZero, transform, palette::css::WHITE, None, &cursor);
+                let width = 3.;
+                scene.fill(
+                    Fill::NonZero,
+                    transform,
+                    palette::css::WHITE,
+                    None,
+                    &RoundedRect::from_origin_size(
+                        Point::new(cursor.x0, cursor.y0),
+                        vello_svg::vello::kurbo::Size::new(width, cursor.height()),
+                        width * 0.5,
+                    ),
+                );
             }
         }
 
