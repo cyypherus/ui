@@ -147,8 +147,8 @@ impl AnimatedShape {
                 let radius = f32::min(area.width, area.height) * 0.5;
                 vello_svg::vello::kurbo::Circle::new(
                     Point::new(
-                        (area.x + (area.width * 0.5)) as f64,
-                        (area.y + (area.height * 0.5)) as f64,
+                        (area.x + (area.width * 0.5)) as f64 * scale_factor,
+                        (area.y + (area.height * 0.5)) as f64 * scale_factor,
                     ),
                     radius as f64 * scale_factor,
                 )

@@ -101,20 +101,20 @@ impl Rect {
             app.scene.draw_blurred_rounded_rect(
                 Affine::IDENTITY,
                 kurbo::Rect::new(
-                    area.x as f64 / app.scale_factor,
-                    area.y as f64 / app.scale_factor,
-                    area.x as f64 + area.width as f64 / app.scale_factor,
-                    area.y as f64 + area.height as f64 / app.scale_factor,
+                    area.x as f64 * app.scale_factor,
+                    area.y as f64 * app.scale_factor,
+                    area.x as f64 + area.width as f64 * app.scale_factor,
+                    area.y as f64 + area.height as f64 * app.scale_factor,
                 ),
                 color,
                 {
                     if let ShapeType::Rect { corner_rounding } = self.shape.shape {
-                        corner_rounding as f64
+                        corner_rounding as f64 * app.scale_factor
                     } else {
                         0.0
                     }
                 },
-                radius as f64 / app.scale_factor,
+                radius as f64 * app.scale_factor,
             );
         }
         let now = app.now;
