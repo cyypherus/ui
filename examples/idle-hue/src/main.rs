@@ -3,11 +3,13 @@ use color::{Srgb, parse_color};
 use serde::{Deserialize, Serialize};
 use ui::*;
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 struct State {
     text: TextState,
     copy_button: ButtonState,
     loaded: bool,
+    color: Color,
+    alpha_enabled: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -16,16 +18,53 @@ struct SavedState {
 }
 
 impl State {
-    fn current_color(&self) -> Option<Color> {
+    fn update_current_color(&mut self) {
         let hex_color = format!("#{}", self.text.text);
-        let parsed = parse_color(&hex_color).ok()?;
+        let Some(parsed) = parse_color(&hex_color).ok() else {
+            self.color = Color::TRANSPARENT;
+            return;
+        };
         let srgb = parsed.to_alpha_color::<Srgb>();
         let components = srgb.components;
-        Some(Color::from_rgb8(
+        self.color = Color::from_rgba8(
             (components[0] * 255.0) as u8,
             (components[1] * 255.0) as u8,
             (components[2] * 255.0) as u8,
-        ))
+            (components[3] * 255.0) as u8,
+        );
+    }
+
+    fn update_hex(&mut self) {
+        let hex_color = if self.alpha_enabled {
+            format!(
+                "{:02x}{:02x}{:02x}{:02x}",
+                (self.color.components[0] * 255.0) as u8,
+                (self.color.components[1] * 255.0) as u8,
+                (self.color.components[2] * 255.0) as u8,
+                (self.color.components[3] * 255.0) as u8,
+            )
+        } else {
+            format!(
+                "{:02x}{:02x}{:02x}",
+                (self.color.components[0] * 255.0) as u8,
+                (self.color.components[1] * 255.0) as u8,
+                (self.color.components[2] * 255.0) as u8,
+            )
+        };
+        self.text.text = hex_color;
+        self.text.editing = false;
+    }
+
+    fn update_rgb_component(&mut self, component_index: usize, drag: DragState) {
+        match drag {
+            DragState::Began(_) => (),
+            DragState::Updated { delta, .. } | DragState::Completed { delta, .. } => {
+                self.color.components[component_index] -= delta.y as f32 * 0.001;
+                self.color.components[component_index] =
+                    self.color.components[component_index].clamp(0., 1.);
+                self.update_hex();
+            }
+        }
     }
 
     fn copy_to_clipboard(&self) {
@@ -39,11 +78,13 @@ impl State {
     fn default() -> Self {
         State {
             text: TextState {
-                text: "000000".to_string(),
+                text: "00000000".to_string(),
                 editing: false,
             },
             copy_button: ButtonState::default(),
             loaded: false,
+            color: Color::TRANSPARENT,
+            alpha_enabled: false,
         }
     }
 }
@@ -69,7 +110,7 @@ fn main() {
     App::builder(State::default(), || {
         dynamic(|s: &mut State, _: &mut AppState<State>| {
             column_spaced(
-                20.,
+                15.,
                 if !s.loaded {
                     vec![
                         circle(id!())
@@ -83,6 +124,7 @@ fn main() {
                                         Ok(saved_state) => {
                                             state.text.text = saved_state.text;
                                             state.loaded = true;
+                                            state.update_current_color();
                                             if state.text.text.is_empty() {
                                                 state.text.text = "000000".to_string();
                                             }
@@ -98,12 +140,13 @@ fn main() {
                 } else {
                     vec![
                         rect(id!())
-                            .fill(s.current_color().unwrap_or(Color::TRANSPARENT))
+                            .fill(s.color)
                             .corner_rounding(5.)
                             .stroke(Color::WHITE, 3.)
                             .view()
                             .finish(),
                         hex_row(),
+                        rgb_row(),
                     ]
                 },
             )
@@ -122,10 +165,12 @@ fn hex_row<'n>() -> Node<'n, State, AppState<State>> {
             .font_size(40)
             .background_fill(None)
             .no_background_stroke()
-            .on_edit(|_, a, edit| {
+            .on_edit(|s, a, edit| {
                 let EditInteraction::Update(text) = edit else {
                     return;
                 };
+                s.text.text = text.clone();
+                s.update_current_color();
                 let state = SavedState {
                     text: text.to_string(),
                 };
@@ -153,4 +198,84 @@ fn hex_row<'n>() -> Node<'n, State, AppState<State>> {
     ])
     .align_contents(Align::CenterY)
     .height(30.)
+}
+
+fn rgb_row<'n>() -> Node<'n, State, AppState<State>> {
+    dynamic(|s: &mut State, _app| {
+        row_spaced(
+            10.,
+            vec![
+                group(
+                    (0usize..=2)
+                        .map(|i| {
+                            text(
+                                id!(i as u64),
+                                format!("{:.0}", s.color.components[i] * 255.),
+                            )
+                            .font_size(30)
+                            .view()
+                            .on_drag(move |s: &mut State, a, drag| {
+                                s.update_rgb_component(i, drag);
+                                a.end_editing();
+                            })
+                            .finish()
+                            .pad(5.)
+                            .attach_under(
+                                rect(id!(i as u64))
+                                    .fill(Color::from_rgb8(70, 70, 70))
+                                    .corner_rounding(5.)
+                                    .view()
+                                    .finish(),
+                            )
+                        })
+                        .collect(),
+                ),
+                if s.alpha_enabled {
+                    text(id!(), format!("{:.0}", s.color.components[3] * 255.))
+                        .font_size(30)
+                        .view()
+                        .on_drag(move |s: &mut State, a, drag| {
+                            s.update_rgb_component(3, drag);
+                            a.end_editing();
+                        })
+                        .on_click(|s: &mut State, a, c, _| {
+                            if matches!(c, ClickState::Completed) {
+                                s.color.components[3] = 1.0;
+                                s.alpha_enabled = false;
+                                s.update_hex();
+                                a.end_editing();
+                            }
+                        })
+                        .finish()
+                        .pad(5.)
+                        .attach_under(
+                            rect(id!())
+                                .fill(Color::from_rgb8(70, 70, 70))
+                                .corner_rounding(5.)
+                                .finish(),
+                        )
+                } else {
+                    text(id!(), "A")
+                        .font_size(30)
+                        .view()
+                        .on_click(|s: &mut State, a, c, _| {
+                            if matches!(c, ClickState::Completed) {
+                                s.color.components[3] = 1.0;
+                                s.alpha_enabled = true;
+                                s.update_hex();
+                                a.end_editing();
+                            }
+                        })
+                        .finish()
+                        .pad(5.)
+                        .attach_under(
+                            rect(id!())
+                                .fill(Color::from_rgb8(30, 30, 30))
+                                .corner_rounding(5.)
+                                .finish(),
+                        )
+                },
+            ],
+        )
+    })
 }

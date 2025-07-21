@@ -1,7 +1,7 @@
-use crate::{app::AppState, rect, Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE};
+use crate::{Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, app::AppState, rect};
 use backer::{
-    nodes::{dynamic, stack},
     Node,
+    nodes::{dynamic, stack},
 };
 use vello_svg::vello::peniko::color::AlphaColor;
 
@@ -79,7 +79,7 @@ impl<'n, State> Button<'n, State> {
                         )
                         .corner_rounding(self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
                         .view()
-                        .transition_duration(0.)
+                        // .transition_duration(0.)
                         .finish()
                 },
                 if let Some(label) = self.label {
@@ -101,7 +101,7 @@ impl<'n, State> Button<'n, State> {
                     )
                     .font_size(DEFAULT_FONT_SIZE)
                     .view()
-                    .transition_duration(0.)
+                    // .transition_duration(0.)
                     .finish()
                 },
                 rect(crate::id!(self.id))

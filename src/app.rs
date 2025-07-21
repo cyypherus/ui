@@ -104,6 +104,10 @@ pub struct AppState<State> {
 }
 
 impl<State> AppState<State> {
+    pub fn end_editing(&mut self) {
+        self.editor = None;
+    }
+
     pub(crate) fn animations_in_progress(&self, now: Instant) -> bool {
         self.view_state.values().any(|v| match v {
             AnimatedView::Rect(animated_rect) => animated_rect.shape.in_progress(now),
@@ -564,8 +568,17 @@ impl<State: Clone + 'static> App<'_, State> {
                     }
                 }
             });
-        if let GestureState::Dragging { start, capturer } = self.app_state.gesture_state {
+        if let GestureState::Dragging {
+            start,
+            last_position,
+            capturer,
+        } = self.app_state.gesture_state
+        {
             let distance = start.distance(pos);
+            let delta = Point {
+                x: pos.x - last_position.x,
+                y: pos.y - last_position.y,
+            };
             self.app_state
                 .gesture_handlers
                 .clone()
@@ -580,11 +593,18 @@ impl<State: Clone + 'static> App<'_, State> {
                             Interaction::Drag(DragState::Updated {
                                 start,
                                 current: pos,
+                                delta,
                                 distance: distance as f32,
                             }),
                         );
                     }
                 });
+            // Update last_position for next delta calculation
+            self.app_state.gesture_state = GestureState::Dragging {
+                start,
+                last_position: pos,
+                capturer,
+            };
         }
         if needs_redraw {
             self.request_redraw();
@@ -630,6 +650,7 @@ impl<State: Clone + 'static> App<'_, State> {
                 }
                 self.app_state.gesture_state = GestureState::Dragging {
                     start: point,
+                    last_position: point,
                     capturer: *capturer,
                 }
             }
@@ -671,8 +692,17 @@ impl<State: Clone + 'static> App<'_, State> {
                     self.app_state.editor = None;
                 }
             }
-            if let GestureState::Dragging { start, capturer } = self.app_state.gesture_state {
+            if let GestureState::Dragging {
+                start,
+                last_position,
+                capturer,
+            } = self.app_state.gesture_state
+            {
                 let distance = start.distance(current);
+                let delta = Point {
+                    x: current.x - last_position.x,
+                    y: current.y - last_position.y,
+                };
                 self.app_state
                     .gesture_handlers
                     .clone()
@@ -713,6 +743,7 @@ impl<State: Clone + 'static> App<'_, State> {
                                 Interaction::Drag(DragState::Completed {
                                     start,
                                     current,
+                                    delta,
                                     distance: distance as f32,
                                 }),
                             );

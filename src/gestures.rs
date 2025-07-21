@@ -6,7 +6,11 @@ use std::rc::Rc;
 #[derive(Debug, Clone, Copy)]
 pub enum GestureState {
     None,
-    Dragging { start: Point, capturer: u64 },
+    Dragging {
+        start: Point,
+        last_position: Point,
+        capturer: u64,
+    },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -15,11 +19,13 @@ pub enum DragState {
     Updated {
         start: Point,
         current: Point,
+        delta: Point,
         distance: f32,
     },
     Completed {
         start: Point,
         current: Point,
+        delta: Point,
         distance: f32,
     },
 }
