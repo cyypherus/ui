@@ -1,9 +1,11 @@
-use crate::{Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, app::AppState, rect};
+use crate::{
+    Binding, ClickState, DEEP_PURP, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, app::AppState, rect,
+};
 use backer::{
     Node,
     nodes::{dynamic, stack},
 };
-use vello_svg::vello::peniko::color::AlphaColor;
+use vello_svg::vello::peniko::Color;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ButtonState {
@@ -12,7 +14,7 @@ pub struct ButtonState {
 }
 
 type BodyFn<'n, State> = fn(ButtonState) -> Node<'n, State, AppState<State>>;
-type LabelFn<'n, State> = fn(ButtonState) -> Node<'n, State, AppState<State>>;
+type LabelFn<'n, State> = Box<dyn Fn(ButtonState) -> Node<'n, State, AppState<State>> + 'n>;
 
 pub struct Button<'n, State> {
     id: u64,
@@ -22,6 +24,8 @@ pub struct Button<'n, State> {
     corner_rounding: Option<f32>,
     on_click: Option<fn(&mut State, &mut AppState<State>)>,
     state: Binding<State, ButtonState>,
+    fill: Option<Color>,
+    text_fill: Option<Color>,
 }
 
 pub fn button<'n, State>(id: u64, binding: Binding<State, ButtonState>) -> Button<'n, State> {
@@ -33,6 +37,8 @@ pub fn button<'n, State>(id: u64, binding: Binding<State, ButtonState>) -> Butto
         corner_rounding: None,
         on_click: None,
         state: binding,
+        fill: None,
+        text_fill: None,
     }
 }
 
@@ -41,8 +47,11 @@ impl<'n, State> Button<'n, State> {
         self.body = Some(body);
         self
     }
-    pub fn label(mut self, label: fn(ButtonState) -> Node<'n, State, AppState<State>>) -> Self {
-        self.label = Some(label);
+    pub fn label(
+        mut self,
+        label: impl Fn(ButtonState) -> Node<'n, State, AppState<State>> + 'n,
+    ) -> Self {
+        self.label = Some(Box::new(label));
         self
     }
     pub fn text_label(mut self, text_label: impl AsRef<str>) -> Self {
@@ -55,6 +64,14 @@ impl<'n, State> Button<'n, State> {
     }
     pub fn on_click(mut self, on_click: fn(&mut State, &mut AppState<State>)) -> Self {
         self.on_click = Some(on_click);
+        self
+    }
+    pub fn fill(mut self, color: Color) -> Self {
+        self.fill = Some(color);
+        self
+    }
+    pub fn idle_text_fill(mut self, color: Color) -> Self {
+        self.text_fill = Some(color);
         self
     }
     pub fn finish(self) -> Node<'n, State, AppState<State>>
@@ -72,9 +89,13 @@ impl<'n, State> Button<'n, State> {
                                 self.state.get(state).depressed,
                                 self.state.get(state).hovered,
                             ) {
-                                (true, _) => AlphaColor::from_rgb8(93, 50, 212),
-                                (false, true) => AlphaColor::from_rgb8(133, 90, 252),
-                                (false, false) => AlphaColor::from_rgb8(113, 70, 232),
+                                (true, _) => {
+                                    self.fill.unwrap_or(DEEP_PURP).map_lightness(|l| l - 0.1)
+                                }
+                                (false, true) => {
+                                    self.fill.unwrap_or(DEEP_PURP).map_lightness(|l| l + 0.1)
+                                }
+                                (false, false) => self.fill.unwrap_or(DEEP_PURP),
                             },
                         )
                         .corner_rounding(self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
@@ -82,7 +103,7 @@ impl<'n, State> Button<'n, State> {
                         // .transition_duration(0.)
                         .finish()
                 },
-                if let Some(label) = self.label {
+                if let Some(label) = &self.label {
                     label(self.state.get(state))
                 } else {
                     crate::text(
@@ -94,9 +115,15 @@ impl<'n, State> Button<'n, State> {
                             self.state.get(state).depressed,
                             self.state.get(state).hovered,
                         ) {
-                            (true, _) => AlphaColor::from_rgb8(190, 190, 190),
-                            (false, true) => AlphaColor::from_rgb8(250, 250, 250),
-                            (false, false) => AlphaColor::from_rgb8(240, 240, 240),
+                            (true, _) => self
+                                .text_fill
+                                .unwrap_or(DEEP_PURP)
+                                .map_lightness(|l| l - 0.1),
+                            (false, true) => self
+                                .text_fill
+                                .unwrap_or(DEEP_PURP)
+                                .map_lightness(|l| l + 0.1),
+                            (false, false) => self.text_fill.unwrap_or(DEEP_PURP),
                         },
                     )
                     .font_size(DEFAULT_FONT_SIZE)
@@ -105,7 +132,7 @@ impl<'n, State> Button<'n, State> {
                     .finish()
                 },
                 rect(crate::id!(self.id))
-                    .fill(AlphaColor::TRANSPARENT)
+                    .fill(Color::TRANSPARENT)
                     .view()
                     .on_hover({
                         let binding = self.state.clone();

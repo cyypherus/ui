@@ -3,6 +3,9 @@ use color::{Srgb, parse_color};
 use serde::{Deserialize, Serialize};
 use ui::*;
 
+const GRAY_30: Color = Color::from_rgb8(30, 30, 30);
+const GRAY_50: Color = Color::from_rgb8(60, 60, 60);
+
 #[derive(Clone)]
 struct State {
     text: TextState,
@@ -55,7 +58,12 @@ impl State {
         self.text.editing = false;
     }
 
-    fn update_rgb_component(&mut self, component_index: usize, drag: DragState) {
+    fn update_rgb_component(
+        &mut self,
+        component_index: usize,
+        drag: DragState,
+        app: &mut AppState<State>,
+    ) {
         match drag {
             DragState::Began(_) => (),
             DragState::Updated { delta, .. } | DragState::Completed { delta, .. } => {
@@ -64,6 +72,13 @@ impl State {
                     self.color.components[component_index].clamp(0., 1.);
                 self.update_hex();
             }
+        }
+        app.end_editing();
+        if matches!(drag, DragState::Completed { .. }) {
+            let state = SavedState {
+                text: self.text.text.clone(),
+            };
+            app.spawn(async move { _ = save_state_to_file(&state).await });
         }
     }
 
@@ -129,7 +144,11 @@ fn main() {
                                                 state.text.text = "000000".to_string();
                                             }
                                         }
-                                        Err(_) => (),
+                                        Err(_) => {
+                                            state.text.text = "000000".to_string();
+                                            state.loaded = true;
+                                            state.update_current_color();
+                                        }
                                     },
                                 );
                             })
@@ -159,45 +178,52 @@ fn main() {
 }
 
 fn hex_row<'n>() -> Node<'n, State, AppState<State>> {
-    row(vec![
-        text(id!(), "#").font_size(40).finish().width(20.),
-        text_field(id!(), binding!(State, text))
-            .font_size(40)
-            .background_fill(None)
-            .no_background_stroke()
-            .on_edit(|s, a, edit| {
-                let EditInteraction::Update(text) = edit else {
-                    return;
-                };
-                s.text.text = text.clone();
-                s.update_current_color();
-                let state = SavedState {
-                    text: text.to_string(),
-                };
-                a.spawn(async move { _ = save_state_to_file(&state).await });
-            })
-            .finish(),
-        button(id!(), binding!(State, copy_button))
-            .corner_rounding(10.)
-            .label(|button| {
-                svg(id!(), include_str!("assets/copy.svg"))
-                    .fill(match (button.depressed, button.hovered) {
-                        (true, _) => Color::from_rgb8(190, 190, 190),
-                        (false, true) => Color::from_rgb8(250, 250, 250),
-                        (false, false) => Color::from_rgb8(240, 240, 240),
-                    })
-                    .finish()
-                    .pad(10.)
-            })
-            .on_click(|s, _app| {
-                s.copy_to_clipboard();
-            })
-            .finish()
-            .height(40.)
-            .width(40.),
-    ])
-    .align_contents(Align::CenterY)
-    .height(30.)
+    dynamic(|s: &mut State, _app| {
+        let rl = s.color.discard_alpha().relative_luminance() * s.color.components[3];
+        row(vec![
+            text(id!(), "#").font_size(40).finish().width(20.),
+            text_field(id!(), binding!(State, text))
+                .font_size(40)
+                .background_fill(None)
+                .no_background_stroke()
+                .on_edit(|s, a, edit| {
+                    let EditInteraction::Update(text) = edit else {
+                        return;
+                    };
+                    s.text.text = text.clone();
+                    s.update_current_color();
+                    let state = SavedState {
+                        text: text.to_string(),
+                    };
+                    a.spawn(async move { _ = save_state_to_file(&state).await });
+                })
+                .finish(),
+            button(id!(), binding!(State, copy_button))
+                .corner_rounding(10.)
+                .fill(s.color)
+                .label(move |button| {
+                    svg(id!(), include_str!("assets/copy.svg"))
+                        .fill({
+                            let color = if rl > 0.5 { Color::BLACK } else { Color::WHITE };
+                            match (button.depressed, button.hovered) {
+                                (true, _) => color.map_lightness(|l| l - 0.2),
+                                (false, true) => color.map_lightness(|l| l + 0.2),
+                                (false, false) => color,
+                            }
+                        })
+                        .finish()
+                        .pad(10.)
+                })
+                .on_click(|s, _app| {
+                    s.copy_to_clipboard();
+                })
+                .finish()
+                .height(40.)
+                .width(40.),
+        ])
+        .align_contents(Align::CenterY)
+        .height(30.)
+    })
 }
 
 fn rgb_row<'n>() -> Node<'n, State, AppState<State>> {
@@ -205,6 +231,57 @@ fn rgb_row<'n>() -> Node<'n, State, AppState<State>> {
         row_spaced(
             10.,
             vec![
+                svg(id!(), include_str!("assets/arrow-up-down.svg"))
+                    .fill(Color::WHITE)
+                    .view()
+                    .finish()
+                    .height(30.)
+                    .width(20.)
+                    .pad(5.)
+                    .pad_y(10.)
+                    .attach_under(stack(vec![
+                        rect(id!())
+                            .fill(Color::TRANSPARENT)
+                            .view()
+                            .on_drag(move |s: &mut State, a, drag| {
+                                s.update_rgb_component(0, drag, a);
+                                s.update_rgb_component(1, drag, a);
+                                s.update_rgb_component(2, drag, a);
+                            })
+                            .finish(),
+                        rect(id!())
+                            .fill(GRAY_30)
+                            .corner_rounding(5.)
+                            .view()
+                            .finish(),
+                        column(vec![
+                            rect(id!())
+                                .fill({
+                                    let mut color = s.color.clone();
+                                    color.components[0] += 0.3;
+                                    color.components[1] += 0.3;
+                                    color.components[2] += 0.3;
+                                    color
+                                })
+                                .corner_rounding(5.)
+                                .finish()
+                                .height(5.)
+                                .pad(5.),
+                            space(),
+                            rect(id!())
+                                .fill({
+                                    let mut color = s.color.clone();
+                                    color.components[0] -= 0.3;
+                                    color.components[1] -= 0.3;
+                                    color.components[2] -= 0.3;
+                                    color
+                                })
+                                .corner_rounding(5.)
+                                .finish()
+                                .height(5.)
+                                .pad(5.),
+                        ]),
+                    ])),
                 group(
                     (0usize..=2)
                         .map(|i| {
@@ -214,19 +291,72 @@ fn rgb_row<'n>() -> Node<'n, State, AppState<State>> {
                             )
                             .font_size(30)
                             .view()
-                            .on_drag(move |s: &mut State, a, drag| {
-                                s.update_rgb_component(i, drag);
-                                a.end_editing();
-                            })
                             .finish()
                             .pad(5.)
-                            .attach_under(
+                            .pad_y(10.)
+                            .attach_under(stack(vec![
                                 rect(id!(i as u64))
-                                    .fill(Color::from_rgb8(70, 70, 70))
+                                    .fill(Color::TRANSPARENT)
+                                    .view()
+                                    .on_drag(move |s: &mut State, a, drag| {
+                                        s.update_rgb_component(i, drag, a);
+                                    })
+                                    .finish(),
+                                rect(id!(i as u64))
+                                    .fill(GRAY_50)
                                     .corner_rounding(5.)
                                     .view()
                                     .finish(),
-                            )
+                                column(vec![
+                                    row_spaced(
+                                        5.,
+                                        vec![
+                                            rect(id!(i as u64))
+                                                .fill({
+                                                    let mut color = s.color.clone();
+                                                    color.components[i] += 0.3;
+                                                    color
+                                                })
+                                                .corner_rounding(5.)
+                                                .finish(),
+                                            rect(id!(i as u64))
+                                                .fill({
+                                                    let mut color = s.color.clone();
+                                                    color.components[i] += 0.5;
+                                                    color
+                                                })
+                                                .corner_rounding(5.)
+                                                .finish(),
+                                        ],
+                                    )
+                                    .height(5.)
+                                    .pad(5.),
+                                    space(),
+                                    row_spaced(
+                                        5.,
+                                        vec![
+                                            rect(id!(i as u64))
+                                                .fill({
+                                                    let mut color = s.color.clone();
+                                                    color.components[i] -= 0.3;
+                                                    color
+                                                })
+                                                .corner_rounding(5.)
+                                                .finish(),
+                                            rect(id!(i as u64))
+                                                .fill({
+                                                    let mut color = s.color.clone();
+                                                    color.components[i] -= 0.5;
+                                                    color
+                                                })
+                                                .corner_rounding(5.)
+                                                .finish(),
+                                        ],
+                                    )
+                                    .height(5.)
+                                    .pad(5.),
+                                ]),
+                            ]))
                         })
                         .collect(),
                 ),
@@ -235,8 +365,7 @@ fn rgb_row<'n>() -> Node<'n, State, AppState<State>> {
                         .font_size(30)
                         .view()
                         .on_drag(move |s: &mut State, a, drag| {
-                            s.update_rgb_component(3, drag);
-                            a.end_editing();
+                            s.update_rgb_component(3, drag, a);
                         })
                         .on_click(|s: &mut State, a, c, _| {
                             if matches!(c, ClickState::Completed) {
@@ -248,12 +377,21 @@ fn rgb_row<'n>() -> Node<'n, State, AppState<State>> {
                         })
                         .finish()
                         .pad(5.)
-                        .attach_under(
+                        .pad_y(10.)
+                        .attach_under(stack(vec![
                             rect(id!())
-                                .fill(Color::from_rgb8(70, 70, 70))
-                                .corner_rounding(5.)
+                                .fill(Color::TRANSPARENT)
+                                .view()
+                                .on_drag(move |s: &mut State, a, drag| {
+                                    s.update_rgb_component(3, drag, a);
+                                })
                                 .finish(),
-                        )
+                            rect(id!())
+                                .fill(GRAY_50)
+                                .corner_rounding(5.)
+                                .view()
+                                .finish(),
+                        ]))
                 } else {
                     text(id!(), "A")
                         .font_size(30)
@@ -268,12 +406,8 @@ fn rgb_row<'n>() -> Node<'n, State, AppState<State>> {
                         })
                         .finish()
                         .pad(5.)
-                        .attach_under(
-                            rect(id!())
-                                .fill(Color::from_rgb8(30, 30, 30))
-                                .corner_rounding(5.)
-                                .finish(),
-                        )
+                        .pad_y(10.)
+                        .attach_under(rect(id!()).fill(GRAY_30).corner_rounding(5.).finish())
                 },
             ],
         )
