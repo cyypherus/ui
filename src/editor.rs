@@ -1,18 +1,18 @@
 use backer::models::Area;
 use core::default::Default;
-use parley::{editor::SplitString, layout::PositionedLayoutItem, GenericFamily, StyleProperty};
+use parley::{GenericFamily, StyleProperty, editor::SplitString, layout::PositionedLayoutItem};
 use std::time::{Duration, Instant};
 use vello_svg::vello::{
-    kurbo::{Affine, Line, Point, RoundedRect, Stroke},
-    peniko::{color::palette, Brush, Fill},
     Scene,
+    kurbo::{Affine, Line, Point, RoundedRect, Stroke},
+    peniko::{Brush, Fill, color::palette},
 };
 use winit::{event::Modifiers, keyboard::NamedKey};
 
 pub use parley::layout::editor::Generation;
 use parley::{FontContext, LayoutContext, PlainEditor, PlainEditorDriver};
 
-use crate::{Key, DEEP_PURP};
+use crate::{DEEP_PURP, Key};
 
 #[derive(Clone)]
 pub struct Editor {

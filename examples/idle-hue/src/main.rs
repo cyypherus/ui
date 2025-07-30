@@ -308,53 +308,27 @@ fn rgb_row<'n>() -> Node<'n, State, AppState<State>> {
                                     .view()
                                     .finish(),
                                 column(vec![
-                                    row_spaced(
-                                        5.,
-                                        vec![
-                                            rect(id!(i as u64))
-                                                .fill({
-                                                    let mut color = s.color.clone();
-                                                    color.components[i] += 0.3;
-                                                    color
-                                                })
-                                                .corner_rounding(5.)
-                                                .finish(),
-                                            rect(id!(i as u64))
-                                                .fill({
-                                                    let mut color = s.color.clone();
-                                                    color.components[i] += 0.5;
-                                                    color
-                                                })
-                                                .corner_rounding(5.)
-                                                .finish(),
-                                        ],
-                                    )
-                                    .height(5.)
-                                    .pad(5.),
+                                    rect(id!(i as u64))
+                                        .fill({
+                                            let mut color = s.color.clone();
+                                            color.components[i] += 0.5;
+                                            color
+                                        })
+                                        .corner_rounding(5.)
+                                        .finish()
+                                        .height(5.)
+                                        .pad(5.),
                                     space(),
-                                    row_spaced(
-                                        5.,
-                                        vec![
-                                            rect(id!(i as u64))
-                                                .fill({
-                                                    let mut color = s.color.clone();
-                                                    color.components[i] -= 0.3;
-                                                    color
-                                                })
-                                                .corner_rounding(5.)
-                                                .finish(),
-                                            rect(id!(i as u64))
-                                                .fill({
-                                                    let mut color = s.color.clone();
-                                                    color.components[i] -= 0.5;
-                                                    color
-                                                })
-                                                .corner_rounding(5.)
-                                                .finish(),
-                                        ],
-                                    )
-                                    .height(5.)
-                                    .pad(5.),
+                                    rect(id!(i as u64))
+                                        .fill({
+                                            let mut color = s.color.clone();
+                                            color.components[i] -= 0.5;
+                                            color
+                                        })
+                                        .corner_rounding(5.)
+                                        .finish()
+                                        .height(5.)
+                                        .pad(5.),
                                 ]),
                             ]))
                         })

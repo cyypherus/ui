@@ -8,7 +8,7 @@ use crate::ui::AnimArea;
 use crate::{ClickState, DragState, GestureHandler, Key};
 use backer::nodes::{draw_object, dynamic, intermediate};
 use backer::traits::Drawable;
-use backer::{models::Area, Node};
+use backer::{Node, models::Area};
 use lilt::{Animated, Easing};
 use std::rc::Rc;
 use vello_svg::vello::kurbo::{Affine, BezPath};
@@ -36,7 +36,7 @@ pub const fn const_hash(s: &str, line: u32, col: u32) -> u64 {
 }
 
 /// This macro computes a compile-time ID from the file, line, and column
-/// where it’s invoked, and at runtime combines it (via XOR) with another id.
+/// where it's invoked, and at runtime combines it (via XOR) with another id.
 #[macro_export]
 macro_rules! id {
     () => {{
@@ -46,6 +46,10 @@ macro_rules! id {
     ($other:expr) => {{
         const ID: u64 = $crate::const_hash(file!(), line!(), column!());
         ID ^ ($other)
+    }};
+    ($other:expr, $other2:expr) => {{
+        const ID: u64 = $crate::const_hash(file!(), line!(), column!());
+        ID ^ ($other) ^ (($other2).wrapping_mul(1099511628211))
     }};
 }
 
