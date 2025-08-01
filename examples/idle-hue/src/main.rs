@@ -1,7 +1,12 @@
+use std::fmt::Display;
+
 use arboard::Clipboard;
-use color::{Srgb, parse_color};
 use serde::{Deserialize, Serialize};
 use ui::*;
+use vello_svg::vello::{
+    kurbo::Point,
+    peniko::color::{AlphaColor, Oklch, Srgb, parse_color},
+};
 
 const GRAY_30: Color = Color::from_rgb8(30, 30, 30);
 const GRAY_50: Color = Color::from_rgb8(60, 60, 60);
@@ -11,8 +16,36 @@ struct State {
     text: TextState,
     copy_button: ButtonState,
     loaded: bool,
-    color: Color,
-    alpha_enabled: bool,
+    color: CurrentColor,
+    oklch_mode: bool,
+    mode_picker: SegmentPickerState<ColorMode>,
+}
+
+#[derive(Clone, Debug)]
+enum CurrentColor {
+    Srgb(AlphaColor<Srgb>),
+    Oklch(AlphaColor<Oklch>),
+}
+
+impl CurrentColor {
+    fn components(&self) -> [f32; 4] {
+        match self {
+            CurrentColor::Srgb(color) => color.components,
+            CurrentColor::Oklch(color) => color.components,
+        }
+    }
+    fn components_mut(&mut self) -> &mut [f32; 4] {
+        match self {
+            CurrentColor::Srgb(color) => &mut color.components,
+            CurrentColor::Oklch(color) => &mut color.components,
+        }
+    }
+    fn display(&self) -> AlphaColor<Srgb> {
+        match self {
+            CurrentColor::Srgb(color) => color.convert::<Srgb>(),
+            CurrentColor::Oklch(color) => color.convert::<Srgb>(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -24,71 +57,115 @@ impl State {
     fn update_current_color(&mut self) {
         let hex_color = format!("#{}", self.text.text);
         let Some(parsed) = parse_color(&hex_color).ok() else {
-            self.color = Color::TRANSPARENT;
+            self.color = CurrentColor::Srgb(Color::TRANSPARENT);
             return;
         };
         let srgb = parsed.to_alpha_color::<Srgb>();
         let components = srgb.components;
-        self.color = Color::from_rgba8(
+        self.color = CurrentColor::Srgb(Color::from_rgba8(
             (components[0] * 255.0) as u8,
             (components[1] * 255.0) as u8,
             (components[2] * 255.0) as u8,
             (components[3] * 255.0) as u8,
-        );
+        ));
     }
 
-    fn update_hex(&mut self) {
-        let hex_color = if self.alpha_enabled {
-            format!(
-                "{:02x}{:02x}{:02x}{:02x}",
-                (self.color.components[0] * 255.0) as u8,
-                (self.color.components[1] * 255.0) as u8,
-                (self.color.components[2] * 255.0) as u8,
-                (self.color.components[3] * 255.0) as u8,
-            )
-        } else {
-            format!(
-                "{:02x}{:02x}{:02x}",
-                (self.color.components[0] * 255.0) as u8,
-                (self.color.components[1] * 255.0) as u8,
-                (self.color.components[2] * 255.0) as u8,
-            )
-        };
-        self.text.text = hex_color;
+    fn update_text(&mut self) {
+        match self.color {
+            CurrentColor::Srgb(color) => {
+                self.text.text = format!(
+                    "{:02x}{:02x}{:02x}",
+                    (color.components[0] * 255.0) as u8,
+                    (color.components[1] * 255.0) as u8,
+                    (color.components[2] * 255.0) as u8,
+                );
+            }
+            CurrentColor::Oklch(color) => {
+                let color_text = format!(
+                    "{:.2}, {:.2}, {:.2}",
+                    color.components[0], color.components[1], color.components[2],
+                );
+                self.text.text = color_text;
+            }
+        }
         self.text.editing = false;
     }
 
-    fn update_rgb_component(
-        &mut self,
-        component_index: usize,
-        drag: DragState,
-        app: &mut AppState<State>,
-    ) {
-        match drag {
-            DragState::Began(_) => (),
-            DragState::Updated { delta, .. } | DragState::Completed { delta, .. } => {
-                self.color.components[component_index] -= delta.y as f32 * 0.001;
-                self.color.components[component_index] =
-                    self.color.components[component_index].clamp(0., 1.);
-                self.update_hex();
+    fn rgb_to_oklch(&mut self) {
+        match self.color {
+            CurrentColor::Srgb(color) => {
+                self.color = CurrentColor::Oklch(color.convert::<Oklch>());
             }
-        }
-        app.end_editing();
-        if matches!(drag, DragState::Completed { .. }) {
-            let state = SavedState {
-                text: self.text.text.clone(),
-            };
-            app.spawn(async move { _ = save_state_to_file(&state).await });
+            _ => {}
         }
     }
 
-    fn copy_to_clipboard(&self) {
-        if let Ok(mut clipboard) = Clipboard::new() {
-            if let Err(e) = clipboard.set_text(self.text.text.clone()) {
-                eprintln!("Failed to copy to clipboard: {}", e);
+    fn oklch_to_rgb(&mut self) {
+        match self.color {
+            CurrentColor::Oklch(color) => {
+                let mut converted = color.convert::<Srgb>();
+                converted.components[0] = converted.components[0].clamp(0.0, 1.0);
+                converted.components[1] = converted.components[1].clamp(0.0, 1.0);
+                converted.components[2] = converted.components[2].clamp(0.0, 1.0);
+                self.color = CurrentColor::Srgb(converted);
             }
+            _ => {}
         }
     }
+
+    fn update_component(color: &mut CurrentColor, component_index: usize, drag: DragState) {
+        match drag {
+            DragState::Began(_) => (),
+            DragState::Updated {
+                delta: Point { y, .. },
+                ..
+            }
+            | DragState::Completed {
+                delta: Point { y, .. },
+                ..
+            } => {
+                let y = y as f32;
+                match color {
+                    CurrentColor::Oklch(color) => match component_index {
+                        0 => {
+                            color.components[0] = (color.components[0] - y * 0.001).clamp(0.0, 1.0)
+                        }
+                        1 => {
+                            color.components[1] = (color.components[1] - y * 0.0005).clamp(0.0, 0.4)
+                        }
+                        2 => {
+                            color.components[2] -= y * 0.5;
+                            if color.components[2] < 0.0 {
+                                color.components[2] += 360.0
+                            }
+                            if color.components[2] >= 360.0 {
+                                color.components[2] -= 360.0
+                            }
+                        }
+                        _ => return,
+                    },
+                    CurrentColor::Srgb(color) => {
+                        color.components[component_index] =
+                            (color.components[component_index] - y * 0.001).clamp(0.0, 1.0);
+                    }
+                }
+            }
+        }
+        // if matches!(drag, DragState::Completed { .. }) {
+        //     let state = SavedState {
+        //         text: self.text.text.clone(),
+        //     };
+        //     app.spawn(async move { _ = save_state_to_file(&state).await });
+        // }
+    }
+
+    // fn copy_to_clipboard(&self) {
+    //     if let Ok(mut clipboard) = Clipboard::new() {
+    //         if let Err(e) = clipboard.set_text(self.text.text.clone()) {
+    //             eprintln!("Failed to copy to clipboard: {}", e);
+    //         }
+    //     }
+    // }
 
     fn default() -> Self {
         State {
@@ -98,8 +175,9 @@ impl State {
             },
             copy_button: ButtonState::default(),
             loaded: false,
-            color: Color::TRANSPARENT,
-            alpha_enabled: false,
+            color: CurrentColor::Oklch(AlphaColor::<Oklch>::new([0.0, 0.0, 0.0, 1.0])),
+            oklch_mode: false,
+            mode_picker: SegmentPickerState::new(ColorMode::Rgb),
         }
     }
 }
@@ -159,12 +237,12 @@ fn main() {
                 } else {
                     vec![
                         rect(id!())
-                            .fill(s.color)
+                            .fill(s.color.display())
                             .corner_rounding(5.)
                             .stroke(Color::WHITE, 3.)
                             .view()
                             .finish(),
-                        hex_row(),
+                        // hex_row(),
                         rgb_row(),
                     ]
                 },
@@ -177,213 +255,174 @@ fn main() {
     .start()
 }
 
-fn hex_row<'n>() -> Node<'n, State, AppState<State>> {
-    dynamic(|s: &mut State, _app| {
-        let rl = s.color.discard_alpha().relative_luminance() * s.color.components[3];
-        row(vec![
-            text(id!(), "#").font_size(40).finish().width(20.),
-            text_field(id!(), binding!(State, text))
-                .font_size(40)
-                .background_fill(None)
-                .no_background_stroke()
-                .on_edit(|s, a, edit| {
-                    let EditInteraction::Update(text) = edit else {
-                        return;
-                    };
-                    s.text.text = text.clone();
-                    s.update_current_color();
-                    let state = SavedState {
-                        text: text.to_string(),
-                    };
-                    a.spawn(async move { _ = save_state_to_file(&state).await });
-                })
-                .finish(),
-            button(id!(), binding!(State, copy_button))
-                .corner_rounding(10.)
-                .fill(s.color)
-                .label(move |button| {
-                    svg(id!(), include_str!("assets/copy.svg"))
-                        .fill({
-                            let color = if rl > 0.5 { Color::BLACK } else { Color::WHITE };
-                            match (button.depressed, button.hovered) {
-                                (true, _) => color.map_lightness(|l| l - 0.2),
-                                (false, true) => color.map_lightness(|l| l + 0.2),
-                                (false, false) => color,
-                            }
-                        })
-                        .finish()
-                        .pad(10.)
-                })
-                .on_click(|s, _app| {
-                    s.copy_to_clipboard();
-                })
-                .finish()
-                .height(40.)
-                .width(40.),
-        ])
-        .align_contents(Align::CenterY)
-        .height(30.)
-    })
+// fn hex_text_field<'n>() -> Node<'n, State, AppState<State>> {
+//     text_field(id!(), binding!(State, text))
+//         .font_size(40)
+//         .background_fill(None)
+//         .no_background_stroke()
+//         .on_edit(|s, a, edit| {
+//             let EditInteraction::Update(text) = edit else {
+//                 return;
+//             };
+//             s.text.text = text.clone();
+//             s.update_current_color();
+//             let state = SavedState {
+//                 text: text.to_string(),
+//             };
+//             a.spawn(async move { _ = save_state_to_file(&state).await });
+//         })
+//         .finish()
+// }
+
+// fn copy_button<'n>() -> Node<'n, State, AppState<State>> {
+//     dynamic(|s: &mut State, _app| {
+//         let rl = s.color.display().discard_alpha().relative_luminance() * s.color.components()[3];
+//         button(id!(), binding!(State, copy_button))
+//             .corner_rounding(10.)
+//             .fill(s.color.display())
+//             .label(move |button| {
+//                 svg(id!(), include_str!("assets/copy.svg"))
+//                     .fill({
+//                         let color = if rl > 0.5 { Color::BLACK } else { Color::WHITE };
+//                         match (button.depressed, button.hovered) {
+//                             (true, _) => color.map_lightness(|l| l - 0.2),
+//                             (false, true) => color.map_lightness(|l| l + 0.2),
+//                             (false, false) => color,
+//                         }
+//                     })
+//                     .finish()
+//                     .pad(10.)
+//             })
+//             .on_click(|s, _app| {
+//                 s.copy_to_clipboard();
+//             })
+//             .finish()
+//             .height(40.)
+//             .width(40.)
+//     })
+// }
+
+// fn hex_row<'n>() -> Node<'n, State, AppState<State>> {
+//     row(vec![
+//         text(id!(), "#").font_size(40).finish().width(20.),
+//         hex_text_field(),
+//         copy_button(),
+//     ])
+//     .align_contents(Align::CenterY)
+//     .height(30.)
+// }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ColorMode {
+    Oklch,
+    Rgb,
 }
 
-fn rgb_row<'n>() -> Node<'n, State, AppState<State>> {
+impl Display for ColorMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ColorMode::Oklch => write!(f, "OKLCH"),
+            ColorMode::Rgb => write!(f, "RGB"),
+        }
+    }
+}
+
+fn mode_toggle_button<'n>() -> Node<'n, State, AppState<State>> {
+    segment_picker(
+        id!(),
+        vec![ColorMode::Oklch, ColorMode::Rgb],
+        binding!(State, mode_picker),
+    )
+    .on_select(|s, _a, sel| match sel {
+        ColorMode::Oklch => {
+            s.oklch_mode = true;
+            s.rgb_to_oklch();
+        }
+        ColorMode::Rgb => {
+            s.oklch_mode = false;
+            s.oklch_to_rgb();
+        }
+    })
+    .finish()
+    .height(40.)
+}
+
+fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
     dynamic(|s: &mut State, _app| {
+        let color = s.color.clone();
         row_spaced(
             10.,
-            vec![
-                svg(id!(), include_str!("assets/arrow-up-down.svg"))
-                    .fill(Color::WHITE)
-                    .view()
-                    .finish()
-                    .height(30.)
-                    .width(20.)
-                    .pad(5.)
-                    .pad_y(10.)
-                    .attach_under(stack(vec![
-                        rect(id!())
-                            .fill(Color::TRANSPARENT)
-                            .view()
-                            .on_drag(move |s: &mut State, a, drag| {
-                                s.update_rgb_component(0, drag, a);
-                                s.update_rgb_component(1, drag, a);
-                                s.update_rgb_component(2, drag, a);
-                            })
-                            .finish(),
-                        rect(id!())
-                            .fill(GRAY_30)
-                            .corner_rounding(5.)
-                            .view()
-                            .finish(),
-                        column(vec![
-                            rect(id!())
-                                .fill({
-                                    let mut color = s.color.clone();
-                                    color.components[0] += 0.3;
-                                    color.components[1] += 0.3;
-                                    color.components[2] += 0.3;
-                                    color
-                                })
-                                .corner_rounding(5.)
-                                .finish()
-                                .height(5.)
-                                .pad(5.),
-                            space(),
-                            rect(id!())
-                                .fill({
-                                    let mut color = s.color.clone();
-                                    color.components[0] -= 0.3;
-                                    color.components[1] -= 0.3;
-                                    color.components[2] -= 0.3;
-                                    color
-                                })
-                                .corner_rounding(5.)
-                                .finish()
-                                .height(5.)
-                                .pad(5.),
-                        ]),
-                    ])),
-                group(
-                    (0usize..=2)
-                        .map(|i| {
-                            text(
-                                id!(i as u64),
-                                format!("{:.0}", s.color.components[i] * 255.),
-                            )
-                            .font_size(30)
-                            .view()
-                            .finish()
-                            .pad(5.)
-                            .pad_y(10.)
-                            .attach_under(stack(vec![
-                                rect(id!(i as u64))
-                                    .fill(Color::TRANSPARENT)
-                                    .view()
-                                    .on_drag(move |s: &mut State, a, drag| {
-                                        s.update_rgb_component(i, drag, a);
-                                    })
-                                    .finish(),
-                                rect(id!(i as u64))
-                                    .fill(GRAY_50)
-                                    .corner_rounding(5.)
-                                    .view()
-                                    .finish(),
-                                column(vec![
-                                    rect(id!(i as u64))
-                                        .fill({
-                                            let mut color = s.color.clone();
-                                            color.components[i] += 0.5;
-                                            color
-                                        })
-                                        .corner_rounding(5.)
-                                        .finish()
-                                        .height(5.)
-                                        .pad(5.),
-                                    space(),
-                                    rect(id!(i as u64))
-                                        .fill({
-                                            let mut color = s.color.clone();
-                                            color.components[i] -= 0.5;
-                                            color
-                                        })
-                                        .corner_rounding(5.)
-                                        .finish()
-                                        .height(5.)
-                                        .pad(5.),
-                                ]),
-                            ]))
-                        })
-                        .collect(),
-                ),
-                if s.alpha_enabled {
-                    text(id!(), format!("{:.0}", s.color.components[3] * 255.))
-                        .font_size(30)
+            (0usize..3)
+                .map(|i| {
+                    text(id!(i as u64), format!("{:.2}", s.color.components()[i]))
+                        .font_size(24)
                         .view()
-                        .on_drag(move |s: &mut State, a, drag| {
-                            s.update_rgb_component(3, drag, a);
-                        })
-                        .on_click(|s: &mut State, a, c, _| {
-                            if matches!(c, ClickState::Completed) {
-                                s.color.components[3] = 1.0;
-                                s.alpha_enabled = false;
-                                s.update_hex();
-                                a.end_editing();
-                            }
-                        })
                         .finish()
                         .pad(5.)
                         .pad_y(10.)
                         .attach_under(stack(vec![
-                            rect(id!())
+                            rect(id!(i as u64))
                                 .fill(Color::TRANSPARENT)
                                 .view()
-                                .on_drag(move |s: &mut State, a, drag| {
-                                    s.update_rgb_component(3, drag, a);
+                                .on_drag(move |s: &mut State, _a, drag| {
+                                    State::update_component(&mut s.color, i, drag);
                                 })
                                 .finish(),
-                            rect(id!())
+                            rect(id!(i as u64))
                                 .fill(GRAY_50)
                                 .corner_rounding(5.)
                                 .view()
                                 .finish(),
+                            column(vec![
+                                rect(id!(i as u64))
+                                    .fill({
+                                        let mut color = color.clone();
+                                        let drag = -150.;
+                                        State::update_component(
+                                            &mut color,
+                                            i,
+                                            DragState::Updated {
+                                                start: Point::new(0.0, 0.0),
+                                                current: Point::new(0.0, drag),
+                                                delta: Point::new(0.0, drag),
+                                                distance: drag as f32,
+                                            },
+                                        );
+                                        color.display()
+                                    })
+                                    .corner_rounding(5.)
+                                    .finish()
+                                    .height(5.)
+                                    .pad(5.),
+                                space(),
+                                rect(id!(i as u64))
+                                    .fill({
+                                        let mut color = color.clone();
+                                        let drag = 150.;
+                                        State::update_component(
+                                            &mut color,
+                                            i,
+                                            DragState::Updated {
+                                                start: Point::new(0.0, 0.0),
+                                                current: Point::new(0.0, drag),
+                                                delta: Point::new(0.0, drag),
+                                                distance: drag as f32,
+                                            },
+                                        );
+                                        color.display()
+                                    })
+                                    .corner_rounding(5.)
+                                    .finish()
+                                    .height(5.)
+                                    .pad(5.),
+                            ]),
                         ]))
-                } else {
-                    text(id!(), "A")
-                        .font_size(30)
-                        .view()
-                        .on_click(|s: &mut State, a, c, _| {
-                            if matches!(c, ClickState::Completed) {
-                                s.color.components[3] = 1.0;
-                                s.alpha_enabled = true;
-                                s.update_hex();
-                                a.end_editing();
-                            }
-                        })
-                        .finish()
-                        .pad(5.)
-                        .pad_y(10.)
-                        .attach_under(rect(id!()).fill(GRAY_30).corner_rounding(5.).finish())
-                },
-            ],
+                })
+                .collect(),
         )
     })
+}
+
+fn rgb_row<'n>() -> Node<'n, State, AppState<State>> {
+    column_spaced(10., vec![mode_toggle_button(), color_component_sliders()])
 }

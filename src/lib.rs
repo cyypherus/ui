@@ -8,6 +8,7 @@ mod gestures;
 mod models;
 mod rect;
 mod scroller;
+mod segment_picker;
 mod shape;
 mod slider;
 mod svg;
@@ -25,6 +26,7 @@ pub use gestures::{ClickState, DragState, EditInteraction, GestureHandler, Gestu
 use lilt::Easing;
 pub use rect::rect;
 pub use scroller::*;
+pub use segment_picker::*;
 pub use slider::*;
 pub use svg::svg;
 pub use text::*;
@@ -44,6 +46,6 @@ const RUBIK_FONT: &[u8] = include_bytes!("../assets/Rubik-VariableFont_wght.ttf"
 const DEFAULT_EASING: Easing = Easing::EaseOut;
 const DEFAULT_DURATION: f32 = 200.;
 const DEFAULT_PADDING: f32 = 10.;
-const DEFAULT_CORNER_ROUNDING: f32 = 20.;
+const DEFAULT_CORNER_ROUNDING: f32 = 5.;
 const DEFAULT_FONT_SIZE: u32 = 14;
 const DEFAULT_FG_COLOR: AlphaColor<Srgb> = AlphaColor::WHITE;
