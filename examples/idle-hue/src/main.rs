@@ -15,6 +15,8 @@ const GRAY_50: Color = Color::from_rgb8(60, 60, 60);
 struct State {
     text: TextState,
     copy_button: ButtonState,
+    toggle_text_button: ButtonState,
+    show_text: bool,
     loaded: bool,
     color: CurrentColor,
     oklch_mode: bool,
@@ -131,7 +133,7 @@ impl State {
                             color.components[0] = (color.components[0] - y * 0.001).clamp(0.0, 1.0)
                         }
                         1 => {
-                            color.components[1] = (color.components[1] - y * 0.0005).clamp(0.0, 0.4)
+                            color.components[1] = (color.components[1] - y * 0.0005).clamp(0.0, 0.5)
                         }
                         2 => {
                             color.components[2] -= y * 0.5;
@@ -159,13 +161,13 @@ impl State {
         // }
     }
 
-    // fn copy_to_clipboard(&self) {
-    //     if let Ok(mut clipboard) = Clipboard::new() {
-    //         if let Err(e) = clipboard.set_text(self.text.text.clone()) {
-    //             eprintln!("Failed to copy to clipboard: {}", e);
-    //         }
-    //     }
-    // }
+    fn copy_to_clipboard(&self) {
+        if let Ok(mut clipboard) = Clipboard::new() {
+            if let Err(e) = clipboard.set_text(self.text.text.clone()) {
+                eprintln!("Failed to copy to clipboard: {}", e);
+            }
+        }
+    }
 
     fn default() -> Self {
         State {
@@ -174,6 +176,8 @@ impl State {
                 editing: false,
             },
             copy_button: ButtonState::default(),
+            toggle_text_button: ButtonState::default(),
+            show_text: false,
             loaded: false,
             color: CurrentColor::Oklch(AlphaColor::<Oklch>::new([0.0, 0.0, 0.0, 1.0])),
             oklch_mode: false,
@@ -242,7 +246,13 @@ fn main() {
                             .stroke(Color::WHITE, 3.)
                             .view()
                             .finish(),
-                        // hex_row(),
+                        button(id!(), binding!(State, toggle_text_button))
+                            // .label("Toggle Mode")
+                            .on_click(|s, _a| {
+                                s.show_text = !s.show_text;
+                            })
+                            .finish(),
+                        if s.show_text { hex_row() } else { empty() },
                         rgb_row(),
                     ]
                 },
@@ -255,62 +265,62 @@ fn main() {
     .start()
 }
 
-// fn hex_text_field<'n>() -> Node<'n, State, AppState<State>> {
-//     text_field(id!(), binding!(State, text))
-//         .font_size(40)
-//         .background_fill(None)
-//         .no_background_stroke()
-//         .on_edit(|s, a, edit| {
-//             let EditInteraction::Update(text) = edit else {
-//                 return;
-//             };
-//             s.text.text = text.clone();
-//             s.update_current_color();
-//             let state = SavedState {
-//                 text: text.to_string(),
-//             };
-//             a.spawn(async move { _ = save_state_to_file(&state).await });
-//         })
-//         .finish()
-// }
+fn hex_text_field<'n>() -> Node<'n, State, AppState<State>> {
+    text_field(id!(), binding!(State, text))
+        .font_size(40)
+        .background_fill(None)
+        .no_background_stroke()
+        .on_edit(|s, a, edit| {
+            let EditInteraction::Update(text) = edit else {
+                return;
+            };
+            s.text.text = text.clone();
+            s.update_current_color();
+            let state = SavedState {
+                text: text.to_string(),
+            };
+            a.spawn(async move { _ = save_state_to_file(&state).await });
+        })
+        .finish()
+}
 
-// fn copy_button<'n>() -> Node<'n, State, AppState<State>> {
-//     dynamic(|s: &mut State, _app| {
-//         let rl = s.color.display().discard_alpha().relative_luminance() * s.color.components()[3];
-//         button(id!(), binding!(State, copy_button))
-//             .corner_rounding(10.)
-//             .fill(s.color.display())
-//             .label(move |button| {
-//                 svg(id!(), include_str!("assets/copy.svg"))
-//                     .fill({
-//                         let color = if rl > 0.5 { Color::BLACK } else { Color::WHITE };
-//                         match (button.depressed, button.hovered) {
-//                             (true, _) => color.map_lightness(|l| l - 0.2),
-//                             (false, true) => color.map_lightness(|l| l + 0.2),
-//                             (false, false) => color,
-//                         }
-//                     })
-//                     .finish()
-//                     .pad(10.)
-//             })
-//             .on_click(|s, _app| {
-//                 s.copy_to_clipboard();
-//             })
-//             .finish()
-//             .height(40.)
-//             .width(40.)
-//     })
-// }
+fn copy_button<'n>() -> Node<'n, State, AppState<State>> {
+    dynamic(|s: &mut State, _app| {
+        let rl = s.color.display().discard_alpha().relative_luminance() * s.color.components()[3];
+        button(id!(), binding!(State, copy_button))
+            .corner_rounding(10.)
+            .fill(s.color.display())
+            .label(move |button| {
+                svg(id!(), include_str!("assets/copy.svg"))
+                    .fill({
+                        let color = if rl > 0.5 { Color::BLACK } else { Color::WHITE };
+                        match (button.depressed, button.hovered) {
+                            (true, _) => color.map_lightness(|l| l - 0.2),
+                            (false, true) => color.map_lightness(|l| l + 0.2),
+                            (false, false) => color,
+                        }
+                    })
+                    .finish()
+                    .pad(10.)
+            })
+            .on_click(|s, _app| {
+                s.copy_to_clipboard();
+            })
+            .finish()
+            .height(40.)
+            .width(40.)
+    })
+}
 
-// fn hex_row<'n>() -> Node<'n, State, AppState<State>> {
-//     row(vec![
-//         text(id!(), "#").font_size(40).finish().width(20.),
-//         hex_text_field(),
-//         copy_button(),
-//     ])
-//     .align_contents(Align::CenterY)
-//     .height(30.)
-// }
+fn hex_row<'n>() -> Node<'n, State, AppState<State>> {
+    row(vec![
+        text(id!(), "#").font_size(40).finish().width(20.),
+        hex_text_field(),
+        copy_button(),
+    ])
+    .align_contents(Align::CenterY)
+    .height(30.)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ColorMode {
@@ -330,7 +340,7 @@ impl Display for ColorMode {
 fn mode_toggle_button<'n>() -> Node<'n, State, AppState<State>> {
     segment_picker(
         id!(),
-        vec![ColorMode::Oklch, ColorMode::Rgb],
+        vec![ColorMode::Rgb, ColorMode::Oklch],
         binding!(State, mode_picker),
     )
     .on_select(|s, _a, sel| match sel {
