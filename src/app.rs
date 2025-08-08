@@ -22,15 +22,17 @@ use winit::{dpi::LogicalSize, event::MouseButton};
 pub struct AppBuilder<State> {
     state: State,
     view: fn() -> Node<'static, State, AppState<State>>,
+    on_frame: fn(&mut State, &mut AppState<State>) -> (),
     inner_size: Option<(u32, u32)>,
     resizable: Option<bool>,
 }
 
-impl<State: Clone + 'static> AppBuilder<State> {
+impl<State: 'static> AppBuilder<State> {
     pub fn new(state: State, view: fn() -> Node<'static, State, AppState<State>>) -> Self {
         Self {
             state,
             view,
+            on_frame: |_, _| {},
             inner_size: None,
             resizable: None,
         }
@@ -46,6 +48,11 @@ impl<State: Clone + 'static> AppBuilder<State> {
         self
     }
 
+    pub fn on_frame(mut self, on_frame: fn(&mut State, &mut AppState<State>) -> ()) -> Self {
+        self.on_frame = on_frame;
+        self
+    }
+
     pub fn start(self) {
         let event_loop = EventLoop::new().expect("Could not create event loop");
         #[allow(unused_mut)]
@@ -57,6 +64,7 @@ impl<State: Clone + 'static> AppBuilder<State> {
                 event_loop,
                 render_cx,
                 self.view,
+                self.on_frame,
                 self.inner_size,
                 self.resizable,
             );
@@ -74,6 +82,7 @@ pub struct App<'s, State> {
     pub(crate) app_state: AppState<State>,
     pub state: State,
     pub(crate) view: fn() -> Node<'static, State, AppState<State>>,
+    pub(crate) on_frame: fn(&mut State, &mut AppState<State>) -> (),
 }
 
 pub(crate) struct RenderState<'surface> {
@@ -195,7 +204,7 @@ impl<State: 'static> BackgroundScheduler<State> {
     }
 }
 
-impl<'n, State: Clone + 'static> App<'_, State> {
+impl<State: 'static> App<'_, State> {
     fn request_redraw(&self) {
         let Some(RenderState { window, .. }) = &self.render_state else {
             return;
@@ -218,6 +227,7 @@ impl<'n, State: Clone + 'static> App<'_, State> {
         render_cx: RenderContext,
         #[cfg(target_arch = "wasm32")] render_state: RenderState,
         view: fn() -> Node<'static, State, AppState<State>>,
+        on_frame: fn(&mut State, &mut AppState<State>) -> (),
         inner_size: Option<(u32, u32)>,
         resizable: Option<bool>,
     ) {
@@ -258,6 +268,7 @@ impl<'n, State: Clone + 'static> App<'_, State> {
                 now: Instant::now(),
                 appeared_views: std::collections::HashSet::new(),
             },
+            on_frame,
         };
         event_loop.run_app(&mut app).expect("run to completion");
     }
@@ -302,6 +313,7 @@ impl<'n, State: Clone + 'static> App<'_, State> {
                 );
             }
         }
+        (self.on_frame)(&mut self.state, &mut self.app_state);
         let Self {
             context,
             renderers,
@@ -361,7 +373,7 @@ impl<'n, State: Clone + 'static> App<'_, State> {
     }
 }
 
-impl<State: Clone + 'static> ApplicationHandler for App<'_, State> {
+impl<State: 'static> ApplicationHandler for App<'_, State> {
     fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         let needs_redraw = self
             .app_state
@@ -526,7 +538,7 @@ impl<State: Clone + 'static> ApplicationHandler for App<'_, State> {
         }
     }
 }
-impl<State: Clone + 'static> App<'_, State> {
+impl<State: 'static> App<'_, State> {
     pub(crate) fn mouse_moved(&mut self, pos: Point) {
         let pos = Point::new(
             pos.x / self.app_state.scale_factor,
