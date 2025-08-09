@@ -113,8 +113,27 @@ pub struct AppState<State> {
 }
 
 impl<State> AppState<State> {
-    pub fn end_editing(&mut self) {
-        self.editor = None;
+    pub fn end_editing(&mut self, state: &mut State) {
+        if let Some((id, _area, _editor, _, binding)) = self.editor.as_mut() {
+            let current = binding.get(&state);
+            binding.set(
+                state,
+                TextState {
+                    text: current.text,
+                    editing: false,
+                },
+            );
+            if let Some((_, _, handler)) = self
+                .gesture_handlers
+                .clone()
+                .iter()
+                .find(|(handler_id, _, handler)| handler_id == id && handler.interaction_type.edit)
+                && let Some(ref handler) = handler.interaction_handler
+            {
+                (handler)(state, self, Interaction::Edit(EditInteraction::End));
+            }
+            self.editor = None;
+        }
     }
 
     pub(crate) fn animations_in_progress(&self, now: Instant) -> bool {
@@ -676,11 +695,21 @@ impl<State: 'static> App<'_, State> {
                 ))
             {
                 needs_redraw = true;
-                if let Some(ref on_click) = handler.interaction_handler {
+                if handler.interaction_type.click
+                    && let Some(ref on_click) = handler.interaction_handler
+                {
                     on_click(
                         &mut self.state,
                         &mut self.app_state,
                         Interaction::Click(ClickState::Started, ClickLocation::new(point, *area)),
+                    );
+                } else if handler.interaction_type.drag
+                    && let Some(ref on_drag) = handler.interaction_handler
+                {
+                    on_drag(
+                        &mut self.state,
+                        &mut self.app_state,
+                        Interaction::Drag(DragState::Began(point)),
                     );
                 }
                 self.app_state.gesture_state = GestureState::Dragging {
@@ -710,7 +739,7 @@ impl<State: 'static> App<'_, State> {
         //     }
         // }
         if let Some(current) = self.app_state.cursor_position {
-            if let Some((id, area, editor, _, binding)) = self.app_state.editor.as_mut() {
+            if let Some((id, area, editor, _, _binding)) = self.app_state.editor.as_mut() {
                 editor.mouse_released();
                 needs_redraw = true;
                 if !area_contains(area, current)
@@ -720,30 +749,7 @@ impl<State: 'static> App<'_, State> {
                             _ => false,
                         })
                 {
-                    // detect click outside editor & end editing
-                    let current = binding.get(&self.state);
-                    binding.set(
-                        &mut self.state,
-                        TextState {
-                            text: current.text,
-                            editing: false,
-                        },
-                    );
-                    if let Some((_, _, handler)) =
-                        self.app_state.gesture_handlers.clone().iter().find(
-                            |(handler_id, _, handler)| {
-                                handler_id == id && handler.interaction_type.edit
-                            },
-                        )
-                        && let Some(ref handler) = handler.interaction_handler
-                    {
-                        (handler)(
-                            &mut self.state,
-                            &mut self.app_state,
-                            Interaction::Edit(EditInteraction::End),
-                        );
-                    }
-                    self.app_state.editor = None;
+                    self.app_state.end_editing(&mut self.state);
                 }
             }
             if let GestureState::Dragging {

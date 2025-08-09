@@ -326,21 +326,6 @@ fn hex_row<'n>() -> Node<'n, State, AppState<State>> {
     .height(30.)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ColorMode {
-    Oklch,
-    Rgb,
-}
-
-impl Display for ColorMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ColorMode::Oklch => write!(f, "OKLCH"),
-            ColorMode::Rgb => write!(f, "RGB"),
-        }
-    }
-}
-
 fn mode_toggle_button<'n>() -> Node<'n, State, AppState<State>> {
     toggle(id!(), binding!(State, mode_picker))
         .on_fill(GRAY_50)
@@ -376,7 +361,7 @@ fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
                                 move |s, value| s.component_fields[i] = value,
                             ),
                         )
-                        .background_stroke(GRAY_50, s.color.display(), 5.)
+                        .background_stroke(GRAY_50, s.color.display(), 2.)
                         .on_edit(move |s, _, edit| match edit {
                             EditInteraction::Update(new) => {
                                 if oklch_mode {
@@ -408,9 +393,15 @@ fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
                                 rect(id!(i as u64))
                                     .fill(Color::TRANSPARENT)
                                     .view()
-                                    .on_drag(move |s: &mut State, _a, drag| {
+                                    .on_drag(move |s: &mut State, a, drag| {
                                         State::update_component(&mut s.color, i, drag);
                                         s.sync_component_fields();
+                                        match drag {
+                                            DragState::Began { .. } => {
+                                                a.end_editing(s);
+                                            }
+                                            _ => (),
+                                        }
                                     })
                                     .finish(),
                                 rect(id!(i as u64))
