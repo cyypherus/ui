@@ -37,7 +37,7 @@ struct State {
     oklch_mode: bool,
     mode_picker: ToggleState,
     component_fields: [TextState; 3],
-    light_mode: bool,
+    dark_mode: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -82,24 +82,24 @@ impl State {
     }
 
     fn theme_color_invert(&self, palette: Theme, invert: bool) -> AlphaColor<Srgb> {
-        let light_mode = if invert {
-            self.light_mode
+        let dark_mode = if invert {
+            !self.dark_mode
         } else {
-            !self.light_mode
+            self.dark_mode
         };
-        if light_mode {
-            match palette {
-                Theme::Gray0 => GRAY_0_L,
-                Theme::Gray30 => GRAY_30_L,
-                Theme::Gray50 => GRAY_50_L,
-                Theme::Gray70 => GRAY_70_L,
-            }
-        } else {
+        if dark_mode {
             match palette {
                 Theme::Gray0 => GRAY_0_D,
                 Theme::Gray30 => GRAY_30_D,
                 Theme::Gray50 => GRAY_50_D,
                 Theme::Gray70 => GRAY_70_D,
+            }
+        } else {
+            match palette {
+                Theme::Gray0 => GRAY_0_L,
+                Theme::Gray30 => GRAY_30_L,
+                Theme::Gray50 => GRAY_50_L,
+                Theme::Gray70 => GRAY_70_L,
             }
         }
     }
@@ -285,7 +285,7 @@ impl State {
                 TextState::default(),
                 TextState::default(),
             ],
-            light_mode: false,
+            dark_mode: true,
         };
         s.sync_component_fields();
         s.update_text();
@@ -395,14 +395,14 @@ fn copy_button<'n>() -> Node<'n, State, AppState<State>> {
 fn theme_button<'n>() -> Node<'n, State, AppState<State>> {
     dynamic(|s: &mut State, _app| {
         let color = s.theme_inverted(Theme::Gray0);
-        let light_mode = s.light_mode;
+        let dark_mode = s.dark_mode;
         button(id!(), binding!(State, light_dark_mode_button))
             .corner_rounding(10.)
             .fill(s.theme(Theme::Gray30))
             .label(move |button| {
                 svg(
                     id!(),
-                    if light_mode {
+                    if dark_mode {
                         include_str!("assets/sun.svg")
                     } else {
                         include_str!("assets/moon.svg")
@@ -416,10 +416,10 @@ fn theme_button<'n>() -> Node<'n, State, AppState<State>> {
                     }
                 })
                 .finish()
-                .pad(if light_mode { 5. } else { 7. })
+                .pad(if dark_mode { 5. } else { 7. })
             })
             .on_click(|s, _app| {
-                s.light_mode = !s.light_mode;
+                s.dark_mode = !s.dark_mode;
             })
             .finish()
             .height(30.)
