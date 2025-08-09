@@ -20,7 +20,7 @@ const GRAY_30_L: Color = Color::from_rgb8(0xea, 0xe4, 0xe6); // #eae4e6
 const GRAY_50_L: Color = Color::from_rgb8(0xd9, 0xd2, 0xd4); // #d9d2d4
 const GRAY_70_L: Color = Color::from_rgb8(0xb6, 0xb6, 0xb8); // #bdb6b8
 
-enum UIPallette {
+enum Theme {
     Gray0,
     Gray30,
     Gray50,
@@ -73,15 +73,15 @@ struct SavedState {
 }
 
 impl State {
-    fn theme(&self, palette: UIPallette) -> AlphaColor<Srgb> {
+    fn theme(&self, palette: Theme) -> AlphaColor<Srgb> {
         self.theme_color_invert(palette, false)
     }
 
-    fn theme_inverted(&self, palette: UIPallette) -> AlphaColor<Srgb> {
+    fn theme_inverted(&self, palette: Theme) -> AlphaColor<Srgb> {
         self.theme_color_invert(palette, true)
     }
 
-    fn theme_color_invert(&self, palette: UIPallette, invert: bool) -> AlphaColor<Srgb> {
+    fn theme_color_invert(&self, palette: Theme, invert: bool) -> AlphaColor<Srgb> {
         let light_mode = if invert {
             self.light_mode
         } else {
@@ -89,17 +89,17 @@ impl State {
         };
         if light_mode {
             match palette {
-                UIPallette::Gray0 => GRAY_0_L,
-                UIPallette::Gray30 => GRAY_30_L,
-                UIPallette::Gray50 => GRAY_50_L,
-                UIPallette::Gray70 => GRAY_70_L,
+                Theme::Gray0 => GRAY_0_L,
+                Theme::Gray30 => GRAY_30_L,
+                Theme::Gray50 => GRAY_50_L,
+                Theme::Gray70 => GRAY_70_L,
             }
         } else {
             match palette {
-                UIPallette::Gray0 => GRAY_0_D,
-                UIPallette::Gray30 => GRAY_30_D,
-                UIPallette::Gray50 => GRAY_50_D,
-                UIPallette::Gray70 => GRAY_70_D,
+                Theme::Gray0 => GRAY_0_D,
+                Theme::Gray30 => GRAY_30_D,
+                Theme::Gray50 => GRAY_50_D,
+                Theme::Gray70 => GRAY_70_D,
             }
         }
     }
@@ -297,20 +297,21 @@ fn main() {
     App::builder(State::default(), || {
         dynamic(|s: &mut State, _: &mut AppState<State>| {
             stack(vec![
-                rect(id!()).fill(s.theme(UIPallette::Gray0)).finish(),
+                rect(id!()).fill(s.theme(Theme::Gray0)).finish(),
                 column_spaced(
                     15.,
                     vec![
                         row(vec![
                             space().height(0.),
                             text(id!(), "idle-hue 0.2.0")
-                                .fill(s.theme(UIPallette::Gray70))
+                                .fill(s.theme(Theme::Gray70))
                                 .finish(),
-                        ]),
+                        ])
+                        .height(10.),
                         stack(vec![
                             rect(id!())
                                 .fill(s.color.display())
-                                .stroke(s.theme(UIPallette::Gray50), 3.)
+                                .stroke(s.theme(Theme::Gray50), 3.)
                                 .corner_rounding(15.)
                                 .view()
                                 .finish(),
@@ -366,10 +367,10 @@ fn main() {
 
 fn copy_button<'n>() -> Node<'n, State, AppState<State>> {
     dynamic(|s: &mut State, _app| {
-        let color = s.theme_inverted(UIPallette::Gray0);
+        let color = s.theme_inverted(Theme::Gray0);
         button(id!(), binding!(State, copy_button))
             .corner_rounding(10.)
-            .fill(s.theme(UIPallette::Gray30))
+            .fill(s.theme(Theme::Gray30))
             .label(move |button| {
                 svg(id!(), include_str!("assets/copy.svg"))
                     .fill({
@@ -393,11 +394,11 @@ fn copy_button<'n>() -> Node<'n, State, AppState<State>> {
 
 fn theme_button<'n>() -> Node<'n, State, AppState<State>> {
     dynamic(|s: &mut State, _app| {
-        let color = s.theme_inverted(UIPallette::Gray0);
+        let color = s.theme_inverted(Theme::Gray0);
         let light_mode = s.light_mode;
         button(id!(), binding!(State, light_dark_mode_button))
             .corner_rounding(10.)
-            .fill(s.theme(UIPallette::Gray30))
+            .fill(s.theme(Theme::Gray30))
             .label(move |button| {
                 svg(
                     id!(),
@@ -428,10 +429,10 @@ fn theme_button<'n>() -> Node<'n, State, AppState<State>> {
 
 fn paste_button<'n>() -> Node<'n, State, AppState<State>> {
     dynamic(|s: &mut State, _app| {
-        let color = s.theme_inverted(UIPallette::Gray0);
+        let color = s.theme_inverted(Theme::Gray0);
         button(id!(), binding!(State, paste_button))
             .corner_rounding(10.)
-            .fill(s.theme(UIPallette::Gray30))
+            .fill(s.theme(Theme::Gray30))
             .label(move |button| {
                 svg(id!(), include_str!("assets/paste.svg"))
                     .fill({
@@ -456,9 +457,9 @@ fn paste_button<'n>() -> Node<'n, State, AppState<State>> {
 fn mode_toggle_button<'n>() -> Node<'n, State, AppState<State>> {
     dynamic(|s: &mut State, _app| {
         toggle(id!(), binding!(State, mode_picker))
-            .on_fill(s.theme(UIPallette::Gray50))
-            .off_fill(s.theme(UIPallette::Gray30))
-            .knob_fill(s.theme_inverted(UIPallette::Gray0))
+            .on_fill(s.theme(Theme::Gray50))
+            .off_fill(s.theme(Theme::Gray30))
+            .knob_fill(s.theme_inverted(Theme::Gray0))
             .on_toggle(|s, _, on| {
                 if on {
                     s.oklch_mode = true;
@@ -483,7 +484,7 @@ fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
         let contrasting_highlight = {
             let luminance = s.color.display().discard_alpha().relative_luminance();
             if luminance < 0.15 || luminance > 0.7 {
-                s.theme_inverted(UIPallette::Gray0)
+                s.theme_inverted(Theme::Gray0)
             } else {
                 s.color.display()
             }
@@ -500,11 +501,11 @@ fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
                                 move |s, value| s.component_fields[i] = value,
                             ),
                         )
-                        .fill(s.theme_inverted(UIPallette::Gray0))
-                        .background_fill(Some(s.theme(UIPallette::Gray30)))
-                        .cursor_fill(s.theme_inverted(UIPallette::Gray0))
+                        .fill(s.theme_inverted(Theme::Gray0))
+                        .background_fill(Some(s.theme(Theme::Gray30)))
+                        .cursor_fill(s.theme_inverted(Theme::Gray0))
                         .highlight_fill(contrasting_highlight.with_alpha(0.25))
-                        .background_stroke(s.theme(UIPallette::Gray50), contrasting_highlight, 2.)
+                        .background_stroke(s.theme(Theme::Gray50), contrasting_highlight, 2.)
                         .on_edit(move |s, _, edit| match edit {
                             EditInteraction::Update(new) => {
                                 if oklch_mode {
@@ -543,7 +544,7 @@ fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
                                 })
                                 .finish(),
                             rect(id!(i as u64))
-                                .fill(s.theme(UIPallette::Gray50))
+                                .fill(s.theme(Theme::Gray50))
                                 .corner_rounding(5.)
                                 .view()
                                 .finish(),
@@ -591,7 +592,7 @@ fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
                                     .pad(5.),
                             ]),
                             svg(id!(i as u64), include_str!("assets/arrow-up-down.svg"))
-                                .fill(s.theme_inverted(UIPallette::Gray0))
+                                .fill(s.theme_inverted(Theme::Gray0))
                                 .finish()
                                 .height(30.)
                                 .width(20.),
@@ -603,7 +604,7 @@ fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
                     ])
                     .attach_under(
                         rect(id!(i as u64))
-                            .fill(s.theme(UIPallette::Gray30))
+                            .fill(s.theme(Theme::Gray30))
                             .corner_rounding(10.)
                             .view()
                             .finish(),

@@ -879,6 +879,7 @@ name = "idle-hue"
 version = "0.1.0"
 dependencies = [
  "arboard",
+ "parley",
  "serde",
  "serde_json",
  "tokio",
