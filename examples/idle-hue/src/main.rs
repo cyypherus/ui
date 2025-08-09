@@ -206,6 +206,8 @@ impl State {
                 }
             }
         }
+        self.update_text();
+        self.sync_component_fields();
     }
 
     fn contrast_color(&self) -> Color {
