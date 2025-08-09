@@ -13,7 +13,7 @@ use vello_svg::vello::{
 const GRAY_0_D: Color = Color::from_rgb8(0x00, 0x00, 0x00); // #000000
 const GRAY_30_D: Color = Color::from_rgb8(0x1e, 0x1e, 0x1e); // #1e1e1e
 const GRAY_50_D: Color = Color::from_rgb8(0x3b, 0x3b, 0x3b); // #3b3b3b
-const GRAY_70_D: Color = Color::from_rgb8(0x51, 0x51, 0x51); // #515151
+const GRAY_70_D: Color = Color::from_rgb8(0x61, 0x61, 0x61); // #616161
 
 const GRAY_0_L: Color = Color::from_rgb8(0xff, 0xff, 0xff); // #ffffff
 const GRAY_30_L: Color = Color::from_rgb8(0xea, 0xe4, 0xe6); // #eae4e6

@@ -3,6 +3,7 @@ name = "idle-hue"
 version = "0.1.0"
 edition = "2024"
 build = "build.rs"
+default-run = "idle-hue"
 
 [dependencies]
 ui = { path = "../../" }
@@ -13,6 +14,6 @@ tokio = { version = "1.43.0", features = ["fs"] }
 vello_svg = "0.6.0"
 parley = "0.5.0"
 
-[package.metadata.bundle]
+[package.metadata.bundle.bin.idle-hue]
 name = "idle-hue"
 identifier = "cyy.apps.idle-hue"
