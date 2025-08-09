@@ -380,6 +380,7 @@ fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
                                 move |s, value| s.component_fields[i] = value,
                             ),
                         )
+                        .background_fill(Some(GRAY_30))
                         .cursor_fill(s.color.display())
                         .highlight_fill({
                             let luminance = s.color.display().discard_alpha().relative_luminance();
@@ -410,78 +411,80 @@ fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
                         .font_size(24)
                         .finish()
                         .pad(10.),
-                        svg(id!(i as u64), include_str!("assets/arrow-up-down.svg"))
-                            .fill(Color::WHITE)
-                            .finish()
-                            .height(30.)
-                            .width(20.)
-                            .pad(5.)
-                            .pad_y(10.)
-                            .attach_under(stack(vec![
-                                rect(id!(i as u64))
-                                    .fill(Color::TRANSPARENT)
-                                    .view()
-                                    .on_drag(move |s: &mut State, a, drag| {
-                                        State::update_component(&mut s.color, i, drag);
-                                        s.sync_component_fields();
-                                        s.update_text();
-                                        match drag {
-                                            DragState::Began { .. } => {
-                                                a.end_editing(s);
-                                            }
-                                            _ => (),
+                        stack(vec![
+                            rect(id!(i as u64))
+                                .fill(Color::TRANSPARENT)
+                                .view()
+                                .on_drag(move |s: &mut State, a, drag| {
+                                    State::update_component(&mut s.color, i, drag);
+                                    s.sync_component_fields();
+                                    s.update_text();
+                                    match drag {
+                                        DragState::Began { .. } => {
+                                            a.end_editing(s);
                                         }
-                                    })
-                                    .finish(),
+                                        _ => (),
+                                    }
+                                })
+                                .finish(),
+                            rect(id!(i as u64))
+                                .fill(GRAY_50)
+                                .corner_rounding(5.)
+                                .view()
+                                .finish(),
+                            column(vec![
                                 rect(id!(i as u64))
-                                    .fill(GRAY_50)
+                                    .fill({
+                                        let mut color = color.clone();
+                                        let drag = -150.;
+                                        State::update_component(
+                                            &mut color,
+                                            i,
+                                            DragState::Updated {
+                                                start: Point::new(0.0, 0.0),
+                                                current: Point::new(0.0, drag),
+                                                delta: Point::new(0.0, drag),
+                                                distance: drag as f32,
+                                            },
+                                        );
+                                        color.display()
+                                    })
                                     .corner_rounding(5.)
-                                    .view()
-                                    .finish(),
-                                column(vec![
-                                    rect(id!(i as u64))
-                                        .fill({
-                                            let mut color = color.clone();
-                                            let drag = -150.;
-                                            State::update_component(
-                                                &mut color,
-                                                i,
-                                                DragState::Updated {
-                                                    start: Point::new(0.0, 0.0),
-                                                    current: Point::new(0.0, drag),
-                                                    delta: Point::new(0.0, drag),
-                                                    distance: drag as f32,
-                                                },
-                                            );
-                                            color.display()
-                                        })
-                                        .corner_rounding(5.)
-                                        .finish()
-                                        .height(5.)
-                                        .pad(5.),
-                                    space(),
-                                    rect(id!(i as u64))
-                                        .fill({
-                                            let mut color = color.clone();
-                                            let drag = 150.;
-                                            State::update_component(
-                                                &mut color,
-                                                i,
-                                                DragState::Updated {
-                                                    start: Point::new(0.0, 0.0),
-                                                    current: Point::new(0.0, drag),
-                                                    delta: Point::new(0.0, drag),
-                                                    distance: drag as f32,
-                                                },
-                                            );
-                                            color.display()
-                                        })
-                                        .corner_rounding(5.)
-                                        .finish()
-                                        .height(5.)
-                                        .pad(5.),
-                                ]),
-                            ])),
+                                    .finish()
+                                    .height(5.)
+                                    .pad(5.),
+                                space(),
+                                rect(id!(i as u64))
+                                    .fill({
+                                        let mut color = color.clone();
+                                        let drag = 150.;
+                                        State::update_component(
+                                            &mut color,
+                                            i,
+                                            DragState::Updated {
+                                                start: Point::new(0.0, 0.0),
+                                                current: Point::new(0.0, drag),
+                                                delta: Point::new(0.0, drag),
+                                                distance: drag as f32,
+                                            },
+                                        );
+                                        color.display()
+                                    })
+                                    .corner_rounding(5.)
+                                    .finish()
+                                    .height(5.)
+                                    .pad(5.),
+                            ]),
+                            svg(id!(i as u64), include_str!("assets/arrow-up-down.svg"))
+                                .fill(Color::WHITE)
+                                .finish()
+                                .height(30.)
+                                .width(20.),
+                        ])
+                        .height(55.)
+                        .width(30.)
+                        .pad_y(10.)
+                        .pad_trailing(10.),
                     ])
                     .attach_under(
                         rect(id!(i as u64))
