@@ -11,6 +11,7 @@ use parley::{FontContext, LayoutContext};
 use std::collections::HashMap;
 use std::time::Instant;
 use std::{num::NonZeroUsize, sync::Arc};
+use tokio::runtime::Runtime;
 use vello_svg::vello::peniko::{Brush, Color};
 use vello_svg::vello::util::{RenderContext, RenderSurface};
 use vello_svg::vello::{Renderer, RendererOptions, Scene};
@@ -97,9 +98,10 @@ pub struct AppState<State> {
     pub(crate) cursor_position: Option<Point>,
     pub(crate) gesture_state: GestureState,
     pub gesture_handlers: Vec<(u64, Area, GestureHandler<State, Self>)>,
-    pub(crate) background_scheduler: BackgroundScheduler<State>,
+    // pub(crate) background_scheduler: BackgroundScheduler<State>,
+    pub(crate) runtime: Runtime,
     pub(crate) scale_factor: f64,
-    pub(crate) editor: Option<(u64, Area, Editor, bool, Binding<State, TextState>)>,
+    pub(crate) editor: Option<EditState<State>>,
     pub(crate) animation_bank: AnimationBank,
     pub(crate) scene: Scene,
     pub(crate) font_cx: FontContext,
@@ -112,9 +114,33 @@ pub struct AppState<State> {
     pub(crate) appeared_views: std::collections::HashSet<u64>,
 }
 
+pub(crate) struct EditState<State> {
+    pub(crate) id: u64,
+    pub(crate) area: Area,
+    pub(crate) editor: Editor,
+    pub(crate) editing: bool,
+    pub(crate) binding: Binding<State, TextState>,
+    pub(crate) cursor_color: Color,
+    pub(crate) highlight_color: Color,
+}
+
+impl<State> Clone for EditState<State> {
+    fn clone(&self) -> Self {
+        EditState {
+            id: self.id,
+            area: self.area.clone(),
+            editor: self.editor.clone(),
+            editing: self.editing,
+            binding: self.binding.clone(),
+            cursor_color: self.cursor_color,
+            highlight_color: self.highlight_color,
+        }
+    }
+}
+
 impl<State> AppState<State> {
     pub fn end_editing(&mut self, state: &mut State) {
-        if let Some((id, _area, _editor, _, binding)) = self.editor.as_mut() {
+        if let Some(EditState { id, binding, .. }) = self.editor.as_mut() {
             let current = binding.get(&state);
             binding.set(
                 state,
@@ -144,82 +170,8 @@ impl<State> AppState<State> {
         })
     }
 
-    pub fn spawn<Fut>(&self, task: Fut)
-    where
-        Fut: std::future::Future<Output = ()> + Send + 'static,
-    {
-        let _ = self.background_scheduler.sender.try_send(Box::new(|| {
-            Box::pin(async move {
-                task.await;
-                Box::new(|_state: &mut State| {}) as Box<dyn FnOnce(&mut State) + Send>
-            })
-        }));
-    }
-
-    pub fn spawn_with_result<Fut, T, F>(&self, task: Fut, completion: F)
-    where
-        Fut: std::future::Future<Output = T> + Send + 'static,
-        T: Send + 'static,
-        F: FnOnce(&mut State, T) + Send + 'static,
-    {
-        let _ = self.background_scheduler.sender.try_send(Box::new(|| {
-            Box::pin(async move {
-                let result = task.await;
-                Box::new(move |state: &mut State| completion(state, result))
-                    as Box<dyn FnOnce(&mut State) + Send>
-            })
-        }));
-    }
-}
-
-use std::thread;
-use tokio::{runtime::Runtime, sync::mpsc, task};
-type BackgroundTask<State> = Box<
-    dyn FnOnce() -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = BackgroundTaskCompletion<State>> + Send>,
-        > + Send
-        + 'static,
->;
-type BackgroundTaskCompletion<State> = Box<dyn FnOnce(&mut State) + Send>;
-
-pub struct BackgroundScheduler<State> {
-    sender: mpsc::Sender<BackgroundTask<State>>,
-    completion_receiver: std::sync::mpsc::Receiver<BackgroundTaskCompletion<State>>,
-}
-
-impl<State: 'static> BackgroundScheduler<State> {
-    pub fn new() -> Self {
-        let (tx, mut rx) = mpsc::channel::<BackgroundTask<State>>(100);
-        let (completion_tx, completion_rx) =
-            std::sync::mpsc::channel::<BackgroundTaskCompletion<State>>();
-
-        thread::spawn(move || {
-            let rt = Runtime::new().unwrap();
-            rt.block_on(async move {
-                while let Some(task) = rx.recv().await {
-                    let completion_tx = completion_tx.clone();
-                    task::spawn(async move {
-                        let future = task();
-                        let completion = future.await;
-                        let _ = completion_tx.send(completion);
-                    });
-                }
-            });
-        });
-
-        Self {
-            sender: tx,
-            completion_receiver: completion_rx,
-        }
-    }
-
-    pub fn process_completions(&self, state: &mut State) -> bool {
-        let mut completions = false;
-        while let Ok(completion) = self.completion_receiver.try_recv() {
-            completion(state);
-            completions = true;
-        }
-        completions
+    pub fn spawn(&self, task: impl std::future::Future<Output = ()> + Send + 'static) {
+        self.runtime.spawn(task);
     }
 }
 
@@ -273,7 +225,7 @@ impl<State: 'static> App<'_, State> {
                 cursor_position: None,
                 gesture_state: GestureState::None,
                 gesture_handlers: Vec::new(),
-                background_scheduler: BackgroundScheduler::new(),
+                runtime: Runtime::new().unwrap(),
                 scale_factor: 1.,
                 editor: None,
                 view_state: HashMap::new(),
@@ -293,9 +245,9 @@ impl<State: 'static> App<'_, State> {
     }
 
     fn redraw(&mut self) {
-        self.app_state
-            .background_scheduler
-            .process_completions(&mut self.state);
+        // self.app_state
+        //     .background_scheduler
+        //     .process_completions(&mut self.state);
         self.app_state.now = Instant::now();
         self.app_state.gesture_handlers.clear();
         if let Self {
@@ -323,13 +275,22 @@ impl<State: 'static> App<'_, State> {
                 &mut self.state,
                 &mut self.app_state,
             );
-            if let Some((_, area, ref mut editor, _, _)) = self.app_state.editor {
+            if let Some(EditState {
+                area,
+                ref mut editor,
+                cursor_color,
+                highlight_color,
+                ..
+            }) = self.app_state.editor
+            {
                 editor.draw(
                     area,
                     &mut self.app_state.scene,
                     self.app_state.scale_factor,
                     &mut self.app_state.layout_cx,
                     &mut self.app_state.font_cx,
+                    cursor_color,
+                    highlight_color,
                     true,
                     1.0,
                 );
@@ -499,7 +460,7 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
                         ..
                     } = self;
                     let mut needs_redraw = false;
-                    if let Some((_, _, editor, _, _)) = editor {
+                    if let Some(EditState { editor, .. }) = editor {
                         editor.handle_key(key.clone(), layout_cx, font_cx, modifiers.clone());
                     }
                     for (id, _area, handler) in self.app_state.gesture_handlers.clone().iter() {
@@ -513,8 +474,11 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
                                 );
                             } else if handler.interaction_type.edit {
                                 needs_redraw = true;
-                                if let Some((edit_id, _, editor, _, _)) =
-                                    &self.app_state.editor.clone()
+                                if let Some(EditState {
+                                    id: edit_id,
+                                    editor,
+                                    ..
+                                }) = &self.app_state.editor.clone()
                                     && edit_id == id
                                 {
                                     (interaction_handler)(
@@ -585,7 +549,7 @@ impl<State: 'static> App<'_, State> {
                 },
             ..
         } = self;
-        if let Some((_, area, editor, _, _)) = editor.as_mut() {
+        if let Some(EditState { editor, area, .. }) = editor.as_mut() {
             needs_redraw = true;
             editor.mouse_moved(
                 Point::new(pos.x - area.x as f64, pos.y - area.y as f64),
@@ -664,7 +628,7 @@ impl<State: 'static> App<'_, State> {
                     },
                 ..
             } = self;
-            if let Some((_, area, editor, _, _)) = editor.as_mut() {
+            if let Some(EditState { editor, area, .. }) = editor.as_mut() {
                 if area_contains(area, point) {
                     editor.mouse_pressed(layout_cx, font_cx);
                 }
@@ -739,7 +703,10 @@ impl<State: 'static> App<'_, State> {
         //     }
         // }
         if let Some(current) = self.app_state.cursor_position {
-            if let Some((id, area, editor, _, _binding)) = self.app_state.editor.as_mut() {
+            if let Some(EditState {
+                id, editor, area, ..
+            }) = self.app_state.editor.as_mut()
+            {
                 editor.mouse_released();
                 needs_redraw = true;
                 if !area_contains(area, current)

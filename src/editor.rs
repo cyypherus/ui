@@ -5,14 +5,14 @@ use std::time::{Duration, Instant};
 use vello_svg::vello::{
     Scene,
     kurbo::{Affine, Line, Point, RoundedRect, Stroke},
-    peniko::{Brush, Fill, color::palette},
+    peniko::{Brush, Color, Fill, color::palette},
 };
 use winit::{event::Modifiers, keyboard::NamedKey};
 
 pub use parley::layout::editor::Generation;
 use parley::{FontContext, LayoutContext, PlainEditor, PlainEditorDriver};
 
-use crate::{DEEP_PURP, Key};
+use crate::Key;
 
 #[derive(Clone)]
 pub struct Editor {
@@ -333,6 +333,8 @@ impl Editor {
         scale: f64,
         layout_cx: &mut LayoutContext<Brush>,
         font_cx: &mut FontContext,
+        cursor_color: Color,
+        highlight_color: Color,
         _visible: bool,
         _visible_amount: f32,
     ) -> Generation {
@@ -344,7 +346,7 @@ impl Editor {
             scene.fill(
                 Fill::NonZero,
                 transform,
-                DEEP_PURP,
+                highlight_color,
                 None,
                 &RoundedRect::from_rect(*rect, 5.),
             );
@@ -355,7 +357,7 @@ impl Editor {
                 scene.fill(
                     Fill::NonZero,
                     transform,
-                    palette::css::WHITE,
+                    cursor_color,
                     None,
                     &RoundedRect::from_origin_size(
                         Point::new(cursor.x0, cursor.y0),

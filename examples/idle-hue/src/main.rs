@@ -1,23 +1,22 @@
-use std::fmt::Display;
+use std::sync::Arc;
 
 use arboard::Clipboard;
 use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex;
 use ui::*;
 use vello_svg::vello::{
     kurbo::Point,
-    peniko::color::{AlphaColor, Oklch, Srgb, parse_color},
+    peniko::color::{AlphaColor, ColorSpaceTag, Oklch, Srgb, parse_color},
 };
 
 const GRAY_30: Color = Color::from_rgb8(30, 30, 30);
 const GRAY_50: Color = Color::from_rgb8(60, 60, 60);
 
-#[derive(Clone)]
 struct State {
-    text: TextState,
+    hex: String,
+    error: Arc<Mutex<Option<String>>>,
     copy_button: ButtonState,
-    toggle_text_button: ButtonState,
-    show_text: bool,
-    loaded: bool,
+    paste_button: ButtonState,
     color: CurrentColor,
     oklch_mode: bool,
     mode_picker: ToggleState,
@@ -57,27 +56,11 @@ struct SavedState {
 }
 
 impl State {
-    fn update_current_color(&mut self) {
-        let hex_color = format!("#{}", self.text.text);
-        let Some(parsed) = parse_color(&hex_color).ok() else {
-            self.color = CurrentColor::Srgb(Color::TRANSPARENT);
-            return;
-        };
-        let srgb = parsed.to_alpha_color::<Srgb>();
-        let components = srgb.components;
-        self.color = CurrentColor::Srgb(Color::from_rgba8(
-            (components[0] * 255.0) as u8,
-            (components[1] * 255.0) as u8,
-            (components[2] * 255.0) as u8,
-            (components[3] * 255.0) as u8,
-        ));
-    }
-
     fn update_text(&mut self) {
         match self.color {
             CurrentColor::Srgb(color) => {
-                self.text.text = format!(
-                    "{:02x}{:02x}{:02x}",
+                self.hex = format!(
+                    "#{:02x}{:02x}{:02x}",
                     (color.components[0] * 255.0) as u8,
                     (color.components[1] * 255.0) as u8,
                     (color.components[2] * 255.0) as u8,
@@ -85,13 +68,12 @@ impl State {
             }
             CurrentColor::Oklch(color) => {
                 let color_text = format!(
-                    "{:.2}, {:.2}, {:.2}",
+                    "oklch({:.2} {:.2} {:.0})",
                     color.components[0], color.components[1], color.components[2],
                 );
-                self.text.text = color_text;
+                self.hex = color_text;
             }
         }
-        self.text.editing = false;
     }
 
     fn rgb_to_oklch(&mut self) {
@@ -154,12 +136,6 @@ impl State {
                 }
             }
         }
-        // if matches!(drag, DragState::Completed { .. }) {
-        //     let state = SavedState {
-        //         text: self.text.text.clone(),
-        //     };
-        //     app.spawn(async move { _ = save_state_to_file(&state).await });
-        // }
     }
 
     fn clamp_color_components(&mut self) {
@@ -193,8 +169,41 @@ impl State {
 
     fn copy_to_clipboard(&self) {
         if let Ok(mut clipboard) = Clipboard::new() {
-            if let Err(e) = clipboard.set_text(self.text.text.clone()) {
+            if let Err(e) = clipboard.set_text(self.hex.clone()) {
                 eprintln!("Failed to copy to clipboard: {}", e);
+            }
+        }
+    }
+
+    fn paste(&mut self, app: &mut AppState<State>) {
+        fn delay_clear_error(error: Arc<Mutex<Option<String>>>, app: &mut AppState<State>) {
+            app.spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                let mut current_error = error.lock().await;
+                *current_error = None;
+            });
+        }
+        if let Ok(mut clipboard) = Clipboard::new() {
+            if let Ok(text) = clipboard.get_text() {
+                let trimmed = text.trim();
+                let Some(parsed) = parse_color(&trimmed).ok() else {
+                    self.error = Arc::new(Mutex::new(Some("Color parsing failed".to_string())));
+                    delay_clear_error(self.error.clone(), app);
+                    return;
+                };
+                match parsed.cs {
+                    ColorSpaceTag::Srgb => {
+                        self.color = CurrentColor::Srgb(parsed.to_alpha_color::<Srgb>())
+                    }
+                    ColorSpaceTag::Oklch => {
+                        self.color = CurrentColor::Oklch(parsed.to_alpha_color::<Oklch>())
+                    }
+                    _ => {
+                        self.error =
+                            Arc::new(Mutex::new(Some("Unsupported color space".to_string())));
+                        delay_clear_error(self.error.clone(), app);
+                    }
+                }
             }
         }
     }
@@ -207,14 +216,10 @@ impl State {
 
     fn default() -> Self {
         let mut s = State {
-            text: TextState {
-                text: "00000000".to_string(),
-                editing: false,
-            },
+            hex: "ffffff".to_string(),
+            error: Arc::new(Mutex::new(None)),
             copy_button: ButtonState::default(),
-            toggle_text_button: ButtonState::default(),
-            show_text: false,
-            loaded: false,
+            paste_button: ButtonState::default(),
             color: CurrentColor::Oklch(AlphaColor::<Oklch>::new([1.0, 0.0, 0.0, 1.0])),
             oklch_mode: true,
             mode_picker: ToggleState::on(),
@@ -225,6 +230,7 @@ impl State {
             ],
         };
         s.sync_component_fields();
+        s.update_text();
         s
     }
 }
@@ -238,9 +244,15 @@ fn main() {
                     stack(vec![
                         rect(id!())
                             .fill(s.color.display())
-                            .corner_rounding(5.)
-                            .stroke(Color::WHITE, 3.)
+                            .corner_rounding(15.)
+                            // .stroke(Color::WHITE, 3.)
                             .view()
+                            .finish(),
+                        text(id!(), s.hex.clone())
+                            .font_size(20)
+                            .fill(s.contrast_color())
+                            .view()
+                            .transition_duration(0.)
                             .finish(),
                         column(vec![
                             row_spaced(
@@ -252,16 +264,23 @@ fn main() {
                                 ],
                             ),
                             space(),
+                            row_spaced(
+                                10.,
+                                vec![
+                                    paste_button(),
+                                    space().height(0.),
+                                    if let Some(error) = s.error.blocking_lock().clone() {
+                                        text(id!(), error).fill(s.contrast_color()).finish()
+                                    } else {
+                                        empty()
+                                    },
+                                    space().height(0.),
+                                    copy_button(),
+                                ],
+                            ),
                         ])
                         .pad(10.),
                     ]),
-                    // button(id!(), binding!(State, toggle_text_button))
-                    //     // .label("Toggle Mode")
-                    //     .on_click(|s, _a| {
-                    //         s.show_text = !s.show_text;
-                    //     })
-                    //     .finish(),
-                    if s.show_text { hex_row() } else { empty() },
                     rgb_row(),
                 ],
             )
@@ -273,57 +292,54 @@ fn main() {
     .start()
 }
 
-fn hex_text_field<'n>() -> Node<'n, State, AppState<State>> {
-    text_field(id!(), binding!(State, text))
-        .font_size(40)
-        .background_fill(None)
-        .no_background_stroke()
-        .on_edit(|s, _, edit| {
-            let EditInteraction::Update(text) = edit else {
-                return;
-            };
-            s.text.text = text.clone();
-            s.update_current_color();
+fn copy_button<'n>() -> Node<'n, State, AppState<State>> {
+    let color = Color::WHITE;
+    button(id!(), binding!(State, copy_button))
+        .corner_rounding(10.)
+        .fill(GRAY_30)
+        .label(move |button| {
+            svg(id!(), include_str!("assets/copy.svg"))
+                .fill({
+                    match (button.depressed, button.hovered) {
+                        (true, _) => color.map_lightness(|l| l - 0.2),
+                        (false, true) => color.map_lightness(|l| l + 0.2),
+                        (false, false) => color,
+                    }
+                })
+                .finish()
+                .pad(8.)
+        })
+        .on_click(|s, _app| {
+            s.copy_to_clipboard();
         })
         .finish()
+        .height(30.)
+        .width(30.)
 }
 
-fn copy_button<'n>() -> Node<'n, State, AppState<State>> {
-    dynamic(|s: &mut State, _app| {
-        let rl = s.color.display().discard_alpha().relative_luminance() * s.color.components()[3];
-        button(id!(), binding!(State, copy_button))
-            .corner_rounding(10.)
-            .fill(s.color.display())
-            .label(move |button| {
-                svg(id!(), include_str!("assets/copy.svg"))
-                    .fill({
-                        let color = if rl > 0.5 { Color::BLACK } else { Color::WHITE };
-                        match (button.depressed, button.hovered) {
-                            (true, _) => color.map_lightness(|l| l - 0.2),
-                            (false, true) => color.map_lightness(|l| l + 0.2),
-                            (false, false) => color,
-                        }
-                    })
-                    .finish()
-                    .pad(10.)
-            })
-            .on_click(|s, _app| {
-                s.copy_to_clipboard();
-            })
-            .finish()
-            .height(40.)
-            .width(40.)
-    })
-}
-
-fn hex_row<'n>() -> Node<'n, State, AppState<State>> {
-    row(vec![
-        text(id!(), "#").font_size(40).finish().width(20.),
-        hex_text_field(),
-        copy_button(),
-    ])
-    .align_contents(Align::CenterY)
-    .height(30.)
+fn paste_button<'n>() -> Node<'n, State, AppState<State>> {
+    let color = Color::WHITE;
+    button(id!(), binding!(State, paste_button))
+        .corner_rounding(10.)
+        .fill(GRAY_30)
+        .label(move |button| {
+            svg(id!(), include_str!("assets/paste.svg"))
+                .fill({
+                    match (button.depressed, button.hovered) {
+                        (true, _) => color.map_lightness(|l| l - 0.2),
+                        (false, true) => color.map_lightness(|l| l + 0.2),
+                        (false, false) => color,
+                    }
+                })
+                .finish()
+                .pad(6.)
+        })
+        .on_click(|s, app| {
+            s.paste(app);
+        })
+        .finish()
+        .height(30.)
+        .width(30.)
 }
 
 fn mode_toggle_button<'n>() -> Node<'n, State, AppState<State>> {
@@ -339,6 +355,7 @@ fn mode_toggle_button<'n>() -> Node<'n, State, AppState<State>> {
                 s.oklch_to_rgb();
             }
             s.sync_component_fields();
+            s.update_text();
         })
         .finish()
         .height(20.)
@@ -361,6 +378,15 @@ fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
                                 move |s, value| s.component_fields[i] = value,
                             ),
                         )
+                        .cursor_fill(s.color.display())
+                        .highlight_fill({
+                            let luminance = s.color.display().discard_alpha().relative_luminance();
+                            if luminance < 0.3 || luminance > 0.7 {
+                                Color::from_rgb8(100, 100, 100)
+                            } else {
+                                s.color.display().with_alpha(0.3)
+                            }
+                        })
                         .background_stroke(GRAY_50, s.color.display(), 2.)
                         .on_edit(move |s, _, edit| match edit {
                             EditInteraction::Update(new) => {
@@ -396,6 +422,7 @@ fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
                                     .on_drag(move |s: &mut State, a, drag| {
                                         State::update_component(&mut s.color, i, drag);
                                         s.sync_component_fields();
+                                        s.update_text();
                                         match drag {
                                             DragState::Began { .. } => {
                                                 a.end_editing(s);

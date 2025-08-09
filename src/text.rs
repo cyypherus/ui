@@ -1,5 +1,5 @@
 use crate::animated_color::{AnimatedColor, AnimatedU8};
-use crate::app::AppState;
+use crate::app::{AppState, EditState};
 use crate::gestures::EditInteraction;
 use crate::{
     Binding, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR, DEFAULT_FONT_SIZE, DEFAULT_PADDING, Editor,
@@ -50,6 +50,8 @@ pub fn text<State>(id: u64, text: impl AsRef<str> + 'static) -> Text<State> {
         background_corner_rounding: DEFAULT_CORNER_ROUNDING,
         background_padding: DEFAULT_PADDING,
         wrap: false,
+        cursor_fill: DEEP_PURP,
+        highlight_fill: DEEP_PURP,
         on_edit: None,
     }
 }
@@ -67,11 +69,13 @@ pub fn text_field<State>(id: u64, state: Binding<State, TextState>) -> Text<Stat
         alignment: TextAlign::Centered,
         editable: true,
         line_height: 1.,
-        background_fill: Some(AlphaColor::from_rgb8(50, 50, 50)),
-        background_stroke: Some((AlphaColor::from_rgb8(60, 60, 60), DEEP_PURP, 3.)),
+        background_fill: Some(Color::from_rgb8(50, 50, 50)),
+        background_stroke: Some((Color::from_rgb8(60, 60, 60), DEEP_PURP, 3.)),
         background_corner_rounding: DEFAULT_CORNER_ROUNDING,
         background_padding: DEFAULT_PADDING,
         wrap: false,
+        cursor_fill: DEEP_PURP,
+        highlight_fill: DEEP_PURP,
         on_edit: None,
     }
 }
@@ -93,6 +97,8 @@ pub struct Text<State> {
     pub(crate) background_corner_rounding: f32,
     pub(crate) background_padding: f32,
     pub(crate) wrap: bool,
+    pub(crate) cursor_fill: Color,
+    pub(crate) highlight_fill: Color,
     on_edit: Option<Rc<dyn Fn(&mut State, &mut AppState<State>, EditInteraction)>>,
 }
 
@@ -117,6 +123,8 @@ impl<State> Debug for Text<State> {
             )
             .field("background_padding", &self.background_padding)
             .field("wrap", &self.wrap)
+            .field("cursor_fill", &self.cursor_fill)
+            .field("highlight_fill", &self.highlight_fill)
             .finish()
     }
 }
@@ -140,6 +148,8 @@ impl<State> Clone for Text<State> {
             background_corner_rounding: self.background_corner_rounding,
             background_padding: self.background_padding,
             wrap: self.wrap,
+            cursor_fill: self.cursor_fill,
+            highlight_fill: self.highlight_fill,
             on_edit: self.on_edit.clone(),
         }
     }
@@ -207,9 +217,16 @@ impl<State> Text<State> {
         self.background_padding = padding;
         self
     }
+    pub fn cursor_fill(mut self, color: Color) -> Self {
+        self.cursor_fill = color;
+        self
+    }
+    pub fn highlight_fill(mut self, color: Color) -> Self {
+        self.highlight_fill = color;
+        self
+    }
     pub fn on_edit(
         mut self,
-        // on_edit: fn(&mut State, &mut AppState<State>, EditInteraction),
         on_edit: impl Fn(&mut State, &mut AppState<State>, EditInteraction) + 'static,
     ) -> Self {
         self.on_edit = Some(Rc::new(on_edit));
@@ -393,9 +410,22 @@ impl<State> Text<State> {
                     editor.mouse_released();
                 }
             }
-            app.editor = Some((self.id, area, editor, true, self.state.clone()));
+            app.editor = Some(EditState {
+                id: self.id,
+                area,
+                editor,
+                editing: true,
+                binding: self.state.clone(),
+                cursor_color: self.cursor_fill,
+                highlight_color: self.highlight_fill,
+            });
         }
-        if let Some((id, edit_area, _, _, _)) = &mut app.editor {
+        if let Some(EditState {
+            id,
+            area: edit_area,
+            ..
+        }) = &mut app.editor
+        {
             if *id == self.id {
                 *edit_area = area;
                 return;
