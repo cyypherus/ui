@@ -20,7 +20,8 @@ struct State {
     loaded: bool,
     color: CurrentColor,
     oklch_mode: bool,
-    mode_picker: SegmentPickerState<ColorMode>,
+    mode_picker: ToggleState,
+    component_fields: [TextState; 3],
 }
 
 #[derive(Clone, Debug)]
@@ -161,6 +162,17 @@ impl State {
         // }
     }
 
+    fn sync_component_fields(&mut self) {
+        for i in 0..3 {
+            if self.oklch_mode {
+                self.component_fields[i].text = format!("{:.2}", self.color.components()[i]);
+            } else {
+                self.component_fields[i].text =
+                    format!("{}", (self.color.components()[i] * 255.) as u8);
+            }
+        }
+    }
+
     fn copy_to_clipboard(&self) {
         if let Ok(mut clipboard) = Clipboard::new() {
             if let Err(e) = clipboard.set_text(self.text.text.clone()) {
@@ -169,8 +181,14 @@ impl State {
         }
     }
 
+    fn contrast_color(&self) -> Color {
+        let rl =
+            self.color.display().discard_alpha().relative_luminance() * self.color.components()[3];
+        if rl > 0.5 { Color::BLACK } else { Color::WHITE }
+    }
+
     fn default() -> Self {
-        State {
+        let mut s = State {
             text: TextState {
                 text: "00000000".to_string(),
                 editing: false,
@@ -181,8 +199,15 @@ impl State {
             loaded: false,
             color: CurrentColor::Oklch(AlphaColor::<Oklch>::new([0.0, 0.0, 0.0, 1.0])),
             oklch_mode: false,
-            mode_picker: SegmentPickerState::new(ColorMode::Rgb),
-        }
+            mode_picker: ToggleState::default(),
+            component_fields: [
+                TextState::default(),
+                TextState::default(),
+                TextState::default(),
+            ],
+        };
+        s.sync_component_fields();
+        s
     }
 }
 
@@ -225,11 +250,13 @@ fn main() {
                                             if state.text.text.is_empty() {
                                                 state.text.text = "000000".to_string();
                                             }
+                                            state.sync_component_fields();
                                         }
                                         Err(_) => {
                                             state.text.text = "000000".to_string();
                                             state.loaded = true;
                                             state.update_current_color();
+                                            state.sync_component_fields();
                                         }
                                     },
                                 );
@@ -240,18 +267,32 @@ fn main() {
                     ]
                 } else {
                     vec![
-                        rect(id!())
-                            .fill(s.color.display())
-                            .corner_rounding(5.)
-                            .stroke(Color::WHITE, 3.)
-                            .view()
-                            .finish(),
-                        button(id!(), binding!(State, toggle_text_button))
-                            // .label("Toggle Mode")
-                            .on_click(|s, _a| {
-                                s.show_text = !s.show_text;
-                            })
-                            .finish(),
+                        stack(vec![
+                            rect(id!())
+                                .fill(s.color.display())
+                                .corner_rounding(5.)
+                                .stroke(Color::WHITE, 3.)
+                                .view()
+                                .finish(),
+                            column(vec![
+                                row_spaced(
+                                    10.,
+                                    vec![
+                                        space().height(0.),
+                                        text(id!(), "oklch").fill(s.contrast_color()).finish(),
+                                        mode_toggle_button(),
+                                    ],
+                                ),
+                                space(),
+                            ])
+                            .pad(10.),
+                        ]),
+                        // button(id!(), binding!(State, toggle_text_button))
+                        //     // .label("Toggle Mode")
+                        //     .on_click(|s, _a| {
+                        //         s.show_text = !s.show_text;
+                        //     })
+                        //     .finish(),
                         if s.show_text { hex_row() } else { empty() },
                         rgb_row(),
                     ]
@@ -338,95 +379,144 @@ impl Display for ColorMode {
 }
 
 fn mode_toggle_button<'n>() -> Node<'n, State, AppState<State>> {
-    segment_picker(
-        id!(),
-        vec![ColorMode::Rgb, ColorMode::Oklch],
-        binding!(State, mode_picker),
-    )
-    .on_select(|s, _a, sel| match sel {
-        ColorMode::Oklch => {
-            s.oklch_mode = true;
-            s.rgb_to_oklch();
-        }
-        ColorMode::Rgb => {
-            s.oklch_mode = false;
-            s.oklch_to_rgb();
-        }
-    })
-    .finish()
-    .height(40.)
+    toggle(id!(), binding!(State, mode_picker))
+        .on_toggle(|s, _, on| {
+            if on {
+                s.oklch_mode = true;
+                s.rgb_to_oklch();
+            } else {
+                s.oklch_mode = false;
+                s.oklch_to_rgb();
+            }
+        })
+        // segment_picker(
+        //     id!(),
+        //     vec![ColorMode::Rgb, ColorMode::Oklch],
+        //     binding!(State, mode_picker),
+        // )
+        // .on_select(|s, _a, sel| match sel {
+        //     ColorMode::Oklch => {
+        //         s.oklch_mode = true;
+        //         s.rgb_to_oklch();
+        //     }
+        //     ColorMode::Rgb => {
+        //         s.oklch_mode = false;
+        //         s.oklch_to_rgb();
+        //     }
+        // })
+        .finish()
+        .height(20.)
+        .width(40.)
 }
 
 fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
     dynamic(|s: &mut State, _app| {
         let color = s.color.clone();
+        let oklch_mode = s.oklch_mode;
         row_spaced(
             10.,
             (0usize..3)
                 .map(|i| {
-                    text(id!(i as u64), format!("{:.2}", s.color.components()[i]))
+                    row(vec![
+                        text_field(
+                            id!(i as u64),
+                            Binding::new(
+                                move |s: &State| s.component_fields[i].clone(),
+                                move |s, value| s.component_fields[i] = value,
+                            ),
+                        )
+                        .on_edit(move |s, _, edit| match edit {
+                            EditInteraction::Update(new) => {
+                                if oklch_mode {
+                                    if let Ok(value) = new.parse::<f32>() {
+                                        s.color.components_mut()[i] = value;
+                                    }
+                                } else {
+                                    if let Ok(value) = new.parse::<u8>() {
+                                        s.color.components_mut()[i] = value as f32 / 255.;
+                                    }
+                                }
+                            }
+                            EditInteraction::End => {
+                                s.sync_component_fields();
+                            }
+                        })
                         .font_size(24)
-                        .view()
                         .finish()
-                        .pad(5.)
-                        .pad_y(10.)
-                        .attach_under(stack(vec![
-                            rect(id!(i as u64))
-                                .fill(Color::TRANSPARENT)
-                                .view()
-                                .on_drag(move |s: &mut State, _a, drag| {
-                                    State::update_component(&mut s.color, i, drag);
-                                })
-                                .finish(),
-                            rect(id!(i as u64))
-                                .fill(GRAY_50)
-                                .corner_rounding(5.)
-                                .view()
-                                .finish(),
-                            column(vec![
+                        .pad(10.),
+                        svg(id!(i as u64), include_str!("assets/arrow-up-down.svg"))
+                            .fill(Color::WHITE)
+                            .finish()
+                            .height(30.)
+                            .width(20.)
+                            .pad(5.)
+                            .pad_y(10.)
+                            .attach_under(stack(vec![
                                 rect(id!(i as u64))
-                                    .fill({
-                                        let mut color = color.clone();
-                                        let drag = -150.;
-                                        State::update_component(
-                                            &mut color,
-                                            i,
-                                            DragState::Updated {
-                                                start: Point::new(0.0, 0.0),
-                                                current: Point::new(0.0, drag),
-                                                delta: Point::new(0.0, drag),
-                                                distance: drag as f32,
-                                            },
-                                        );
-                                        color.display()
+                                    .fill(Color::TRANSPARENT)
+                                    .view()
+                                    .on_drag(move |s: &mut State, _a, drag| {
+                                        State::update_component(&mut s.color, i, drag);
+                                        s.sync_component_fields();
                                     })
-                                    .corner_rounding(5.)
-                                    .finish()
-                                    .height(5.)
-                                    .pad(5.),
-                                space(),
+                                    .finish(),
                                 rect(id!(i as u64))
-                                    .fill({
-                                        let mut color = color.clone();
-                                        let drag = 150.;
-                                        State::update_component(
-                                            &mut color,
-                                            i,
-                                            DragState::Updated {
-                                                start: Point::new(0.0, 0.0),
-                                                current: Point::new(0.0, drag),
-                                                delta: Point::new(0.0, drag),
-                                                distance: drag as f32,
-                                            },
-                                        );
-                                        color.display()
-                                    })
+                                    .fill(GRAY_50)
                                     .corner_rounding(5.)
-                                    .finish()
-                                    .height(5.)
-                                    .pad(5.),
-                            ]),
-                        ]))
+                                    .view()
+                                    .finish(),
+                                column(vec![
+                                    rect(id!(i as u64))
+                                        .fill({
+                                            let mut color = color.clone();
+                                            let drag = -150.;
+                                            State::update_component(
+                                                &mut color,
+                                                i,
+                                                DragState::Updated {
+                                                    start: Point::new(0.0, 0.0),
+                                                    current: Point::new(0.0, drag),
+                                                    delta: Point::new(0.0, drag),
+                                                    distance: drag as f32,
+                                                },
+                                            );
+                                            color.display()
+                                        })
+                                        .corner_rounding(5.)
+                                        .finish()
+                                        .height(5.)
+                                        .pad(5.),
+                                    space(),
+                                    rect(id!(i as u64))
+                                        .fill({
+                                            let mut color = color.clone();
+                                            let drag = 150.;
+                                            State::update_component(
+                                                &mut color,
+                                                i,
+                                                DragState::Updated {
+                                                    start: Point::new(0.0, 0.0),
+                                                    current: Point::new(0.0, drag),
+                                                    delta: Point::new(0.0, drag),
+                                                    distance: drag as f32,
+                                                },
+                                            );
+                                            color.display()
+                                        })
+                                        .corner_rounding(5.)
+                                        .finish()
+                                        .height(5.)
+                                        .pad(5.),
+                                ]),
+                            ])),
+                    ])
+                    .attach_under(
+                        rect(id!(i as u64))
+                            .fill(GRAY_30)
+                            .corner_rounding(5.)
+                            .view()
+                            .finish(),
+                    )
                 })
                 .collect(),
         )
@@ -434,5 +524,11 @@ fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
 }
 
 fn rgb_row<'n>() -> Node<'n, State, AppState<State>> {
-    column_spaced(10., vec![mode_toggle_button(), color_component_sliders()])
+    column_spaced(
+        10.,
+        vec![
+            // mode_toggle_button(),
+            color_component_sliders(),
+        ],
+    )
 }

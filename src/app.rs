@@ -14,7 +14,7 @@ use std::{num::NonZeroUsize, sync::Arc};
 use vello_svg::vello::peniko::{Brush, Color};
 use vello_svg::vello::util::{RenderContext, RenderSurface};
 use vello_svg::vello::{Renderer, RendererOptions, Scene};
-use winit::event::{Modifiers, MouseScrollDelta};
+use winit::event::{Modifiers, MouseScrollDelta, StartCause};
 use winit::platform::macos::WindowAttributesExtMacOS;
 use winit::{application::ApplicationHandler, event_loop::EventLoop, window::Window};
 use winit::{dpi::LogicalSize, event::MouseButton};
@@ -274,6 +274,9 @@ impl<State: 'static> App<'_, State> {
     }
 
     fn redraw(&mut self) {
+        self.app_state
+            .background_scheduler
+            .process_completions(&mut self.state);
         self.app_state.now = Instant::now();
         self.app_state.gesture_handlers.clear();
         if let Self {
@@ -374,21 +377,6 @@ impl<State: 'static> App<'_, State> {
 }
 
 impl<State: 'static> ApplicationHandler for App<'_, State> {
-    fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        let needs_redraw = self
-            .app_state
-            .background_scheduler
-            .process_completions(&mut self.state);
-
-        if needs_redraw {
-            self.request_redraw();
-        }
-
-        event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
-            std::time::Instant::now() + std::time::Duration::from_millis(100),
-        ));
-    }
-
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         let Option::None = self.render_state else {
             return;
@@ -446,6 +434,25 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
         };
         self.render_state = render_state;
         self.request_redraw();
+        event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
+            std::time::Instant::now() + std::time::Duration::from_millis(500),
+        ));
+    }
+
+    fn new_events(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        cause: winit::event::StartCause,
+    ) {
+        match cause {
+            StartCause::ResumeTimeReached { .. } => {
+                self.request_redraw();
+                event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
+                    std::time::Instant::now() + std::time::Duration::from_millis(500),
+                ));
+            }
+            _ => {}
+        }
     }
 
     fn window_event(
@@ -476,18 +483,21 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
                     if let Some((_, _, editor, _, _)) = editor {
                         editor.handle_key(key.clone(), layout_cx, font_cx, modifiers.clone());
                     }
-                    for handler in self.app_state.gesture_handlers.clone().iter() {
-                        if let Some(ref interaction_handler) = handler.2.interaction_handler {
-                            if handler.2.interaction_type.key {
+                    for (id, _area, handler) in self.app_state.gesture_handlers.clone().iter() {
+                        if let Some(ref interaction_handler) = handler.interaction_handler {
+                            if handler.interaction_type.key {
                                 needs_redraw = true;
                                 interaction_handler(
                                     &mut self.state,
                                     &mut self.app_state,
                                     Interaction::Key(key.clone()),
                                 );
-                            } else if handler.2.interaction_type.edit {
+                            } else if handler.interaction_type.edit {
                                 needs_redraw = true;
-                                if let Some((_, _, editor, _, _)) = &self.app_state.editor.clone() {
+                                if let Some((edit_id, _, editor, _, _)) =
+                                    &self.app_state.editor.clone()
+                                    && edit_id == id
+                                {
                                     (interaction_handler)(
                                         &mut self.state,
                                         &mut self.app_state,
@@ -651,6 +661,19 @@ impl<State: 'static> App<'_, State> {
                     area_contains(area, point)
                         && (handler.interaction_type.click || handler.interaction_type.drag)
                 })
+                .or(self.app_state.gesture_handlers.clone().iter().rev().find(
+                    |(_, area, handler)| {
+                        area_contains(
+                            &Area {
+                                x: area.x - 10.,
+                                y: area.y - 10.,
+                                width: area.width + 20.,
+                                height: area.height + 20.,
+                            },
+                            point,
+                        ) && (handler.interaction_type.click || handler.interaction_type.drag)
+                    },
+                ))
             {
                 needs_redraw = true;
                 if let Some(ref on_click) = handler.interaction_handler {
@@ -687,11 +710,16 @@ impl<State: 'static> App<'_, State> {
         //     }
         // }
         if let Some(current) = self.app_state.cursor_position {
-            if let Some((_, area, editor, _, binding)) = self.app_state.editor.as_mut() {
+            if let Some((id, area, editor, _, binding)) = self.app_state.editor.as_mut() {
                 editor.mouse_released();
                 needs_redraw = true;
-                if area_contains(area, current) {
-                } else if !matches!(self.app_state.gesture_state, GestureState::Dragging { .. }) {
+                if !area_contains(area, current)
+                    && (!matches!(self.app_state.gesture_state, GestureState::Dragging { .. })
+                        || match self.app_state.gesture_state {
+                            GestureState::Dragging { capturer, .. } => capturer != *id,
+                            _ => false,
+                        })
+                {
                     // detect click outside editor & end editing
                     let current = binding.get(&self.state);
                     binding.set(
@@ -701,6 +729,20 @@ impl<State: 'static> App<'_, State> {
                             editing: false,
                         },
                     );
+                    if let Some((_, _, handler)) =
+                        self.app_state.gesture_handlers.clone().iter().find(
+                            |(handler_id, _, handler)| {
+                                handler_id == id && handler.interaction_type.edit
+                            },
+                        )
+                        && let Some(ref handler) = handler.interaction_handler
+                    {
+                        (handler)(
+                            &mut self.state,
+                            &mut self.app_state,
+                            Interaction::Edit(EditInteraction::End),
+                        );
+                    }
                     self.app_state.editor = None;
                 }
             }

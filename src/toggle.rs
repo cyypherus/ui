@@ -1,7 +1,7 @@
-use crate::{app::AppState, id, rect, Binding, ClickState};
+use crate::{Binding, ClickState, app::AppState, id, rect};
 use backer::{
-    nodes::{dynamic, stack},
     Node,
+    nodes::{area_reader, dynamic, stack},
 };
 use vello_svg::vello::peniko::color::AlphaColor;
 
@@ -35,9 +35,9 @@ impl<State> Toggle<State> {
     where
         State: 'static,
     {
-        let height = 60.;
-        let width = 120.;
-        dynamic(move |state, _app: &mut AppState<State>| {
+        area_reader(move |area, state, _app: &mut AppState<State>| {
+            let width = area.width;
+            let height = area.height;
             stack(vec![
                 //
                 rect(id!(self.id))
@@ -64,14 +64,15 @@ impl<State> Toggle<State> {
                     .corner_rounding(height)
                     .box_shadow(AlphaColor::from_rgba8(0, 0, 0, 100), 5.)
                     .finish()
-                    .pad(8.)
+                    .pad(height * 0.2)
                     .height(height)
                     .width(height)
                     .offset_x({
+                        let button_padding = height - (height * 0.4);
                         if self.state.get(state).on {
-                            width * 0.25
+                            (width * 0.5) - button_padding
                         } else {
-                            -width * 0.25
+                            (-width * 0.5) + button_padding
                         }
                     }),
                 rect(crate::id!(self.id))

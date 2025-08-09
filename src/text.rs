@@ -3,7 +3,7 @@ use crate::app::AppState;
 use crate::gestures::EditInteraction;
 use crate::{
     Binding, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR, DEFAULT_FONT_SIZE, DEFAULT_PADDING, Editor,
-    id, rect,
+    GestureState, id, rect,
 };
 use crate::{
     DEFAULT_DURATION, DEFAULT_EASING,
@@ -16,6 +16,8 @@ use parley::{
     AlignmentOptions, FontStack, Layout, LineHeight, PlainEditor, PositionedLayoutItem,
     StyleProperty, TextStyle,
 };
+use std::fmt::Debug;
+use std::rc::Rc;
 use std::time::Instant;
 use vello_svg::vello::kurbo::Point;
 use vello_svg::vello::peniko::Brush;
@@ -74,7 +76,6 @@ pub fn text_field<State>(id: u64, state: Binding<State, TextState>) -> Text<Stat
     }
 }
 
-#[derive(Debug)]
 pub struct Text<State> {
     pub(crate) id: u64,
     pub(crate) state: Binding<State, TextState>,
@@ -92,7 +93,32 @@ pub struct Text<State> {
     pub(crate) background_corner_rounding: f32,
     pub(crate) background_padding: f32,
     pub(crate) wrap: bool,
-    on_edit: Option<fn(&mut State, &mut AppState<State>, EditInteraction)>,
+    on_edit: Option<Rc<dyn Fn(&mut State, &mut AppState<State>, EditInteraction)>>,
+}
+
+impl<State> Debug for Text<State> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Text")
+            .field("id", &self.id)
+            .field("state", &self.state)
+            .field("fill", &self.fill)
+            .field("font_size", &self.font_size)
+            .field("alignment", &self.alignment)
+            .field("editable", &self.editable)
+            .field("easing", &self.easing)
+            .field("duration", &self.duration)
+            .field("delay", &self.delay)
+            .field("line_height", &self.line_height)
+            .field("background_fill", &self.background_fill)
+            .field("background_stroke", &self.background_stroke)
+            .field(
+                "background_corner_rounding",
+                &self.background_corner_rounding,
+            )
+            .field("background_padding", &self.background_padding)
+            .field("wrap", &self.wrap)
+            .finish()
+    }
 }
 
 impl<State> Clone for Text<State> {
@@ -114,7 +140,7 @@ impl<State> Clone for Text<State> {
             background_corner_rounding: self.background_corner_rounding,
             background_padding: self.background_padding,
             wrap: self.wrap,
-            on_edit: self.on_edit,
+            on_edit: self.on_edit.clone(),
         }
     }
 }
@@ -183,9 +209,10 @@ impl<State> Text<State> {
     }
     pub fn on_edit(
         mut self,
-        on_edit: fn(&mut State, &mut AppState<State>, EditInteraction),
+        // on_edit: fn(&mut State, &mut AppState<State>, EditInteraction),
+        on_edit: impl Fn(&mut State, &mut AppState<State>, EditInteraction) + 'static,
     ) -> Self {
-        self.on_edit = Some(on_edit);
+        self.on_edit = Some(Rc::new(on_edit));
         self
     }
     // pub(crate) fn font(mut self, font_id: font::Id) -> Self {
@@ -198,23 +225,23 @@ impl<State> Text<State> {
     {
         if self.editable {
             let binding = self.state.clone();
-            let on_edit = self.on_edit;
+            let on_edit = self.on_edit.clone();
             View {
                 view_type: ViewType::Text(self),
                 gesture_handlers: Vec::new(),
             }
             .on_click({
                 let binding = binding.clone();
-                move |state: &mut State, _, _, _| {
+                move |state: &mut State, app, _, _| {
                     let editing = binding.get(state).editing;
-                    if !editing {
+                    if !editing && app.editor.is_none() {
                         binding.update(state, |s| s.editing = true);
                     }
                 }
             })
             .on_edit({
                 move |state, _app, edit| {
-                    if let Some(on_edit) = on_edit {
+                    if let Some(ref on_edit) = on_edit {
                         on_edit(state, _app, edit.clone());
                     }
                     binding.update(state, move |s| match edit.clone() {
@@ -362,6 +389,9 @@ impl<State> Text<State> {
                     font_cx,
                 );
                 editor.mouse_pressed(layout_cx, font_cx);
+                if !matches!(app.gesture_state, GestureState::Dragging { .. }) {
+                    editor.mouse_released();
+                }
             }
             app.editor = Some((self.id, area, editor, true, self.state.clone()));
         }
