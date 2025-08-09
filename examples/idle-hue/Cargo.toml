@@ -10,3 +10,8 @@ arboard = "3.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.43.0", features = ["fs"] }
+vello_svg = "0.6.0"
+
+[package.metadata.bundle]
+name = "idle-hue"
+identifier = "cyy.apps.idle-hue"
