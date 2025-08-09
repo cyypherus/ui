@@ -13,7 +13,7 @@ use backer::nodes::{dynamic, space, stack};
 use backer::{Node, models::*};
 use lilt::{Animated, Easing};
 use parley::{
-    AlignmentOptions, FontStack, Layout, LineHeight, PlainEditor, PositionedLayoutItem,
+    AlignmentOptions, FontStack, FontWeight, Layout, LineHeight, PlainEditor, PositionedLayoutItem,
     StyleProperty, TextStyle,
 };
 use std::fmt::Debug;
@@ -37,6 +37,7 @@ pub fn text<State>(id: u64, text: impl AsRef<str> + 'static) -> Text<State> {
             editing: false,
         }),
         font_size: DEFAULT_FONT_SIZE,
+        font_weight: FontWeight::NORMAL,
         // font: None,
         fill: DEFAULT_FG_COLOR,
         easing: None,
@@ -61,6 +62,7 @@ pub fn text_field<State>(id: u64, state: Binding<State, TextState>) -> Text<Stat
         id,
         state,
         font_size: DEFAULT_FONT_SIZE,
+        font_weight: FontWeight::NORMAL,
         // font: None,
         fill: DEFAULT_FG_COLOR,
         easing: None,
@@ -85,6 +87,7 @@ pub struct Text<State> {
     pub(crate) state: Binding<State, TextState>,
     pub(crate) fill: Color,
     pub(crate) font_size: u32,
+    pub(crate) font_weight: FontWeight,
     pub(crate) alignment: TextAlign,
     pub(crate) editable: bool,
     // font: Option<font::Id>,
@@ -109,6 +112,7 @@ impl<State> Debug for Text<State> {
             .field("state", &self.state)
             .field("fill", &self.fill)
             .field("font_size", &self.font_size)
+            .field("font_weight", &self.font_weight)
             .field("alignment", &self.alignment)
             .field("editable", &self.editable)
             .field("easing", &self.easing)
@@ -125,6 +129,7 @@ impl<State> Debug for Text<State> {
             .field("wrap", &self.wrap)
             .field("cursor_fill", &self.cursor_fill)
             .field("highlight_fill", &self.highlight_fill)
+            .field("on_edit", &self.on_edit.is_some())
             .finish()
     }
 }
@@ -136,9 +141,9 @@ impl<State> Clone for Text<State> {
             state: self.state.clone(),
             fill: self.fill,
             font_size: self.font_size,
+            font_weight: self.font_weight,
             alignment: self.alignment,
             editable: self.editable,
-            // font: self.font,
             easing: self.easing,
             duration: self.duration,
             delay: self.delay,
@@ -187,6 +192,10 @@ impl<State> Text<State> {
     }
     pub fn font_size(mut self, size: u32) -> Self {
         self.font_size = size;
+        self
+    }
+    pub fn font_weight(mut self, weight: FontWeight) -> Self {
+        self.font_weight = weight;
         self
     }
     pub fn align(mut self, align: TextAlign) -> Self {
@@ -381,6 +390,7 @@ impl<State> Text<State> {
                 self.line_height,
             )));
             styles.insert(parley::FontFamily::Named("Rubik".into()).into());
+            styles.insert(StyleProperty::FontWeight(self.font_weight));
             styles.insert(StyleProperty::Brush(self.fill.into()));
             editor.set_alignment(self.alignment.into());
             editor.set_width(Some(area.width));
@@ -522,6 +532,7 @@ impl<'s, State> Text<State> {
                 &TextStyle {
                     brush: Brush::Solid(AlphaColor::WHITE),
                     font_stack,
+                    font_weight: self.font_weight,
                     line_height: LineHeight::FontSizeRelative(self.line_height),
                     font_size: self.font_size as f32,
                     ..Default::default()

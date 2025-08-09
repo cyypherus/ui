@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use arboard::Clipboard;
+use parley::FontWeight;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use ui::*;
@@ -9,18 +10,34 @@ use vello_svg::vello::{
     peniko::color::{AlphaColor, ColorSpaceTag, Oklch, Srgb, parse_color},
 };
 
-const GRAY_30: Color = Color::from_rgb8(30, 30, 30);
-const GRAY_50: Color = Color::from_rgb8(60, 60, 60);
+const GRAY_0_D: Color = Color::from_rgb8(0x00, 0x00, 0x00); // #000000
+const GRAY_30_D: Color = Color::from_rgb8(0x1e, 0x1e, 0x1e); // #1e1e1e
+const GRAY_50_D: Color = Color::from_rgb8(0x3b, 0x3b, 0x3b); // #3b3b3b
+const GRAY_70_D: Color = Color::from_rgb8(0x51, 0x51, 0x51); // #515151
+
+const GRAY_0_L: Color = Color::from_rgb8(0xff, 0xff, 0xff); // #ffffff
+const GRAY_30_L: Color = Color::from_rgb8(0xea, 0xe4, 0xe6); // #eae4e6
+const GRAY_50_L: Color = Color::from_rgb8(0xd9, 0xd2, 0xd4); // #d9d2d4
+const GRAY_70_L: Color = Color::from_rgb8(0xb6, 0xb6, 0xb8); // #bdb6b8
+
+enum UIPallette {
+    Gray0,
+    Gray30,
+    Gray50,
+    Gray70,
+}
 
 struct State {
     hex: String,
     error: Arc<Mutex<Option<String>>>,
     copy_button: ButtonState,
     paste_button: ButtonState,
+    light_dark_mode_button: ButtonState,
     color: CurrentColor,
     oklch_mode: bool,
     mode_picker: ToggleState,
     component_fields: [TextState; 3],
+    light_mode: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -56,6 +73,36 @@ struct SavedState {
 }
 
 impl State {
+    fn theme(&self, palette: UIPallette) -> AlphaColor<Srgb> {
+        self.theme_color_invert(palette, false)
+    }
+
+    fn theme_inverted(&self, palette: UIPallette) -> AlphaColor<Srgb> {
+        self.theme_color_invert(palette, true)
+    }
+
+    fn theme_color_invert(&self, palette: UIPallette, invert: bool) -> AlphaColor<Srgb> {
+        let light_mode = if invert {
+            self.light_mode
+        } else {
+            !self.light_mode
+        };
+        if light_mode {
+            match palette {
+                UIPallette::Gray0 => GRAY_0_L,
+                UIPallette::Gray30 => GRAY_30_L,
+                UIPallette::Gray50 => GRAY_50_L,
+                UIPallette::Gray70 => GRAY_70_L,
+            }
+        } else {
+            match palette {
+                UIPallette::Gray0 => GRAY_0_D,
+                UIPallette::Gray30 => GRAY_30_D,
+                UIPallette::Gray50 => GRAY_50_D,
+                UIPallette::Gray70 => GRAY_70_D,
+            }
+        }
+    }
     fn update_text(&mut self) {
         match self.color {
             CurrentColor::Srgb(color) => {
@@ -186,17 +233,24 @@ impl State {
         if let Ok(mut clipboard) = Clipboard::new() {
             if let Ok(text) = clipboard.get_text() {
                 let trimmed = text.trim();
-                let Some(parsed) = parse_color(&trimmed).ok() else {
+                let Some(parsed) = parse_color(&trimmed)
+                    .ok()
+                    .or(parse_color(format!("#{}", trimmed).as_str()).ok())
+                else {
                     self.error = Arc::new(Mutex::new(Some("Color parsing failed".to_string())));
                     delay_clear_error(self.error.clone(), app);
                     return;
                 };
                 match parsed.cs {
                     ColorSpaceTag::Srgb => {
-                        self.color = CurrentColor::Srgb(parsed.to_alpha_color::<Srgb>())
+                        self.color = CurrentColor::Srgb(parsed.to_alpha_color::<Srgb>());
+                        self.oklch_mode = false;
+                        self.mode_picker.on = self.oklch_mode;
                     }
                     ColorSpaceTag::Oklch => {
-                        self.color = CurrentColor::Oklch(parsed.to_alpha_color::<Oklch>())
+                        self.color = CurrentColor::Oklch(parsed.to_alpha_color::<Oklch>());
+                        self.oklch_mode = true;
+                        self.mode_picker.on = self.oklch_mode;
                     }
                     _ => {
                         self.error =
@@ -222,6 +276,7 @@ impl State {
             error: Arc::new(Mutex::new(None)),
             copy_button: ButtonState::default(),
             paste_button: ButtonState::default(),
+            light_dark_mode_button: ButtonState::default(),
             color: CurrentColor::Oklch(AlphaColor::<Oklch>::new([1.0, 0.0, 0.0, 1.0])),
             oklch_mode: true,
             mode_picker: ToggleState::on(),
@@ -230,6 +285,7 @@ impl State {
                 TextState::default(),
                 TextState::default(),
             ],
+            light_mode: false,
         };
         s.sync_component_fields();
         s.update_text();
@@ -240,67 +296,117 @@ impl State {
 fn main() {
     App::builder(State::default(), || {
         dynamic(|s: &mut State, _: &mut AppState<State>| {
-            column_spaced(
-                15.,
-                vec![
-                    stack(vec![
-                        rect(id!())
-                            .fill(s.color.display())
-                            .corner_rounding(15.)
-                            // .stroke(Color::WHITE, 3.)
-                            .view()
-                            .finish(),
-                        text(id!(), s.hex.clone())
-                            .font_size(20)
-                            .fill(s.contrast_color())
-                            .view()
-                            .transition_duration(0.)
-                            .finish(),
-                        column(vec![
-                            row_spaced(
-                                10.,
-                                vec![
-                                    space().height(0.),
-                                    text(id!(), "oklch").fill(s.contrast_color()).finish(),
-                                    mode_toggle_button(),
-                                ],
-                            ),
-                            space(),
-                            row_spaced(
-                                10.,
-                                vec![
-                                    paste_button(),
-                                    space().height(0.),
-                                    if let Some(error) = s.error.blocking_lock().clone() {
-                                        text(id!(), error).fill(s.contrast_color()).finish()
-                                    } else {
-                                        empty()
-                                    },
-                                    space().height(0.),
-                                    copy_button(),
-                                ],
-                            ),
-                        ])
-                        .pad(10.),
-                    ]),
-                    rgb_row(),
-                ],
-            )
-            .pad(20.)
-            .pad_top(15.)
+            stack(vec![
+                rect(id!()).fill(s.theme(UIPallette::Gray0)).finish(),
+                column_spaced(
+                    15.,
+                    vec![
+                        row(vec![
+                            space().height(0.),
+                            text(id!(), "idle-hue 0.2.0")
+                                .fill(s.theme(UIPallette::Gray70))
+                                .finish(),
+                        ]),
+                        stack(vec![
+                            rect(id!())
+                                .fill(s.color.display())
+                                .stroke(s.theme(UIPallette::Gray50), 3.)
+                                .corner_rounding(15.)
+                                .view()
+                                .finish(),
+                            text(id!(), s.hex.clone())
+                                .font_size(if s.oklch_mode { 35 } else { 40 })
+                                .font_weight(FontWeight::BOLD)
+                                .fill(s.contrast_color())
+                                .view()
+                                .transition_duration(0.)
+                                .finish(),
+                            column(vec![
+                                row_spaced(
+                                    10.,
+                                    vec![
+                                        theme_button(),
+                                        space().height(0.),
+                                        row(vec![
+                                            text(id!(), "oklch").fill(s.contrast_color()).finish(),
+                                            space().height(0.).width(10.),
+                                            mode_toggle_button(),
+                                        ]),
+                                    ],
+                                ),
+                                space(),
+                                row_spaced(
+                                    10.,
+                                    vec![
+                                        paste_button(),
+                                        space().height(0.),
+                                        if let Some(error) = s.error.blocking_lock().clone() {
+                                            text(id!(), error).fill(s.contrast_color()).finish()
+                                        } else {
+                                            empty()
+                                        },
+                                        space().height(0.),
+                                        copy_button(),
+                                    ],
+                                ),
+                            ])
+                            .pad(10.),
+                        ]),
+                        rgb_row(),
+                    ],
+                )
+                .pad(20.),
+            ])
         })
     })
-    .inner_size(400, 300)
+    .inner_size(450, 300)
+    .resizable(false)
     .start()
 }
 
 fn copy_button<'n>() -> Node<'n, State, AppState<State>> {
-    let color = Color::WHITE;
-    button(id!(), binding!(State, copy_button))
-        .corner_rounding(10.)
-        .fill(GRAY_30)
-        .label(move |button| {
-            svg(id!(), include_str!("assets/copy.svg"))
+    dynamic(|s: &mut State, _app| {
+        let color = s.theme_inverted(UIPallette::Gray0);
+        button(id!(), binding!(State, copy_button))
+            .corner_rounding(10.)
+            .fill(s.theme(UIPallette::Gray30))
+            .label(move |button| {
+                svg(id!(), include_str!("assets/copy.svg"))
+                    .fill({
+                        match (button.depressed, button.hovered) {
+                            (true, _) => color.map_lightness(|l| l - 0.2),
+                            (false, true) => color.map_lightness(|l| l + 0.2),
+                            (false, false) => color,
+                        }
+                    })
+                    .finish()
+                    .pad(8.)
+            })
+            .on_click(|s, _app| {
+                s.copy_to_clipboard();
+            })
+            .finish()
+            .height(30.)
+            .width(30.)
+    })
+}
+
+fn theme_button<'n>() -> Node<'n, State, AppState<State>> {
+    dynamic(|s: &mut State, _app| {
+        let color = s.theme_inverted(UIPallette::Gray0);
+        let light_mode = s.light_mode;
+        button(id!(), binding!(State, light_dark_mode_button))
+            .corner_rounding(10.)
+            .fill(s.theme(UIPallette::Gray30))
+            .label(move |button| {
+                svg(
+                    id!(),
+                    if light_mode {
+                        include_str!("assets/sun.svg")
+                    } else {
+                        include_str!("assets/moon.svg")
+                    },
+                )
                 .fill({
                     match (button.depressed, button.hovered) {
                         (true, _) => color.map_lightness(|l| l - 0.2),
@@ -309,65 +415,79 @@ fn copy_button<'n>() -> Node<'n, State, AppState<State>> {
                     }
                 })
                 .finish()
-                .pad(8.)
-        })
-        .on_click(|s, _app| {
-            s.copy_to_clipboard();
-        })
-        .finish()
-        .height(30.)
-        .width(30.)
+                .pad(if light_mode { 5. } else { 7. })
+            })
+            .on_click(|s, _app| {
+                s.light_mode = !s.light_mode;
+            })
+            .finish()
+            .height(30.)
+            .width(30.)
+    })
 }
 
 fn paste_button<'n>() -> Node<'n, State, AppState<State>> {
-    let color = Color::WHITE;
-    button(id!(), binding!(State, paste_button))
-        .corner_rounding(10.)
-        .fill(GRAY_30)
-        .label(move |button| {
-            svg(id!(), include_str!("assets/paste.svg"))
-                .fill({
-                    match (button.depressed, button.hovered) {
-                        (true, _) => color.map_lightness(|l| l - 0.2),
-                        (false, true) => color.map_lightness(|l| l + 0.2),
-                        (false, false) => color,
-                    }
-                })
-                .finish()
-                .pad(6.)
-        })
-        .on_click(|s, app| {
-            s.paste(app);
-        })
-        .finish()
-        .height(30.)
-        .width(30.)
+    dynamic(|s: &mut State, _app| {
+        let color = s.theme_inverted(UIPallette::Gray0);
+        button(id!(), binding!(State, paste_button))
+            .corner_rounding(10.)
+            .fill(s.theme(UIPallette::Gray30))
+            .label(move |button| {
+                svg(id!(), include_str!("assets/paste.svg"))
+                    .fill({
+                        match (button.depressed, button.hovered) {
+                            (true, _) => color.map_lightness(|l| l - 0.2),
+                            (false, true) => color.map_lightness(|l| l + 0.2),
+                            (false, false) => color,
+                        }
+                    })
+                    .finish()
+                    .pad(6.)
+            })
+            .on_click(|s, app| {
+                s.paste(app);
+            })
+            .finish()
+            .height(30.)
+            .width(30.)
+    })
 }
 
 fn mode_toggle_button<'n>() -> Node<'n, State, AppState<State>> {
-    toggle(id!(), binding!(State, mode_picker))
-        .on_fill(GRAY_50)
-        .off_fill(GRAY_30)
-        .on_toggle(|s, _, on| {
-            if on {
-                s.oklch_mode = true;
-                s.rgb_to_oklch();
-            } else {
-                s.oklch_mode = false;
-                s.oklch_to_rgb();
-            }
-            s.sync_component_fields();
-            s.update_text();
-        })
-        .finish()
-        .height(20.)
-        .width(40.)
+    dynamic(|s: &mut State, _app| {
+        toggle(id!(), binding!(State, mode_picker))
+            .on_fill(s.theme(UIPallette::Gray50))
+            .off_fill(s.theme(UIPallette::Gray30))
+            .knob_fill(s.theme_inverted(UIPallette::Gray0))
+            .on_toggle(|s, _, on| {
+                if on {
+                    s.oklch_mode = true;
+                    s.rgb_to_oklch();
+                } else {
+                    s.oklch_mode = false;
+                    s.oklch_to_rgb();
+                }
+                s.sync_component_fields();
+                s.update_text();
+            })
+            .finish()
+            .height(20.)
+            .width(40.)
+    })
 }
 
 fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
     dynamic(|s: &mut State, _app| {
         let color = s.color.clone();
         let oklch_mode = s.oklch_mode;
+        let contrasting_highlight = {
+            let luminance = s.color.display().discard_alpha().relative_luminance();
+            if luminance < 0.15 || luminance > 0.7 {
+                s.theme_inverted(UIPallette::Gray0)
+            } else {
+                s.color.display()
+            }
+        };
         row_spaced(
             10.,
             (0usize..3)
@@ -380,17 +500,11 @@ fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
                                 move |s, value| s.component_fields[i] = value,
                             ),
                         )
-                        .background_fill(Some(GRAY_30))
-                        .cursor_fill(s.color.display())
-                        .highlight_fill({
-                            let luminance = s.color.display().discard_alpha().relative_luminance();
-                            if luminance < 0.3 || luminance > 0.7 {
-                                Color::from_rgb8(100, 100, 100)
-                            } else {
-                                s.color.display().with_alpha(0.3)
-                            }
-                        })
-                        .background_stroke(GRAY_50, s.color.display(), 2.)
+                        .fill(s.theme_inverted(UIPallette::Gray0))
+                        .background_fill(Some(s.theme(UIPallette::Gray30)))
+                        .cursor_fill(s.theme_inverted(UIPallette::Gray0))
+                        .highlight_fill(contrasting_highlight.with_alpha(0.25))
+                        .background_stroke(s.theme(UIPallette::Gray50), contrasting_highlight, 2.)
                         .on_edit(move |s, _, edit| match edit {
                             EditInteraction::Update(new) => {
                                 if oklch_mode {
@@ -406,6 +520,7 @@ fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
                             EditInteraction::End => {
                                 s.clamp_color_components();
                                 s.sync_component_fields();
+                                s.update_text();
                             }
                         })
                         .font_size(24)
@@ -428,7 +543,7 @@ fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
                                 })
                                 .finish(),
                             rect(id!(i as u64))
-                                .fill(GRAY_50)
+                                .fill(s.theme(UIPallette::Gray50))
                                 .corner_rounding(5.)
                                 .view()
                                 .finish(),
@@ -476,7 +591,7 @@ fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
                                     .pad(5.),
                             ]),
                             svg(id!(i as u64), include_str!("assets/arrow-up-down.svg"))
-                                .fill(Color::WHITE)
+                                .fill(s.theme_inverted(UIPallette::Gray0))
                                 .finish()
                                 .height(30.)
                                 .width(20.),
@@ -488,7 +603,7 @@ fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
                     ])
                     .attach_under(
                         rect(id!(i as u64))
-                            .fill(GRAY_30)
+                            .fill(s.theme(UIPallette::Gray30))
                             .corner_rounding(10.)
                             .view()
                             .finish(),
