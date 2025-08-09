@@ -162,11 +162,29 @@ impl State {
         // }
     }
 
+    fn clamp_color_components(&mut self) {
+        if self.oklch_mode {
+            self.color.components_mut()[0] = self.color.components()[0].clamp(0.0, 1.0);
+            self.color.components_mut()[1] = self.color.components()[1].clamp(0.0, 0.5);
+            self.color.components_mut()[2] = self.color.components()[2].clamp(0.0, 360.0);
+        } else {
+            for i in 0..3 {
+                self.color.components_mut()[i] = self.color.components()[i].clamp(0.0, 1.0);
+            }
+        }
+    }
+
     fn sync_component_fields(&mut self) {
-        for i in 0..3 {
-            if self.oklch_mode {
-                self.component_fields[i].text = format!("{:.2}", self.color.components()[i]);
-            } else {
+        if self.oklch_mode {
+            self.component_fields[0].text = format!("{:.2}", self.color.components()[0])
+                .trim_start_matches('0')
+                .to_string();
+            self.component_fields[1].text = format!("{:.2}", self.color.components()[1])
+                .trim_start_matches('0')
+                .to_string();
+            self.component_fields[2].text = format!("{:.0}", self.color.components()[2]);
+        } else {
+            for i in 0..3 {
                 self.component_fields[i].text =
                     format!("{}", (self.color.components()[i] * 255.) as u8);
             }
@@ -197,9 +215,9 @@ impl State {
             toggle_text_button: ButtonState::default(),
             show_text: false,
             loaded: false,
-            color: CurrentColor::Oklch(AlphaColor::<Oklch>::new([0.0, 0.0, 0.0, 1.0])),
-            oklch_mode: false,
-            mode_picker: ToggleState::default(),
+            color: CurrentColor::Oklch(AlphaColor::<Oklch>::new([1.0, 0.0, 0.0, 1.0])),
+            oklch_mode: true,
+            mode_picker: ToggleState::on(),
             component_fields: [
                 TextState::default(),
                 TextState::default(),
@@ -211,92 +229,41 @@ impl State {
     }
 }
 
-async fn save_state_to_file(state: &SavedState) -> Result<(), String> {
-    let json = serde_json::to_string_pretty(state).map_err(|e| e.to_string())?;
-    tokio::fs::write("idle-hue-state.json", json)
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-async fn load_state_from_file() -> Result<SavedState, String> {
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-    let content = tokio::fs::read_to_string("idle-hue-state.json")
-        .await
-        .map_err(|e| e.to_string())?;
-    let state: SavedState = serde_json::from_str(&content).map_err(|e| e.to_string())?;
-    Ok(state)
-}
-
 fn main() {
     App::builder(State::default(), || {
         dynamic(|s: &mut State, _: &mut AppState<State>| {
             column_spaced(
                 15.,
-                if !s.loaded {
-                    vec![
-                        circle(id!())
-                            .stroke(Color::WHITE, 5.)
+                vec![
+                    stack(vec![
+                        rect(id!())
+                            .fill(s.color.display())
+                            .corner_rounding(5.)
+                            .stroke(Color::WHITE, 3.)
                             .view()
-                            .on_appear(|_state: &mut State, app| {
-                                println!("Loading saved state...");
-                                app.spawn_with_result(
-                                    async move { load_state_from_file().await },
-                                    |state, result| match result {
-                                        Ok(saved_state) => {
-                                            state.text.text = saved_state.text;
-                                            state.loaded = true;
-                                            state.update_current_color();
-                                            if state.text.text.is_empty() {
-                                                state.text.text = "000000".to_string();
-                                            }
-                                            state.sync_component_fields();
-                                        }
-                                        Err(_) => {
-                                            state.text.text = "000000".to_string();
-                                            state.loaded = true;
-                                            state.update_current_color();
-                                            state.sync_component_fields();
-                                        }
-                                    },
-                                );
-                            })
-                            .finish()
-                            .width(10.)
-                            .height(10.),
-                    ]
-                } else {
-                    vec![
-                        stack(vec![
-                            rect(id!())
-                                .fill(s.color.display())
-                                .corner_rounding(5.)
-                                .stroke(Color::WHITE, 3.)
-                                .view()
-                                .finish(),
-                            column(vec![
-                                row_spaced(
-                                    10.,
-                                    vec![
-                                        space().height(0.),
-                                        text(id!(), "oklch").fill(s.contrast_color()).finish(),
-                                        mode_toggle_button(),
-                                    ],
-                                ),
-                                space(),
-                            ])
-                            .pad(10.),
-                        ]),
-                        // button(id!(), binding!(State, toggle_text_button))
-                        //     // .label("Toggle Mode")
-                        //     .on_click(|s, _a| {
-                        //         s.show_text = !s.show_text;
-                        //     })
-                        //     .finish(),
-                        if s.show_text { hex_row() } else { empty() },
-                        rgb_row(),
-                    ]
-                },
+                            .finish(),
+                        column(vec![
+                            row_spaced(
+                                10.,
+                                vec![
+                                    space().height(0.),
+                                    text(id!(), "oklch").fill(s.contrast_color()).finish(),
+                                    mode_toggle_button(),
+                                ],
+                            ),
+                            space(),
+                        ])
+                        .pad(10.),
+                    ]),
+                    // button(id!(), binding!(State, toggle_text_button))
+                    //     // .label("Toggle Mode")
+                    //     .on_click(|s, _a| {
+                    //         s.show_text = !s.show_text;
+                    //     })
+                    //     .finish(),
+                    if s.show_text { hex_row() } else { empty() },
+                    rgb_row(),
+                ],
             )
             .pad(20.)
             .pad_top(15.)
@@ -311,16 +278,12 @@ fn hex_text_field<'n>() -> Node<'n, State, AppState<State>> {
         .font_size(40)
         .background_fill(None)
         .no_background_stroke()
-        .on_edit(|s, a, edit| {
+        .on_edit(|s, _, edit| {
             let EditInteraction::Update(text) = edit else {
                 return;
             };
             s.text.text = text.clone();
             s.update_current_color();
-            let state = SavedState {
-                text: text.to_string(),
-            };
-            a.spawn(async move { _ = save_state_to_file(&state).await });
         })
         .finish()
 }
@@ -380,6 +343,8 @@ impl Display for ColorMode {
 
 fn mode_toggle_button<'n>() -> Node<'n, State, AppState<State>> {
     toggle(id!(), binding!(State, mode_picker))
+        .on_fill(GRAY_50)
+        .off_fill(GRAY_30)
         .on_toggle(|s, _, on| {
             if on {
                 s.oklch_mode = true;
@@ -388,22 +353,8 @@ fn mode_toggle_button<'n>() -> Node<'n, State, AppState<State>> {
                 s.oklch_mode = false;
                 s.oklch_to_rgb();
             }
+            s.sync_component_fields();
         })
-        // segment_picker(
-        //     id!(),
-        //     vec![ColorMode::Rgb, ColorMode::Oklch],
-        //     binding!(State, mode_picker),
-        // )
-        // .on_select(|s, _a, sel| match sel {
-        //     ColorMode::Oklch => {
-        //         s.oklch_mode = true;
-        //         s.rgb_to_oklch();
-        //     }
-        //     ColorMode::Rgb => {
-        //         s.oklch_mode = false;
-        //         s.oklch_to_rgb();
-        //     }
-        // })
         .finish()
         .height(20.)
         .width(40.)
@@ -438,6 +389,7 @@ fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
                                 }
                             }
                             EditInteraction::End => {
+                                s.clamp_color_components();
                                 s.sync_component_fields();
                             }
                         })
@@ -513,7 +465,7 @@ fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
                     .attach_under(
                         rect(id!(i as u64))
                             .fill(GRAY_30)
-                            .corner_rounding(5.)
+                            .corner_rounding(10.)
                             .view()
                             .finish(),
                     )

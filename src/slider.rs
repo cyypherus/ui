@@ -81,7 +81,7 @@ impl<State> Slider<State> {
                         },
                     )
                     .corner_rounding(handle_size * 0.5)
-                    .box_shadow(AlphaColor::from_rgba8(0, 0, 0, 100), 3.)
+                    // .box_shadow(AlphaColor::from_rgba8(0, 0, 0, 100), 3.)
                     .finish()
                     .height(handle_size)
                     .width(handle_size)
