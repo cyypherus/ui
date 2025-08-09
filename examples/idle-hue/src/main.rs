@@ -303,7 +303,7 @@ fn main() {
                     vec![
                         row(vec![
                             space().height(0.),
-                            text(id!(), "idle-hue 0.2.0")
+                            text(id!(), format!("idle-hue {}", env!("GIT_HASH")))
                                 .fill(s.theme(Theme::Gray70))
                                 .finish(),
                         ])
