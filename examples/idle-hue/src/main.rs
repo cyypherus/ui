@@ -376,6 +376,7 @@ fn color_component_sliders<'n>() -> Node<'n, State, AppState<State>> {
                                 move |s, value| s.component_fields[i] = value,
                             ),
                         )
+                        .background_stroke(GRAY_50, s.color.display(), 5.)
                         .on_edit(move |s, _, edit| match edit {
                             EditInteraction::Update(new) => {
                                 if oklch_mode {
