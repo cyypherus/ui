@@ -1,6 +1,6 @@
 # UI
 
-A WIP declarative UI crate for building native applications with smooth animations & flexible layout. This crate handles windowing, layout, rendering, animations, and user interaction.
+A WIP declarative UI crate for building native applications with smooth animations & fluid layout. This crate handles windowing, layout, rendering, animations, and user interaction.
 
 Built with [winit](https://github.com/rust-windowing/winit), [vello](https://github.com/linebender/vello), [backer](https://github.com/cyypherus/backer), and [lilt](https://github.com/cyypherus/lilt) for simple, beautiful apps.
 
@@ -31,7 +31,8 @@ Leverages specialized crates:
 
 ### Define your state
 
-Create a state struct with the data your UI needs to track.
+Create a state struct with the data your UI needs to track & state for views as necessary. 
+Certain views (like toggles) require bindings to state & will render based on that state.
 
 ```rust
 #[derive(Clone, Default)]
