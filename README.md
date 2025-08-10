@@ -31,7 +31,8 @@ Leverages specialized crates:
 
 ### Define your state
 
-Create a state struct with the data your UI needs to track.
+Create a state struct with the data your UI needs to track & state for views as necessary. 
+Certain views (like toggles) require bindings to state & will render based on that state.
 
 ```rust
 #[derive(Clone, Default)]
