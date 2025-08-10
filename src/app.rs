@@ -16,9 +16,11 @@ use vello_svg::vello::peniko::{Brush, Color};
 use vello_svg::vello::util::{RenderContext, RenderSurface};
 use vello_svg::vello::{Renderer, RendererOptions, Scene};
 use winit::event::{Modifiers, MouseScrollDelta, StartCause};
-use winit::platform::macos::WindowAttributesExtMacOS;
 use winit::{application::ApplicationHandler, event_loop::EventLoop, window::Window};
 use winit::{dpi::LogicalSize, event::MouseButton};
+
+#[cfg(target_os = "macos")]
+use winit::platform::macos::WindowAttributesExtMacOS;
 
 pub struct AppBuilder<State> {
     state: State,
@@ -365,6 +367,7 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
             let inner_size = self.window_inner_size.take().unwrap_or((1044, 800));
             let resizable = self.window_resizable.take().unwrap_or(true);
 
+            #[cfg(target_os = "macos")]
             let attributes = Window::default_attributes()
                 .with_inner_size(LogicalSize::new(inner_size.0, inner_size.1))
                 .with_resizable(resizable)
@@ -373,6 +376,12 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
                 .with_titlebar_transparent(true)
                 .with_title_hidden(true)
                 .with_fullsize_content_view(true);
+
+            #[cfg(not(target_os = "macos"))]
+            let attributes = Window::default_attributes()
+                .with_inner_size(LogicalSize::new(inner_size.0, inner_size.1))
+                .with_resizable(resizable)
+                .with_decorations(true);
 
             Arc::new(event_loop.create_window(attributes).unwrap())
         });
