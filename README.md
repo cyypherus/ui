@@ -72,10 +72,6 @@ fn main() {
 
 Examples demonstrate various UI patterns & can be run directly with `cargo run --example <name>`.
 
-### idle-hue
-
-A complete color picker application showcasing theming, complex layout, and state management.
-
 ### buttons
 
 Interactive button examples with custom styling and click handlers.
