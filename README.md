@@ -1,10 +1,8 @@
 # UI
 
-A WIP declarative UI crate for building native applications with smooth animations & flexible layout.
+A WIP declarative UI crate for building native applications with smooth animations & flexible layout. This crate handles windowing, layout, rendering, animations, and user interaction.
 
 Built with [winit](https://github.com/rust-windowing/winit), [vello](https://github.com/linebender/vello), [backer](https://github.com/cyypherus/backer), and [lilt](https://github.com/cyypherus/lilt) for simple, beautiful apps.
-
-_This crate provides a basic UI framework & handles windowing, layout, rendering, animations, and user interaction._
 
 > [!WARNING]
 > **Limitations**:
@@ -17,7 +15,7 @@ _This crate provides a basic UI framework & handles windowing, layout, rendering
 > - No accessibility
 > - Unknown RTL support
 > - Untested on platforms besides macOS
-> - This library is functional but experimental. API stability is not a goal at all at this stage.
+> - This library is functional but very experimental. API stability is not a goal at all at this stage & it is likely you will encounter bugs.
 
 ## Features
 
