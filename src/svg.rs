@@ -1,11 +1,11 @@
 use crate::app::AppState;
 use crate::view::{View, ViewType};
-use backer::models::Area;
 use backer::Node;
+use backer::models::Area;
 use lilt::Easing;
 use vello_svg::vello::kurbo::{self, Affine, Vec2};
 use vello_svg::vello::peniko::{Color, Compose, Fill, Mix};
-use vello_svg::vello::{peniko, Scene};
+use vello_svg::vello::{Scene, peniko};
 
 #[derive(Debug, Clone)]
 pub struct Svg {
@@ -63,20 +63,20 @@ impl Svg {
             return;
         }
         #[allow(clippy::map_entry)]
-        if !app.image_scenes.contains_key(&self.content) {
+        if !app.svg_scenes.contains_key(&self.content) {
             match vello_svg::usvg::Tree::from_data(
                 self.content.as_bytes(),
                 &vello_svg::usvg::Options::default(),
             ) {
                 Err(err) => {
                     eprintln!("Loading svg failed: {err}");
-                    app.image_scenes
+                    app.svg_scenes
                         .insert(self.content.clone(), (Scene::new(), 0., 0.));
                 }
                 Ok(svg) => {
                     let svg_scene = vello_svg::render_tree(&svg);
                     let size = svg.size();
-                    app.image_scenes.insert(
+                    app.svg_scenes.insert(
                         self.content.clone(),
                         (svg_scene, size.width(), size.height()),
                     );
@@ -84,11 +84,9 @@ impl Svg {
             }
         }
         let AppState {
-            image_scenes,
-            scene,
-            ..
+            svg_scenes, scene, ..
         } = app;
-        if let Some((svg_scene, width, height)) = image_scenes.get(&self.content) {
+        if let Some((svg_scene, width, height)) = svg_scenes.get(&self.content) {
             let width = *width as f64;
             let height = *height as f64;
             let area_x = area.x as f64 * app.scale_factor;

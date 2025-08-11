@@ -20,9 +20,19 @@ path = "examples/scroller/src/main.rs"
 name = "idle-hue"
 path = "examples/idle-hue/src/main.rs"
 
+[[example]]
+name = "image"
+path = "examples/image/src/main.rs"
+
 [dependencies]
 backer = { git = "https://github.com/cyypherus/backer", branch = "tu" }
 clipboard-rs = "0.2.4"
+image = { version = "0.25", default-features = false, features = [
+    "png",
+    "jpeg",
+    "gif",
+    "webp",
+] }
 lilt = "0.7.0"
 parley = "0.5.0"
 pollster = "0.4.0"
@@ -32,6 +42,7 @@ winit = "0.30.8"
 
 [dev-dependencies]
 arboard = "3.4"
+reqwest = { version = "0.11", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.43.0", features = ["fs"] }
