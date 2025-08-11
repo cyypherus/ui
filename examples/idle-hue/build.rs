@@ -16,4 +16,6 @@ fn main() {
     };
 
     println!("cargo:rustc-env=GIT_HASH={}", git_hash);
+    println!("cargo:warning=build.rs ran for idle-hue; GIT_HASH={}", git_hash);
+
 }

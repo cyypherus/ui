@@ -16,6 +16,8 @@ use vello_svg::vello::peniko::{Brush, Color};
 use vello_svg::vello::util::{RenderContext, RenderSurface};
 use vello_svg::vello::{Renderer, RendererOptions, Scene};
 use winit::event::{Modifiers, MouseScrollDelta, StartCause};
+#[cfg(target_os = "macos")]
+
 use winit::platform::macos::WindowAttributesExtMacOS;
 use winit::{application::ApplicationHandler, event_loop::EventLoop, window::Window};
 use winit::{dpi::LogicalSize, event::MouseButton};
@@ -365,14 +367,35 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
             let inner_size = self.window_inner_size.take().unwrap_or((1044, 800));
             let resizable = self.window_resizable.take().unwrap_or(true);
 
-            let attributes = Window::default_attributes()
-                .with_inner_size(LogicalSize::new(inner_size.0, inner_size.1))
-                .with_resizable(resizable)
-                .with_decorations(true)
-                .with_titlebar_hidden(false)
-                .with_titlebar_transparent(true)
-                .with_title_hidden(true)
-                .with_fullsize_content_view(true);
+            // let attributes = Window::default_attributes()
+            //     .with_inner_size(LogicalSize::new(inner_size.0, inner_size.1))
+            //     .with_resizable(resizable)
+            //     .with_decorations(true)
+            //     .with_titlebar_hidden(false)
+            //     .with_titlebar_transparent(true)
+            //     .with_title_hidden(true)
+            //     .with_fullsize_content_view(true);
+
+            let attributes = {
+    let base = Window::default_attributes()
+        .with_inner_size(LogicalSize::new(inner_size.0, inner_size.1))
+        .with_resizable(resizable)
+        .with_decorations(true);
+
+    #[cfg(target_os = "macos")]
+    {
+        base.with_titlebar_hidden(false)
+            .with_titlebar_transparent(true)
+            .with_title_hidden(true)
+            .with_fullsize_content_view(true)
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        base
+    }
+};
+
 
             Arc::new(event_loop.create_window(attributes).unwrap())
         });
