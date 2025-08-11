@@ -1,6 +1,7 @@
 use crate::app::AppState;
 use crate::circle::{AnimatedCircle, Circle};
 use crate::gestures::{ClickLocation, EditInteraction, Interaction, InteractionType, ScrollDelta};
+use crate::image::Image;
 use crate::rect::{AnimatedRect, Rect};
 use crate::svg::Svg;
 use crate::text::{AnimatedText, Text};
@@ -99,6 +100,7 @@ pub(crate) enum ViewType<State> {
     Rect(Rect),
     Circle(Circle),
     Svg(Svg),
+    Image(Image),
 }
 
 impl<State> Clone for ViewType<State> {
@@ -108,6 +110,7 @@ impl<State> Clone for ViewType<State> {
             ViewType::Rect(rect) => ViewType::Rect(*rect),
             ViewType::Circle(circle) => ViewType::Circle(circle.clone()),
             ViewType::Svg(svg) => ViewType::Svg(svg.clone()),
+            ViewType::Image(image) => ViewType::Image(image.clone()),
         }
     }
 }
@@ -247,6 +250,7 @@ impl<State> View<State> {
             ViewType::Rect(ref mut view) => view.shape.easing = Some(easing),
             ViewType::Svg(ref mut view) => view.easing = Some(easing),
             ViewType::Circle(ref mut view) => view.shape.easing = Some(easing),
+            ViewType::Image(ref mut view) => view.easing = Some(easing),
         }
         self
     }
@@ -257,6 +261,7 @@ impl<State> View<State> {
             ViewType::Rect(ref mut view) => view.shape.duration = Some(duration_ms),
             ViewType::Svg(ref mut view) => view.duration = Some(duration_ms),
             ViewType::Circle(ref mut view) => view.shape.duration = Some(duration_ms),
+            ViewType::Image(ref mut view) => view.duration = Some(duration_ms),
         }
         self
     }
@@ -266,6 +271,7 @@ impl<State> View<State> {
             ViewType::Rect(ref mut view) => view.shape.delay = delay_ms,
             ViewType::Svg(ref mut view) => view.delay = delay_ms,
             ViewType::Circle(ref mut view) => view.shape.delay = delay_ms,
+            ViewType::Image(ref mut view) => view.delay = delay_ms,
         }
         self
     }
@@ -275,6 +281,7 @@ impl<State> View<State> {
             ViewType::Rect(view) => view.id,
             ViewType::Svg(view) => view.id,
             ViewType::Circle(view) => view.id,
+            ViewType::Image(view) => view.id,
         }
     }
     fn get_easing(&self) -> Easing {
@@ -283,6 +290,7 @@ impl<State> View<State> {
             ViewType::Rect(view) => view.shape.easing,
             ViewType::Svg(view) => view.easing,
             ViewType::Circle(view) => view.shape.easing,
+            ViewType::Image(view) => view.easing,
         }
         .unwrap_or(Easing::EaseOut)
     }
@@ -292,6 +300,7 @@ impl<State> View<State> {
             ViewType::Rect(view) => view.shape.duration,
             ViewType::Svg(view) => view.duration,
             ViewType::Circle(view) => view.shape.duration,
+            ViewType::Image(view) => view.duration,
         }
         .unwrap_or(200.)
     }
@@ -301,6 +310,7 @@ impl<State> View<State> {
             ViewType::Rect(view) => view.shape.delay,
             ViewType::Svg(view) => view.delay,
             ViewType::Circle(view) => view.shape.delay,
+            ViewType::Image(view) => view.delay,
         }
     }
 }
@@ -393,6 +403,7 @@ impl<State> Drawable<State, AppState<State>> for View<State> {
                 ViewType::Rect(view) => view.draw(area, state, app, visible, visibility),
                 ViewType::Svg(view) => view.draw(area, state, app, visible, visibility),
                 ViewType::Circle(view) => view.draw(area, state, app, visible, visibility),
+                ViewType::Image(view) => view.draw(area, state, app, visible, visibility),
             }
         }
         app.animation_bank.animations.insert(self.id(), anim);

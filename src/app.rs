@@ -28,6 +28,7 @@ pub struct AppBuilder<State> {
     on_frame: fn(&mut State, &mut AppState<State>) -> (),
     inner_size: Option<(u32, u32)>,
     resizable: Option<bool>,
+    title: Option<String>,
 }
 
 impl<State: 'static> AppBuilder<State> {
@@ -38,6 +39,7 @@ impl<State: 'static> AppBuilder<State> {
             on_frame: |_, _| {},
             inner_size: None,
             resizable: None,
+            title: None,
         }
     }
 
@@ -56,6 +58,11 @@ impl<State: 'static> AppBuilder<State> {
         self
     }
 
+    pub fn title(mut self, title: &str) -> Self {
+        self.title = Some(title.to_string());
+        self
+    }
+
     pub fn start(self) {
         let event_loop = EventLoop::new().expect("Could not create event loop");
         #[allow(unused_mut)]
@@ -70,6 +77,7 @@ impl<State: 'static> AppBuilder<State> {
                 self.on_frame,
                 self.inner_size,
                 self.resizable,
+                self.title,
             );
         }
     }
@@ -82,6 +90,7 @@ pub struct App<'s, State> {
     pub(crate) cached_window: Option<Arc<Window>>,
     pub(crate) window_inner_size: Option<(u32, u32)>,
     pub(crate) window_resizable: Option<bool>,
+    pub(crate) window_title: Option<String>,
     pub(crate) app_state: AppState<State>,
     pub state: State,
     pub(crate) view: fn() -> Node<'static, State, AppState<State>>,
@@ -110,7 +119,8 @@ pub struct AppState<State> {
     pub(crate) layout_cx: LayoutContext<Brush>,
     pub(crate) view_state: HashMap<u64, AnimatedView>,
     pub(crate) layout_cache: TextLayoutCache,
-    pub(crate) image_scenes: HashMap<String, (Scene, f32, f32)>,
+    pub(crate) svg_scenes: HashMap<String, (Scene, f32, f32)>,
+    pub(crate) image_scenes: HashMap<u64, (Scene, f32, f32)>,
     pub(crate) modifiers: Option<Modifiers>,
     pub(crate) now: Instant,
     pub(crate) appeared_views: std::collections::HashSet<u64>,
@@ -203,6 +213,7 @@ impl<State: 'static> App<'_, State> {
         on_frame: fn(&mut State, &mut AppState<State>) -> (),
         inner_size: Option<(u32, u32)>,
         resizable: Option<bool>,
+        title: Option<String>,
     ) {
         #[allow(unused_mut)]
         let mut renderers: Vec<Option<Renderer>> = vec![];
@@ -221,6 +232,7 @@ impl<State: 'static> App<'_, State> {
             cached_window: None,
             window_inner_size: inner_size,
             window_resizable: resizable,
+            window_title: title,
             state,
             view,
             app_state: AppState {
@@ -237,6 +249,7 @@ impl<State: 'static> App<'_, State> {
                 font_cx,
                 layout_cache: HashMap::new(),
                 image_scenes: HashMap::new(),
+                svg_scenes: HashMap::new(),
                 modifiers: None,
                 now: Instant::now(),
                 appeared_views: std::collections::HashSet::new(),
@@ -368,7 +381,7 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
             let resizable = self.window_resizable.take().unwrap_or(true);
 
             #[cfg(target_os = "macos")]
-            let attributes = Window::default_attributes()
+            let mut attributes = Window::default_attributes()
                 .with_inner_size(LogicalSize::new(inner_size.0, inner_size.1))
                 .with_resizable(resizable)
                 .with_decorations(true)
@@ -378,10 +391,14 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
                 .with_fullsize_content_view(true);
 
             #[cfg(not(target_os = "macos"))]
-            let attributes = Window::default_attributes()
+            let mut attributes = Window::default_attributes()
                 .with_inner_size(LogicalSize::new(inner_size.0, inner_size.1))
                 .with_resizable(resizable)
                 .with_decorations(true);
+
+            if let Some(ref title) = self.window_title {
+                attributes = attributes.with_title(title.clone());
+            }
 
             Arc::new(event_loop.create_window(attributes).unwrap())
         });

@@ -7,7 +7,7 @@ Built with [winit](https://github.com/rust-windowing/winit), [vello](https://git
 > [!WARNING]
 > **Limitations**:
 >
-> - No raster support (images/GIFs/video)
+> - No video / gif support
 > - Single window only
 > - No rotation
 > - Incomplete scrolling
@@ -31,7 +31,7 @@ Leverages specialized crates:
 
 ### Define your state
 
-Create a state struct with the data your UI needs to track & state for views as necessary. 
+Create a state struct with the data your UI needs to track & state for views as necessary.
 Certain views (like toggles) require bindings to state & will render based on that state.
 
 ```rust

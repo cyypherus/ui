@@ -241,6 +241,10 @@ impl<State> Text<State> {
         self.on_edit = Some(Rc::new(on_edit));
         self
     }
+    pub fn wrap(mut self) -> Self {
+        self.wrap = true;
+        self
+    }
     // pub(crate) fn font(mut self, font_id: font::Id) -> Self {
     //     self.font = Some(font_id);
     //     self
