@@ -1,8 +1,8 @@
-use crate::{app::AppState, clipping, rect, Binding, DEFAULT_CORNER_ROUNDING};
+use crate::{Binding, DEFAULT_CORNER_ROUNDING, app::AppState, clipping, rect};
 use backer::{
+    Node,
     models::Area,
     nodes::{area_reader, column, empty, stack},
-    Node,
 };
 use vello_svg::vello::{
     kurbo::{Point, RoundedRect, Shape, Size},
@@ -38,11 +38,7 @@ impl ScrollerState {
     {
         let mut current_height = self.visible_window.iter().fold(0., |acc, e| acc + e.height);
         let mut index = self.visible_window.last().map(|l| l.index).unwrap_or(0) + {
-            if self.visible_window.is_empty() {
-                0
-            } else {
-                1
-            }
+            if self.visible_window.is_empty() { 0 } else { 1 }
         };
         while current_height + self.compensated < available_area.height {
             if let Some(added_height) = cell(state, app, index, id, available_area) {
@@ -177,7 +173,7 @@ where
             area_reader::<State, AppState<State>>({
                 let scroller = scroller.clone();
                 move |area, state, app| {
-                    let mut scroller_state = scroller.get(&state);
+                    let mut scroller_state = scroller.get(state);
                     scroller_state.update(area, state, app, id, |state, app, index, id, area| {
                         cell(state, app, index, id)?.min_height(area, state, app)
                     });

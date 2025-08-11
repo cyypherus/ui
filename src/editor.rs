@@ -351,21 +351,21 @@ impl Editor {
                 &RoundedRect::from_rect(*rect, 5.),
             );
         }
-        if self.cursor_visible {
-            if let Some(cursor) = self.editor.cursor_geometry(1.5) {
-                let width = 3.;
-                scene.fill(
-                    Fill::NonZero,
-                    transform,
-                    cursor_color,
-                    None,
-                    &RoundedRect::from_origin_size(
-                        Point::new(cursor.x0, cursor.y0),
-                        vello_svg::vello::kurbo::Size::new(width, cursor.height()),
-                        width * 0.5,
-                    ),
-                );
-            }
+        if self.cursor_visible
+            && let Some(cursor) = self.editor.cursor_geometry(1.5)
+        {
+            let width = 3.;
+            scene.fill(
+                Fill::NonZero,
+                transform,
+                cursor_color,
+                None,
+                &RoundedRect::from_origin_size(
+                    Point::new(cursor.x0, cursor.y0),
+                    vello_svg::vello::kurbo::Size::new(width, cursor.height()),
+                    width * 0.5,
+                ),
+            );
         }
 
         let editor = &mut self.editor;

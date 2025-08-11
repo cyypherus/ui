@@ -102,10 +102,10 @@ impl State {
     }
 
     fn paste_from_clipboard(&mut self) {
-        if let Ok(mut clipboard) = Clipboard::new() {
-            if let Ok(text) = clipboard.get_text() {
-                self.input = text.trim().to_string();
-            }
+        if let Ok(mut clipboard) = Clipboard::new()
+            && let Ok(text) = clipboard.get_text()
+        {
+            self.input = text.trim().to_string();
         }
     }
 }
