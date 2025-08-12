@@ -18,9 +18,17 @@ use vello_svg::vello::{Renderer, RendererOptions, Scene};
 use winit::event::{Modifiers, MouseScrollDelta, StartCause};
 use winit::{application::ApplicationHandler, event_loop::EventLoop, window::Window};
 use winit::{dpi::LogicalSize, event::MouseButton};
+// use std::sync::Arc;
+use std::path::Path;
+// use parley::fontique::Blob;
+use parley::fontique::FontInfoOverride;
 
 #[cfg(target_os = "macos")]
 use winit::platform::macos::WindowAttributesExtMacOS;
+
+// type FontEntry = (Arc<[u8]>, Option<String>);
+
+type FontEntry = (Vec<u8>, Option<String>);
 
 pub struct AppBuilder<State> {
     state: State,
@@ -29,6 +37,7 @@ pub struct AppBuilder<State> {
     inner_size: Option<(u32, u32)>,
     resizable: Option<bool>,
     title: Option<String>,
+    custom_fonts: Vec<FontEntry>,
 }
 
 impl<State: 'static> AppBuilder<State> {
@@ -40,7 +49,35 @@ impl<State: 'static> AppBuilder<State> {
             inner_size: None,
             resizable: None,
             title: None,
+            custom_fonts: Vec::new(), // <-- initialize here
         }
+    }
+    // pub fn add_font_bytes(mut self, bytes: &'static [u8], family: Option<&str>) -> Self {
+    //     self.custom_fonts
+    //         .push((Arc::from(bytes), family.map(|s| s.to_string())));
+    //     self
+    // }
+
+    pub fn add_font_bytes(mut self, bytes: &'static [u8], family: Option<&str>) -> Self {
+        // copy the static bytes into an owned Vec<u8>
+        self.custom_fonts
+            .push((bytes.to_vec(), family.map(|s| s.to_string())));
+        self
+    }
+
+    // pub fn add_font_path<P: AsRef<Path>>(mut self, path: P, family: Option<&str>) -> Self {
+    //     let data = std::fs::read(path).expect("failed to read font file");
+    //     self.custom_fonts.push((
+    //         Arc::from(data.into_boxed_slice()),
+    //         family.map(|s| s.to_string()),
+    //     ));
+    //     self
+    // }
+    pub fn add_font_path<P: AsRef<Path>>(mut self, path: P, family: Option<&str>) -> Self {
+        let data = std::fs::read(path).expect("failed to read font file");
+        self.custom_fonts
+            .push((data, family.map(|s| s.to_string())));
+        self
     }
 
     pub fn inner_size(mut self, width: u32, height: u32) -> Self {
@@ -78,6 +115,7 @@ impl<State: 'static> AppBuilder<State> {
                 self.inner_size,
                 self.resizable,
                 self.title,
+                self.custom_fonts, // <-- new arg
             );
         }
     }
@@ -214,16 +252,43 @@ impl<State: 'static> App<'_, State> {
         inner_size: Option<(u32, u32)>,
         resizable: Option<bool>,
         title: Option<String>,
+        custom_fonts: Vec<FontEntry>, // NEW parameter
     ) {
         #[allow(unused_mut)]
         let mut renderers: Vec<Option<Renderer>> = vec![];
 
         let mut font_cx = FontContext::new();
+        // font_cx
+        //     .collection
+        //     // .register_fonts(Blob::new(Arc::from(RUBIK_FONT)), None);
+        //     .register_fonts(Blob::from(RUBIK_FONT.to_vec()), None);
 
         font_cx
             .collection
             .register_fonts(Blob::new(Arc::new(RUBIK_FONT)), None);
+        // for (font_bytes, family_opt) in custom_fonts.into_iter() {
+        //     font_cx
+        //         .collection
+        //         .register_fonts(Blob::new(font_bytes), family_opt.as_deref());
+        // }
+        // for (font_bytes, family_opt) in custom_fonts.into_iter() {
+        //     // Blob::from(Vec<u8>) is implemented, and T=u8 satisfies Send+Sync+'static
+        //     let blob = Blob::from(font_bytes); // consumes the Vec<u8>
+        //     font_cx
+        //         .collection
+        //         .register_fonts(blob, family_opt.as_deref());
+        // }
+        for (font_bytes, family_opt) in custom_fonts.into_iter() {
+            let blob = Blob::from(font_bytes); // assuming font_bytes is Vec<u8>
 
+            let info_override = family_opt.as_ref().map(|family_name| {
+                let mut info = FontInfoOverride::default(); // requires Default impl
+                info.family_name = Some(family_name);
+                info
+            });
+
+            font_cx.collection.register_fonts(blob, info_override);
+        }
         let render_state = None::<RenderState>;
         let mut app = Self {
             context: render_cx,
