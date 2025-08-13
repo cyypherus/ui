@@ -39,6 +39,8 @@ pollster = "0.4.0"
 tokio = { version = "1.43.0", features = ["full"] }
 vello_svg = { version = "0.6.0", features = ["wgpu"] }
 winit = "0.30.8"
+ttf-parser = "0.17"
+
 
 [dev-dependencies]
 arboard = "3.4"

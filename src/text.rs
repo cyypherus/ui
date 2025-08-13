@@ -38,6 +38,7 @@ pub fn text<State>(id: u64, text: impl AsRef<str> + 'static) -> Text<State> {
         }),
         font_size: DEFAULT_FONT_SIZE,
         font_weight: FontWeight::NORMAL,
+        font_family: None,
         // font: None,
         fill: DEFAULT_FG_COLOR,
         easing: None,
@@ -63,6 +64,7 @@ pub fn text_field<State>(id: u64, state: Binding<State, TextState>) -> Text<Stat
         state,
         font_size: DEFAULT_FONT_SIZE,
         font_weight: FontWeight::NORMAL,
+        font_family: None,
         // font: None,
         fill: DEFAULT_FG_COLOR,
         easing: None,
@@ -88,6 +90,7 @@ pub struct Text<State> {
     pub(crate) fill: Color,
     pub(crate) font_size: u32,
     pub(crate) font_weight: FontWeight,
+    font_family: Option<String>,
     pub(crate) alignment: TextAlign,
     pub(crate) editable: bool,
     // font: Option<font::Id>,
@@ -142,6 +145,7 @@ impl<State> Clone for Text<State> {
             fill: self.fill,
             font_size: self.font_size,
             font_weight: self.font_weight,
+            font_family: self.font_family.clone(),
             alignment: self.alignment,
             editable: self.editable,
             easing: self.easing,
@@ -196,6 +200,10 @@ impl<State> Text<State> {
     }
     pub fn font_weight(mut self, weight: FontWeight) -> Self {
         self.font_weight = weight;
+        self
+    }
+    pub fn font_family(mut self, family: impl Into<String>) -> Self {
+        self.font_family = Some(family.into());
         self
     }
     pub fn align(mut self, align: TextAlign) -> Self {
@@ -393,7 +401,18 @@ impl<State> Text<State> {
             styles.insert(StyleProperty::LineHeight(LineHeight::FontSizeRelative(
                 self.line_height,
             )));
-            styles.insert(parley::FontFamily::Named("Rubik".into()).into());
+            // styles.insert(parley::FontFamily::Named("Rubik".into()).into());
+            // if let Some(family) = &self.font_family {
+            //     styles.insert(parley::FontFamily::Named(family.clone().into()).into());
+            // } else {
+            //     styles.insert(parley::FontFamily::Named("Rubik".into()).into());
+            // }
+            if let Some(family) = &self.font_family {
+                styles.insert(parley::FontFamily::Named(family.clone().into()).into());
+            } else {
+                styles.insert(parley::FontFamily::Named("Rubik".into()).into());
+            }
+
             styles.insert(StyleProperty::FontWeight(self.font_weight));
             styles.insert(StyleProperty::Brush(self.fill.into()));
             editor.set_alignment(self.alignment.into());
