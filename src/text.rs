@@ -13,8 +13,8 @@ use backer::nodes::{dynamic, space, stack};
 use backer::{Node, models::*};
 use lilt::{Animated, Easing};
 use parley::{
-    AlignmentOptions, FontStack, FontWeight, Layout, LineHeight, PlainEditor, PositionedLayoutItem,
-    StyleProperty, TextStyle,
+    AlignmentOptions, FontFamily, FontStack, FontWeight, Layout, LineHeight, PlainEditor,
+    PositionedLayoutItem, StyleProperty, TextStyle,
 };
 use std::fmt::Debug;
 use std::rc::Rc;
@@ -547,7 +547,13 @@ impl<'s, State> Text<State> {
         {
             layout.clone()
         } else {
-            let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
+            let font_stack = FontStack::Single(FontFamily::Named(
+                self.font_family
+                    .clone()
+                    .unwrap_or("Rubik".to_string())
+                    .into(),
+            ));
+            // let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
             let mut builder = app.layout_cx.tree_builder(
                 &mut app.font_cx,
                 1.,

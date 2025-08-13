@@ -31,7 +31,7 @@ use parley::fontique::FontInfoOverride;
 #[cfg(target_os = "macos")]
 use winit::platform::macos::WindowAttributesExtMacOS;
 
-// type FontEntry = (Arc<[u8]>, Option<String>);
+type FontEntry = (Arc<Vec<u8>>, Option<String>);
 
 // type FontEntry = (Vec<u8>, Option<String>);
 
@@ -42,7 +42,7 @@ pub struct AppBuilder<State> {
     inner_size: Option<(u32, u32)>,
     resizable: Option<bool>,
     title: Option<String>,
-    // custom_fonts: Vec<FontEntry>,
+    custom_fonts: Vec<FontEntry>,
 }
 
 impl<State: 'static> AppBuilder<State> {
@@ -54,14 +54,14 @@ impl<State: 'static> AppBuilder<State> {
             inner_size: None,
             resizable: None,
             title: None,
-            // custom_fonts: Vec::new(), // <-- initialize here
+            custom_fonts: Vec::new(),
         }
     }
-    // pub fn add_font_bytes(mut self, bytes: &'static [u8], family: Option<&str>) -> Self {
-    //     self.custom_fonts
-    //         .push((Arc::from(bytes), family.map(|s| s.to_string())));
-    //     self
-    // }
+    pub fn add_font_bytes(mut self, bytes: Vec<u8>, family: Option<&str>) -> Self {
+        self.custom_fonts
+            .push((Arc::new(bytes), family.map(|s| s.to_string())));
+        self
+    }
 
     // pub fn add_font_bytes(mut self, bytes: &'static [u8], family: Option<&str>) -> Self {
     //     // copy the static bytes into an owned Vec<u8>
@@ -121,7 +121,7 @@ impl<State: 'static> AppBuilder<State> {
                 self.inner_size,
                 self.resizable,
                 self.title,
-                // self.custom_fonts, // <-- new arg
+                self.custom_fonts, // <-- new arg
             );
         }
     }
@@ -297,7 +297,7 @@ impl<State: 'static> App<'_, State> {
         inner_size: Option<(u32, u32)>,
         resizable: Option<bool>,
         title: Option<String>,
-        // custom_fonts: Vec<FontEntry>, // NEW parameter
+        custom_fonts: Vec<FontEntry>, // NEW parameter
     ) {
         #[allow(unused_mut)]
         let mut renderers: Vec<Option<Renderer>> = vec![];
@@ -311,11 +311,16 @@ impl<State: 'static> App<'_, State> {
         font_cx
             .collection
             .register_fonts(Blob::new(Arc::new(RUBIK_FONT)), None);
-        // for (font_bytes, family_opt) in custom_fonts.into_iter() {
-        //     font_cx
-        //         .collection
-        //         .register_fonts(Blob::new(font_bytes), family_opt.as_deref());
-        // }
+        for (font_bytes, family_opt) in custom_fonts.into_iter() {
+            font_cx.collection.register_fonts(
+                Blob::new(font_bytes),
+                Some(FontInfoOverride {
+                    family_name: family_opt.as_deref(),
+                    ..Default::default()
+                }),
+            );
+            // .register_fonts(Blob::new(font_bytes), family_opt);
+        }
         // for (font_bytes, family_opt) in custom_fonts.into_iter() {
         //     // Blob::from(Vec<u8>) is implemented, and T=u8 satisfies Send+Sync+'static
         //     let blob = Blob::from(font_bytes); // consumes the Vec<u8>
