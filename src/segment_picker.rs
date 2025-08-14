@@ -1,3 +1,4 @@
+use crate::Color;
 use crate::{
     Binding, ClickState, DEEP_PURP, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, app::AppState,
     rect, text,
@@ -6,7 +7,6 @@ use backer::{
     Node,
     nodes::{column, dynamic, row, stack},
 };
-use vello_svg::vello::peniko::Color;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Orientation {

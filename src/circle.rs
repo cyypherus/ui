@@ -1,10 +1,10 @@
+use crate::Color;
 use crate::app::AppState;
 use crate::shape::{AnimatedShape, Shape, ShapeType};
 use crate::view::{AnimatedView, View, ViewType};
-use backer::models::Area;
 use backer::Node;
+use backer::models::Area;
 use std::time::Instant;
-use vello_svg::vello::peniko::Color;
 
 #[derive(Debug, Clone)]
 pub struct Circle {

@@ -9,8 +9,8 @@ use backer::{Layout, Node};
 use parley::fontique::Blob;
 use parley::{FontContext, LayoutContext};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Instant;
-use std::{num::NonZeroUsize, sync::Arc};
 use tokio::runtime::Runtime;
 use vello_svg::vello::peniko::{Brush, Color};
 use vello_svg::vello::util::{RenderContext, RenderSurface};
@@ -314,7 +314,6 @@ impl<State: 'static> App<'_, State> {
         (self.on_frame)(&mut self.state, &mut self.app_state);
         let Self {
             context,
-            renderers,
             render_state: Some(RenderState { surface, window }),
             app_state: AppState { scene, .. },
             ..
@@ -336,29 +335,42 @@ impl<State: 'static> App<'_, State> {
             antialiasing_method: vello_svg::vello::AaConfig::Area,
         };
 
+        window.pre_present_notify();
+
+        self.renderers[surface.dev_id]
+            .as_mut()
+            .unwrap()
+            .render_to_texture(
+                &device_handle.device,
+                &device_handle.queue,
+                &scene,
+                &surface.target_view,
+                &render_params,
+            )
+            .expect("failed to render to texture");
+
         let surface_texture = surface
             .surface
             .get_current_texture()
             .expect("failed to get surface texture");
 
-        window.pre_present_notify();
-
-        renderers[surface.dev_id]
-            .as_mut()
-            .unwrap()
-            .render_to_surface(
-                &device_handle.device,
-                &device_handle.queue,
-                scene,
-                &surface_texture,
-                &render_params,
-            )
-            .expect("failed to render to surface");
-
+        let mut encoder =
+            device_handle
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Surface Blit"),
+                });
+        surface.blitter.copy(
+            &device_handle.device,
+            &mut encoder,
+            &surface.target_view,
+            &surface_texture
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default()),
+        );
+        device_handle.queue.submit([encoder.finish()]);
         surface_texture.present();
-        device_handle
-            .device
-            .poll(vello_svg::vello::wgpu::Maintain::Wait);
+
         scene.reset();
         if self
             .app_state
@@ -420,20 +432,9 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
             let id = render_state.surface.dev_id;
             renderers[id].get_or_insert_with(|| {
                 #[allow(unused_mut)]
-                let mut renderer = Renderer::new(
-                    &context.devices[id].device,
-                    RendererOptions {
-                        surface_format: Some(render_state.surface.format),
-                        use_cpu: false,
-                        antialiasing_support: vello_svg::vello::AaSupport {
-                            area: true,
-                            msaa8: false,
-                            msaa16: false,
-                        },
-                        num_init_threads: NonZeroUsize::new(1),
-                    },
-                )
-                .expect("Failed to create renderer");
+                let mut renderer =
+                    Renderer::new(&context.devices[id].device, RendererOptions::default())
+                        .expect("Failed to create renderer");
                 renderer
             });
             Some(render_state)
@@ -557,6 +558,7 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
 }
 impl<State: 'static> App<'_, State> {
     pub(crate) fn mouse_moved(&mut self, pos: Point) {
+        dbg!(&pos);
         let pos = Point::new(
             pos.x / self.app_state.scale_factor,
             pos.y / self.app_state.scale_factor,

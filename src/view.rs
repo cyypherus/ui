@@ -390,6 +390,12 @@ impl<State> Drawable<State, AppState<State>> for View<State> {
                 }
             }
 
+            app.gesture_handlers.extend(
+                self.gesture_handlers
+                    .drain(..)
+                    .into_iter()
+                    .map(|handler| (id, area, handler)),
+            );
             match &mut self.view_type {
                 ViewType::Text(view) => view.draw(area, state, app, visible, visibility),
                 ViewType::Rect(view) => view.draw(area, state, app, visible, visibility),

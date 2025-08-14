@@ -1,9 +1,9 @@
+use crate::Color;
 use crate::{Binding, ClickState, app::AppState, id, rect};
 use backer::{
     Node,
     nodes::{area_reader, stack},
 };
-use vello_svg::vello::peniko::Color;
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct ToggleState {

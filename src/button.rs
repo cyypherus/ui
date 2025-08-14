@@ -1,3 +1,4 @@
+use crate::Color;
 use crate::{
     Binding, ClickState, DEEP_PURP, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, app::AppState, rect,
 };
@@ -5,7 +6,6 @@ use backer::{
     Node,
     nodes::{dynamic, stack},
 };
-use vello_svg::vello::peniko::Color;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ButtonState {

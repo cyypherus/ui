@@ -26,23 +26,24 @@ path = "examples/image/src/main.rs"
 
 [dependencies]
 backer = { git = "https://github.com/cyypherus/backer", branch = "tu" }
-clipboard-rs = "0.2.4"
+clipboard-rs = "0.3.0"
 image = { version = "0.25", default-features = false, features = [
     "png",
     "jpeg",
     "gif",
     "webp",
 ] }
-lilt = "0.7.0"
+lilt = "0.8.1"
 parley = "0.5.0"
 pollster = "0.4.0"
 tokio = { version = "1.43.0", features = ["full"] }
-vello_svg = { version = "0.6.0", features = ["wgpu"] }
+vello_svg = { version = "0.7.1", features = ["wgpu"] }
+wgpu = "24.0.5"
 winit = "0.30.8"
 
 [dev-dependencies]
 arboard = "3.4"
-reqwest = { version = "0.11", features = ["json"] }
+reqwest = { version = "0.12", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.43.0", features = ["fs"] }
