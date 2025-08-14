@@ -558,7 +558,6 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
 }
 impl<State: 'static> App<'_, State> {
     pub(crate) fn mouse_moved(&mut self, pos: Point) {
-        dbg!(&pos);
         let pos = Point::new(
             pos.x / self.app_state.scale_factor,
             pos.y / self.app_state.scale_factor,
