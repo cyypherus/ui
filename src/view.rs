@@ -390,14 +390,6 @@ impl<State> Drawable<State, AppState<State>> for View<State> {
                 }
             }
 
-            // Filter out appear handlers and add the rest to gesture_handlers
-            let mut remaining_handlers = Vec::new();
-            for handler in self.gesture_handlers.drain(..) {
-                if !handler.interaction_type.appear {
-                    remaining_handlers.push((id, area, handler));
-                }
-            }
-            app.gesture_handlers.extend(remaining_handlers);
             match &mut self.view_type {
                 ViewType::Text(view) => view.draw(area, state, app, visible, visibility),
                 ViewType::Rect(view) => view.draw(area, state, app, visible, visibility),

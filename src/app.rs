@@ -15,7 +15,7 @@ use tokio::runtime::Runtime;
 use vello_svg::vello::peniko::{Brush, Color};
 use vello_svg::vello::util::{RenderContext, RenderSurface};
 use vello_svg::vello::{Renderer, RendererOptions, Scene};
-use winit::event::{Modifiers, MouseScrollDelta, StartCause};
+use winit::event::{Modifiers, MouseScrollDelta};
 use winit::{application::ApplicationHandler, event_loop::EventLoop, window::Window};
 use winit::{dpi::LogicalSize, event::MouseButton};
 
@@ -445,21 +445,22 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
         ));
     }
 
-    fn new_events(
-        &mut self,
-        event_loop: &winit::event_loop::ActiveEventLoop,
-        cause: winit::event::StartCause,
-    ) {
-        match cause {
-            StartCause::ResumeTimeReached { .. } => {
-                self.request_redraw();
-                event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
-                    std::time::Instant::now() + std::time::Duration::from_millis(500),
-                ));
-            }
-            _ => {}
-        }
-    }
+    // Background refresh
+    // fn new_events(
+    //     &mut self,
+    //     event_loop: &winit::event_loop::ActiveEventLoop,
+    //     cause: winit::event::StartCause,
+    // ) {
+    // match cause {
+    //     StartCause::ResumeTimeReached { .. } => {
+    //         self.request_redraw();
+    //         event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
+    //             std::time::Instant::now() + std::time::Duration::from_secs(1),
+    //         ));
+    //     }
+    //     _ => {}
+    // }
+    // }
 
     fn window_event(
         &mut self,

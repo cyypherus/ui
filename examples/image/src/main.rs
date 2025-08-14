@@ -142,7 +142,7 @@ fn main() {
                             .pad(10.)
                             .width_range(..200.),
                             button(id!(), binding!(State, paste_button))
-                                .label(|_| text(id!(), "Paste").finish())
+                                .label(|_, _| text(id!(), "Paste").finish())
                                 .on_click(|s, _| s.paste_from_clipboard())
                                 .finish()
                                 .height(40.)
@@ -150,7 +150,7 @@ fn main() {
                         ],
                     ),
                     button(id!(), binding!(State, load_button))
-                        .label(move |_| {
+                        .label(move |_, _| {
                             text(
                                 id!(),
                                 match download_state_for_button {

@@ -39,7 +39,7 @@ fn main() {
                             text(id!(), "Custom Body").fill(AlphaColor::WHITE).finish(),
                             button(id!(), binding!(State, b2))
                                 .on_click(|s, _| s.count += 1)
-                                .body(|button| {
+                                .surface(|_, button| {
                                     rect(id!())
                                         .fill({
                                             match (button.hovered, button.depressed) {
@@ -64,7 +64,7 @@ fn main() {
                             text(id!(), "Svg Label").fill(AlphaColor::WHITE).finish(),
                             button(id!(), binding!(State, b3))
                                 .on_click(|s, _| s.count += 1)
-                                .label(|button| {
+                                .label(|_, button| {
                                     svg(id!(), "assets/download.svg")
                                         .fill(match (button.depressed, button.hovered) {
                                             (true, _) => AlphaColor::from_rgb8(190, 190, 190),

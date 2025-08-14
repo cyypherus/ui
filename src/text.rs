@@ -166,6 +166,15 @@ pub struct TextState {
     pub editing: bool,
 }
 
+impl TextState {
+    pub fn new(text: impl AsRef<str>) -> Self {
+        Self {
+            text: text.as_ref().to_string(),
+            editing: false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum TextAlign {
     Leading,
