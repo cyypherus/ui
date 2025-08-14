@@ -140,7 +140,7 @@ impl<State> Clone for EditState<State> {
     fn clone(&self) -> Self {
         EditState {
             id: self.id,
-            area: self.area.clone(),
+            area: self.area,
             editor: self.editor.clone(),
             editing: self.editing,
             binding: self.binding.clone(),
@@ -153,7 +153,7 @@ impl<State> Clone for EditState<State> {
 impl<State> AppState<State> {
     pub fn end_editing(&mut self, state: &mut State) {
         if let Some(EditState { id, binding, .. }) = self.editor.as_mut() {
-            let current = binding.get(&state);
+            let current = binding.get(state);
             binding.set(
                 state,
                 TextState {
@@ -445,20 +445,17 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
         ));
     }
 
-    // Background refresh
     // fn new_events(
     //     &mut self,
     //     event_loop: &winit::event_loop::ActiveEventLoop,
     //     cause: winit::event::StartCause,
     // ) {
-    // match cause {
-    //     StartCause::ResumeTimeReached { .. } => {
+    //     if let StartCause::ResumeTimeReached { .. } = cause {
     //         self.request_redraw();
     //         event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
-    //             std::time::Instant::now() + std::time::Duration::from_secs(1),
+    //             std::time::Instant::now() + std::time::Duration::from_millis(500),
     //         ));
     //     }
-    //     _ => {}
     // }
     // }
 
@@ -488,7 +485,7 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
                     } = self;
                     let mut needs_redraw = false;
                     if let Some(EditState { editor, .. }) = editor {
-                        editor.handle_key(key.clone(), layout_cx, font_cx, modifiers.clone());
+                        editor.handle_key(key.clone(), layout_cx, font_cx, *modifiers);
                     }
                     for (id, _area, handler) in self.app_state.gesture_handlers.clone().iter() {
                         if let Some(ref interaction_handler) = handler.interaction_handler {
@@ -589,15 +586,15 @@ impl<State: 'static> App<'_, State> {
             .clone()
             .iter()
             .for_each(|(_, area, gh)| {
-                if gh.interaction_type.hover {
-                    if let Some(ref on_hover) = gh.interaction_handler {
-                        needs_redraw = true;
-                        (on_hover)(
-                            &mut self.state,
-                            &mut self.app_state,
-                            Interaction::Hover(area_contains(area, pos)),
-                        );
-                    }
+                if gh.interaction_type.hover
+                    && let Some(ref on_hover) = gh.interaction_handler
+                {
+                    needs_redraw = true;
+                    (on_hover)(
+                        &mut self.state,
+                        &mut self.app_state,
+                        Interaction::Hover(area_contains(area, pos)),
+                    );
                 }
             });
         if let GestureState::Dragging {
@@ -655,10 +652,10 @@ impl<State: 'static> App<'_, State> {
                     },
                 ..
             } = self;
-            if let Some(EditState { editor, area, .. }) = editor.as_mut() {
-                if area_contains(area, point) {
-                    editor.mouse_pressed(layout_cx, font_cx);
-                }
+            if let Some(EditState { editor, area, .. }) = editor.as_mut()
+                && area_contains(area, point)
+            {
+                editor.mouse_pressed(layout_cx, font_cx);
             }
 
             if let Some((capturer, area, handler)) = self
@@ -803,7 +800,6 @@ impl<State: 'static> App<'_, State> {
                             );
                         }
                     });
-            } else {
             }
         }
         self.app_state.gesture_state = GestureState::None;
@@ -813,8 +809,8 @@ impl<State: 'static> App<'_, State> {
     }
     pub(crate) fn scrolled(&mut self, delta: MouseScrollDelta) {
         let mut needs_redraw = false;
-        if let Some(current) = self.app_state.cursor_position {
-            if let Some((_, _, handler)) = self
+        if let Some(current) = self.app_state.cursor_position
+            && let Some((_, _, handler)) = self
                 .app_state
                 .gesture_handlers
                 .clone()
@@ -823,25 +819,23 @@ impl<State: 'static> App<'_, State> {
                 .find(|(_, area, handler)| {
                     area_contains(area, current) && (handler.interaction_type.scroll)
                 })
-            {
-                if let Some(ref on_scroll) = handler.interaction_handler {
-                    needs_redraw = true;
-                    on_scroll(
-                        &mut self.state,
-                        &mut self.app_state,
-                        Interaction::Scroll(match delta {
-                            MouseScrollDelta::LineDelta(x, y) => ScrollDelta {
-                                x: x * 10.,
-                                y: y * 10.,
-                            },
-                            MouseScrollDelta::PixelDelta(physical_position) => ScrollDelta {
-                                x: physical_position.x as f32,
-                                y: physical_position.y as f32,
-                            },
-                        }),
-                    );
-                }
-            }
+            && let Some(ref on_scroll) = handler.interaction_handler
+        {
+            needs_redraw = true;
+            on_scroll(
+                &mut self.state,
+                &mut self.app_state,
+                Interaction::Scroll(match delta {
+                    MouseScrollDelta::LineDelta(x, y) => ScrollDelta {
+                        x: x * 10.,
+                        y: y * 10.,
+                    },
+                    MouseScrollDelta::PixelDelta(physical_position) => ScrollDelta {
+                        x: physical_position.x as f32,
+                        y: physical_position.y as f32,
+                    },
+                }),
+            );
         }
         if needs_redraw {
             self.request_redraw();

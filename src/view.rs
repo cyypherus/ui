@@ -382,10 +382,10 @@ impl<State> Drawable<State, AppState<State>> for View<State> {
                 app.appeared_views.insert(id);
                 // Trigger appear handlers
                 for handler in &self.gesture_handlers {
-                    if handler.interaction_type.appear {
-                        if let Some(ref interaction_handler) = handler.interaction_handler {
-                            interaction_handler(state, app, crate::gestures::Interaction::Appear);
-                        }
+                    if handler.interaction_type.appear
+                        && let Some(ref interaction_handler) = handler.interaction_handler
+                    {
+                        interaction_handler(state, app, crate::gestures::Interaction::Appear);
                     }
                 }
             }

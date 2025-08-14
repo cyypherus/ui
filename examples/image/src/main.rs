@@ -8,7 +8,7 @@ use ui::*;
 enum DownloadState {
     Idle,
     Downloading,
-    Success(Arc<Vec<u8>>),
+    Success(String, Arc<Vec<u8>>),
     Error(String),
 }
 
@@ -52,7 +52,7 @@ impl State {
                             match response.bytes().await {
                                 Ok(bytes) => {
                                     let mut state = download_state.lock().await;
-                                    *state = DownloadState::Success(Arc::new(bytes.into()));
+                                    *state = DownloadState::Success(input, Arc::new(bytes.into()));
                                 }
                                 Err(e) => {
                                     let mut state = download_state.lock().await;
@@ -90,7 +90,7 @@ impl State {
                 match std::fs::read(&input) {
                     Ok(bytes) => {
                         let mut state = download_state.lock().await;
-                        *state = DownloadState::Success(Arc::new(bytes));
+                        *state = DownloadState::Success(input, Arc::new(bytes));
                     }
                     Err(e) => {
                         let mut state = download_state.lock().await;
@@ -102,10 +102,10 @@ impl State {
     }
 
     fn paste_from_clipboard(&mut self) {
-        if let Ok(mut clipboard) = Clipboard::new() {
-            if let Ok(text) = clipboard.get_text() {
-                self.input = text.trim().to_string();
-            }
+        if let Ok(mut clipboard) = Clipboard::new()
+            && let Ok(text) = clipboard.get_text()
+        {
+            self.input = text.trim().to_string();
         }
     }
 }
@@ -181,13 +181,14 @@ fn main() {
                         DownloadState::Downloading => {
                             text(id!(), "Loading image...").font_size(14).finish()
                         }
-                        DownloadState::Success(ref bytes) => column_spaced(
+                        DownloadState::Success(ref image_id, ref bytes) => column_spaced(
                             10.,
                             vec![
                                 text(id!(), format!("Loaded {} bytes", bytes.len()))
                                     .font_size(14)
                                     .finish(),
                                 image_from_bytes(id!(), bytes.clone())
+                                    .image_id(image_id)
                                     .view()
                                     .finish()
                                     .height_range(100.0..)

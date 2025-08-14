@@ -74,7 +74,7 @@ pub enum EditInteraction {
     End,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct InteractionType {
     pub(crate) edit: bool,
     pub(crate) click: bool,
@@ -83,20 +83,6 @@ pub(crate) struct InteractionType {
     pub(crate) key: bool,
     pub(crate) scroll: bool,
     pub(crate) appear: bool,
-}
-
-impl Default for InteractionType {
-    fn default() -> Self {
-        Self {
-            edit: false,
-            click: false,
-            drag: false,
-            hover: false,
-            key: false,
-            scroll: false,
-            appear: false,
-        }
-    }
 }
 
 pub struct ScrollDelta {

@@ -448,11 +448,10 @@ impl<State> Text<State> {
             area: edit_area,
             ..
         }) = &mut app.editor
+            && *id == self.id
         {
-            if *id == self.id {
-                *edit_area = area;
-                return;
-            }
+            *edit_area = area;
+            return;
         }
         let AnimatedView::Text(mut animated) = app
             .view_state
@@ -521,7 +520,6 @@ impl<'s, State> Text<State> {
         state: &mut State,
         app: &mut AppState<State>,
     ) -> Layout<Brush> {
-        let available_width = available_width;
         let text = self.state.get(state).text;
         let current_text = if text.is_empty() {
             " ".to_string()
