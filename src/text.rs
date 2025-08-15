@@ -3,8 +3,8 @@ use crate::app::{AppState, EditState};
 use crate::draw_layout::draw_layout;
 use crate::gestures::EditInteraction;
 use crate::{
-    Binding, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR, DEFAULT_FONT_SIZE, DEFAULT_PADDING, Editor,
-    GestureState, id, rect,
+    Binding, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE,
+    DEFAULT_PADDING, Editor, GestureState, id, rect,
 };
 use crate::{
     DEFAULT_DURATION, DEFAULT_EASING,
@@ -36,6 +36,7 @@ pub fn text<State>(id: u64, text: impl AsRef<str> + 'static) -> Text<State> {
         }),
         font_size: DEFAULT_FONT_SIZE,
         font_weight: FontWeight::NORMAL,
+        font_family: None,
         // font: None,
         fill: DEFAULT_FG_COLOR,
         easing: None,
@@ -61,6 +62,7 @@ pub fn text_field<State>(id: u64, state: Binding<State, TextState>) -> Text<Stat
         state,
         font_size: DEFAULT_FONT_SIZE,
         font_weight: FontWeight::NORMAL,
+        font_family: None,
         // font: None,
         fill: DEFAULT_FG_COLOR,
         easing: None,
@@ -86,6 +88,7 @@ pub struct Text<State> {
     pub(crate) fill: Color,
     pub(crate) font_size: u32,
     pub(crate) font_weight: FontWeight,
+    font_family: Option<String>,
     pub(crate) alignment: TextAlign,
     pub(crate) editable: bool,
     // font: Option<font::Id>,
@@ -140,6 +143,7 @@ impl<State> Clone for Text<State> {
             fill: self.fill,
             font_size: self.font_size,
             font_weight: self.font_weight,
+            font_family: self.font_family.clone(),
             alignment: self.alignment,
             editable: self.editable,
             easing: self.easing,
@@ -162,6 +166,15 @@ impl<State> Clone for Text<State> {
 pub struct TextState {
     pub text: String,
     pub editing: bool,
+}
+
+impl TextState {
+    pub fn new(text: impl AsRef<str>) -> Self {
+        Self {
+            text: text.as_ref().to_string(),
+            editing: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -194,6 +207,10 @@ impl<State> Text<State> {
     }
     pub fn font_weight(mut self, weight: FontWeight) -> Self {
         self.font_weight = weight;
+        self
+    }
+    pub fn font_family(mut self, family: impl Into<String>) -> Self {
+        self.font_family = Some(family.into());
         self
     }
     pub fn align(mut self, align: TextAlign) -> Self {
@@ -407,7 +424,15 @@ impl<State> Text<State> {
             let styles = editor.edit_styles();
 
             styles.insert(StyleProperty::Brush(Brush::Solid(self.fill)));
-            styles.insert(parley::FontFamily::Named("Rubik".into()).into());
+            styles.insert(
+                parley::FontFamily::Named(
+                    self.font_family
+                        .clone()
+                        .unwrap_or(DEFAULT_FONT_FAMILY.to_string())
+                        .into(),
+                )
+                .into(),
+            );
             styles.insert(StyleProperty::FontWeight(self.font_weight));
             styles.insert(StyleProperty::LineHeight(LineHeight::FontSizeRelative(
                 self.line_height,
@@ -503,7 +528,12 @@ impl<'s, State> Text<State> {
                 true,
                 &TextStyle {
                     brush: Brush::Solid(current_fill),
-                    font_stack: FontStack::Single(parley::FontFamily::Named("Rubik".into())),
+                    font_stack: FontStack::Single(parley::FontFamily::Named(
+                        self.font_family
+                            .clone()
+                            .unwrap_or(DEFAULT_FONT_FAMILY.to_string())
+                            .into(),
+                    )),
                     font_weight: self.font_weight,
                     line_height: LineHeight::FontSizeRelative(self.line_height),
                     font_size: self.font_size as f32,

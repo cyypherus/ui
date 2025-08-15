@@ -1,3 +1,4 @@
+use crate::Color;
 use crate::{
     Binding, ClickState, DEEP_PURP, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, app::AppState, rect,
 };
@@ -5,7 +6,6 @@ use backer::{
     Node,
     nodes::{dynamic, stack},
 };
-use vello_svg::vello::peniko::Color;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ButtonState {
@@ -13,8 +13,9 @@ pub struct ButtonState {
     pub depressed: bool,
 }
 
-type BodyFn<'n, State> = fn(ButtonState) -> Node<'n, State, AppState<State>>;
-type LabelFn<'n, State> = Box<dyn Fn(ButtonState) -> Node<'n, State, AppState<State>> + 'n>;
+type BodyFn<'n, State> = fn(&mut State, ButtonState) -> Node<'n, State, AppState<State>>;
+type LabelFn<'n, State> =
+    Box<dyn Fn(&mut State, ButtonState) -> Node<'n, State, AppState<State>> + 'n>;
 
 pub struct Button<'n, State> {
     id: u64,
@@ -43,13 +44,16 @@ pub fn button<'n, State>(id: u64, binding: Binding<State, ButtonState>) -> Butto
 }
 
 impl<'n, State> Button<'n, State> {
-    pub fn body(mut self, body: fn(ButtonState) -> Node<'n, State, AppState<State>>) -> Self {
+    pub fn surface(
+        mut self,
+        body: fn(&mut State, ButtonState) -> Node<'n, State, AppState<State>>,
+    ) -> Self {
         self.body = Some(body);
         self
     }
     pub fn label(
         mut self,
-        label: impl Fn(ButtonState) -> Node<'n, State, AppState<State>> + 'n,
+        label: impl Fn(&mut State, ButtonState) -> Node<'n, State, AppState<State>> + 'n,
     ) -> Self {
         self.label = Some(Box::new(label));
         self
@@ -81,7 +85,8 @@ impl<'n, State> Button<'n, State> {
         dynamic(move |state: &mut State, _app: &mut AppState<State>| {
             stack(vec![
                 if let Some(body) = self.body {
-                    body(self.state.get(state))
+                    let vs = self.state.get(state);
+                    body(state, vs)
                 } else {
                     rect(crate::id!(self.id))
                         .fill(
@@ -104,7 +109,8 @@ impl<'n, State> Button<'n, State> {
                         .finish()
                 },
                 if let Some(label) = &self.label {
-                    label(self.state.get(state))
+                    let vs = self.state.get(state);
+                    label(state, vs)
                 } else {
                     crate::text(
                         crate::id!(self.id),
@@ -131,6 +137,8 @@ impl<'n, State> Button<'n, State> {
                     // .transition_duration(0.)
                     .finish()
                 },
+            ])
+            .attach_over(
                 rect(crate::id!(self.id))
                     .fill(Color::TRANSPARENT)
                     .view()
@@ -160,7 +168,7 @@ impl<'n, State> Button<'n, State> {
                         }
                     })
                     .finish(),
-            ])
+            )
         })
     }
 }

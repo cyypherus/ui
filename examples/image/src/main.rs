@@ -57,8 +57,7 @@ impl State {
                                 Err(e) => {
                                     let mut state = download_state.lock().await;
                                     *state = DownloadState::Error(format!(
-                                        "Failed to read response: {}",
-                                        e
+                                        "Failed to read response: {e}"
                                     ));
                                 }
                             }
@@ -76,7 +75,7 @@ impl State {
                     }
                     Err(e) => {
                         let mut state = download_state.lock().await;
-                        *state = DownloadState::Error(format!("Request failed: {}", e));
+                        *state = DownloadState::Error(format!("Request failed: {e}"));
                     }
                 }
             });
@@ -94,7 +93,7 @@ impl State {
                     }
                     Err(e) => {
                         let mut state = download_state.lock().await;
-                        *state = DownloadState::Error(format!("Failed to read file: {}", e));
+                        *state = DownloadState::Error(format!("Failed to read file: {e}"));
                     }
                 }
             });
@@ -142,7 +141,7 @@ fn main() {
                             .pad(10.)
                             .width_range(..200.),
                             button(id!(), binding!(State, paste_button))
-                                .label(|_| text(id!(), "Paste").finish())
+                                .label(|_, _| text(id!(), "Paste").finish())
                                 .on_click(|s, _| s.paste_from_clipboard())
                                 .finish()
                                 .height(40.)
@@ -150,7 +149,7 @@ fn main() {
                         ],
                     ),
                     button(id!(), binding!(State, load_button))
-                        .label(move |_| {
+                        .label(move |_, _| {
                             text(
                                 id!(),
                                 match download_state_for_button {
@@ -195,7 +194,7 @@ fn main() {
                                     .width_range(100.0..),
                             ],
                         ),
-                        DownloadState::Error(ref error) => text(id!(), format!("Error: {}", error))
+                        DownloadState::Error(ref error) => text(id!(), format!("Error: {error}"))
                             .font_size(14)
                             .fill(Color::from_rgb8(255, 0, 0))
                             .finish(),

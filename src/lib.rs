@@ -38,7 +38,6 @@ pub use text::*;
 pub use toggle::*;
 // pub use ui::scoper;
 use vello_svg::vello::kurbo::*;
-pub use vello_svg::vello::peniko::Color;
 use vello_svg::vello::peniko::color::AlphaColor;
 use vello_svg::vello::peniko::color::Srgb;
 pub use view::clipping;
@@ -47,7 +46,10 @@ pub use winit::keyboard::NamedKey;
 
 pub use models::*;
 
+pub type Color = AlphaColor<Srgb>;
+
 const RUBIK_FONT: &[u8] = include_bytes!("../assets/Rubik-VariableFont_wght.ttf");
+const DEFAULT_FONT_FAMILY: &str = "Rubik";
 const DEFAULT_EASING: Easing = Easing::EaseOut;
 const DEFAULT_DURATION: f32 = 200.;
 const DEFAULT_PADDING: f32 = 10.;

@@ -7,10 +7,11 @@ use crate::{
 };
 use backer::{Layout, Node};
 use parley::fontique::Blob;
+use parley::fontique::FontInfoOverride;
 use parley::{FontContext, LayoutContext};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Instant;
-use std::{num::NonZeroUsize, sync::Arc};
 use tokio::runtime::Runtime;
 use vello_svg::vello::peniko::{Brush, Color};
 use vello_svg::vello::util::{RenderContext, RenderSurface};
@@ -22,6 +23,8 @@ use winit::{dpi::LogicalSize, event::MouseButton};
 #[cfg(target_os = "macos")]
 use winit::platform::macos::WindowAttributesExtMacOS;
 
+type FontEntry = (Arc<Vec<u8>>, Option<String>);
+
 pub struct AppBuilder<State> {
     state: State,
     view: fn() -> Node<'static, State, AppState<State>>,
@@ -29,6 +32,7 @@ pub struct AppBuilder<State> {
     inner_size: Option<(u32, u32)>,
     resizable: Option<bool>,
     title: Option<String>,
+    custom_fonts: Vec<FontEntry>,
 }
 
 impl<State: 'static> AppBuilder<State> {
@@ -40,7 +44,13 @@ impl<State: 'static> AppBuilder<State> {
             inner_size: None,
             resizable: None,
             title: None,
+            custom_fonts: Vec::new(),
         }
+    }
+    pub fn add_font_bytes(mut self, bytes: Vec<u8>, family: Option<&str>) -> Self {
+        self.custom_fonts
+            .push((Arc::new(bytes), family.map(|s| s.to_string())));
+        self
     }
 
     pub fn inner_size(mut self, width: u32, height: u32) -> Self {
@@ -78,6 +88,7 @@ impl<State: 'static> AppBuilder<State> {
                 self.inner_size,
                 self.resizable,
                 self.title,
+                self.custom_fonts,
             );
         }
     }
@@ -214,6 +225,7 @@ impl<State: 'static> App<'_, State> {
         inner_size: Option<(u32, u32)>,
         resizable: Option<bool>,
         title: Option<String>,
+        custom_fonts: Vec<FontEntry>,
     ) {
         #[allow(unused_mut)]
         let mut renderers: Vec<Option<Renderer>> = vec![];
@@ -223,6 +235,16 @@ impl<State: 'static> App<'_, State> {
         font_cx
             .collection
             .register_fonts(Blob::new(Arc::new(RUBIK_FONT)), None);
+
+        for (font_bytes, family_opt) in custom_fonts.into_iter() {
+            font_cx.collection.register_fonts(
+                Blob::new(font_bytes),
+                Some(FontInfoOverride {
+                    family_name: family_opt.as_deref(),
+                    ..Default::default()
+                }),
+            );
+        }
 
         let render_state = None::<RenderState>;
         let mut app = Self {
@@ -314,7 +336,6 @@ impl<State: 'static> App<'_, State> {
         (self.on_frame)(&mut self.state, &mut self.app_state);
         let Self {
             context,
-            renderers,
             render_state: Some(RenderState { surface, window }),
             app_state: AppState { scene, .. },
             ..
@@ -336,29 +357,42 @@ impl<State: 'static> App<'_, State> {
             antialiasing_method: vello_svg::vello::AaConfig::Area,
         };
 
+        window.pre_present_notify();
+
+        self.renderers[surface.dev_id]
+            .as_mut()
+            .unwrap()
+            .render_to_texture(
+                &device_handle.device,
+                &device_handle.queue,
+                scene,
+                &surface.target_view,
+                &render_params,
+            )
+            .expect("failed to render to texture");
+
         let surface_texture = surface
             .surface
             .get_current_texture()
             .expect("failed to get surface texture");
 
-        window.pre_present_notify();
-
-        renderers[surface.dev_id]
-            .as_mut()
-            .unwrap()
-            .render_to_surface(
-                &device_handle.device,
-                &device_handle.queue,
-                scene,
-                &surface_texture,
-                &render_params,
-            )
-            .expect("failed to render to surface");
-
+        let mut encoder =
+            device_handle
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Surface Blit"),
+                });
+        surface.blitter.copy(
+            &device_handle.device,
+            &mut encoder,
+            &surface.target_view,
+            &surface_texture
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default()),
+        );
+        device_handle.queue.submit([encoder.finish()]);
         surface_texture.present();
-        device_handle
-            .device
-            .poll(vello_svg::vello::wgpu::Maintain::Wait);
+
         scene.reset();
         if self
             .app_state
@@ -420,20 +454,9 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
             let id = render_state.surface.dev_id;
             renderers[id].get_or_insert_with(|| {
                 #[allow(unused_mut)]
-                let mut renderer = Renderer::new(
-                    &context.devices[id].device,
-                    RendererOptions {
-                        surface_format: Some(render_state.surface.format),
-                        use_cpu: false,
-                        antialiasing_support: vello_svg::vello::AaSupport {
-                            area: true,
-                            msaa8: false,
-                            msaa16: false,
-                        },
-                        num_init_threads: NonZeroUsize::new(1),
-                    },
-                )
-                .expect("Failed to create renderer");
+                let mut renderer =
+                    Renderer::new(&context.devices[id].device, RendererOptions::default())
+                        .expect("Failed to create renderer");
                 renderer
             });
             Some(render_state)
@@ -456,6 +479,7 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
     //             std::time::Instant::now() + std::time::Duration::from_millis(500),
     //         ));
     //     }
+    // }
     // }
 
     fn window_event(
