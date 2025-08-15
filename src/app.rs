@@ -29,6 +29,7 @@ pub struct AppBuilder<State> {
     state: State,
     view: fn() -> Node<'static, State, AppState<State>>,
     on_frame: fn(&mut State, &mut AppState<State>) -> (),
+    on_start: fn(&mut State, &mut AppState<State>) -> (),
     inner_size: Option<(u32, u32)>,
     resizable: Option<bool>,
     title: Option<String>,
@@ -41,6 +42,7 @@ impl<State: 'static> AppBuilder<State> {
             state,
             view,
             on_frame: |_, _| {},
+            on_start: |_, _| {},
             inner_size: None,
             resizable: None,
             title: None,
@@ -85,6 +87,7 @@ impl<State: 'static> AppBuilder<State> {
                 render_cx,
                 self.view,
                 self.on_frame,
+                self.on_start,
                 self.inner_size,
                 self.resizable,
                 self.title,
@@ -106,6 +109,8 @@ pub struct App<'s, State> {
     pub state: State,
     pub(crate) view: fn() -> Node<'static, State, AppState<State>>,
     pub(crate) on_frame: fn(&mut State, &mut AppState<State>) -> (),
+    pub(crate) on_start: fn(&mut State, &mut AppState<State>) -> (),
+    pub(crate) started: bool,
 }
 
 pub(crate) struct RenderState<'surface> {
@@ -222,6 +227,7 @@ impl<State: 'static> App<'_, State> {
         #[cfg(target_arch = "wasm32")] render_state: RenderState,
         view: fn() -> Node<'static, State, AppState<State>>,
         on_frame: fn(&mut State, &mut AppState<State>) -> (),
+        on_start: fn(&mut State, &mut AppState<State>) -> (),
         inner_size: Option<(u32, u32)>,
         resizable: Option<bool>,
         title: Option<String>,
@@ -277,14 +283,18 @@ impl<State: 'static> App<'_, State> {
                 appeared_views: std::collections::HashSet::new(),
             },
             on_frame,
+            on_start,
+            started: false,
         };
         event_loop.run_app(&mut app).expect("run to completion");
     }
 
     fn redraw(&mut self) {
-        // self.app_state
-        //     .background_scheduler
-        //     .process_completions(&mut self.state);
+        if !self.started {
+            self.started = true;
+            (self.on_start)(&mut self.state, &mut self.app_state);
+        }
+
         self.app_state.now = Instant::now();
         self.app_state.gesture_handlers.clear();
         if let Self {

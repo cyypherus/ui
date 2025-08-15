@@ -37,7 +37,6 @@ vello_svg = { version = "0.7.1", features = ["wgpu"] }
 wgpu = "24.0.5"
 winit = "0.30.8"
 
-
 [dev-dependencies]
 arboard = "3.4"
 reqwest = { version = "0.12", features = ["json"] }
