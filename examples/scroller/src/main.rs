@@ -87,11 +87,12 @@ fn scroller_cell<'n>(
                     text(id!(index as u64), s.clone())
                         .fill(Color::WHITE)
                         .align(TextAlign::Leading)
+                        .wrap()
                         .view()
                         .transition_duration(0.)
                         .finish()
                         .pad(10.),
-                    svg(id!(index as u64), "assets/tiger.svg")
+                    svg(id!(index as u64), include_str!("../../../assets/tiger.svg"))
                         .view()
                         .transition_duration(0.)
                         .finish()

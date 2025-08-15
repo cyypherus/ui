@@ -117,13 +117,13 @@ impl<'n, State> Button<'n, State> {
                         ) {
                             (true, _) => self
                                 .text_fill
-                                .unwrap_or(DEEP_PURP)
+                                .unwrap_or(Color::WHITE)
                                 .map_lightness(|l| l - 0.1),
                             (false, true) => self
                                 .text_fill
-                                .unwrap_or(DEEP_PURP)
+                                .unwrap_or(Color::WHITE)
                                 .map_lightness(|l| l + 0.1),
-                            (false, false) => self.text_fill.unwrap_or(DEEP_PURP),
+                            (false, false) => self.text_fill.unwrap_or(Color::WHITE),
                         },
                     )
                     .font_size(DEFAULT_FONT_SIZE)

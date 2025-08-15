@@ -150,5 +150,6 @@ impl<State> Toggle<State> {
                     .width(width),
             ])
         })
+        .aspect(2.)
     }
 }

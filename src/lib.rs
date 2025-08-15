@@ -4,6 +4,7 @@ mod animated_color;
 mod app;
 mod button;
 mod circle;
+mod draw_layout;
 mod editor;
 mod event;
 mod gestures;

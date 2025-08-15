@@ -21,11 +21,11 @@ fn main() {
                 column_spaced(
                     20.,
                     vec![
-                        space(),
                         text_field(id!(), binding!(State, text))
+                            .wrap()
                             .font_size(40)
                             .finish(),
-                        toggle(id!(), binding!(State, toggle)).finish(),
+                        toggle(id!(), binding!(State, toggle)).finish().width(100.),
                     ],
                 )
                 .pad(20.)

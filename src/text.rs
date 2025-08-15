@@ -1,5 +1,6 @@
 use crate::animated_color::{AnimatedColor, AnimatedU8};
 use crate::app::{AppState, EditState};
+use crate::draw_layout::draw_layout;
 use crate::gestures::EditInteraction;
 use crate::{
     Binding, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR, DEFAULT_FONT_SIZE, DEFAULT_PADDING, Editor,
@@ -13,8 +14,8 @@ use backer::nodes::{dynamic, space, stack};
 use backer::{Node, models::*};
 use lilt::{Animated, Easing};
 use parley::{
-    AlignmentOptions, FontStack, FontWeight, Layout, LineHeight, PlainEditor, PositionedLayoutItem,
-    StyleProperty, TextStyle,
+    AlignmentOptions, FontStack, FontWeight, Layout, LineHeight, PlainEditor, StyleProperty,
+    TextStyle,
 };
 use std::fmt::Debug;
 use std::rc::Rc;
@@ -22,10 +23,7 @@ use std::time::Instant;
 use vello_svg::vello::kurbo::Point;
 use vello_svg::vello::peniko::Brush;
 use vello_svg::vello::peniko::color::AlphaColor;
-use vello_svg::vello::{
-    kurbo::Affine,
-    peniko::{Color, Fill},
-};
+use vello_svg::vello::{kurbo::Affine, peniko::Color};
 
 pub(crate) const DEEP_PURP: Color = AlphaColor::from_rgb8(113, 70, 232);
 
@@ -385,17 +383,38 @@ impl<State> Text<State> {
         if !visible && visible_amount == 0. {
             return;
         }
+
+        let AnimatedView::Text(mut animated) = app
+            .view_state
+            .remove(&self.id)
+            .unwrap_or(AnimatedView::Text(Box::new(AnimatedText::new_from(self))))
+        else {
+            return;
+        };
+        AnimatedText::update(app.now, self, &mut animated);
+        let anim_fill = Color::from_rgba8(
+            animated.fill.r.animate_wrapped(app.now).0,
+            animated.fill.g.animate_wrapped(app.now).0,
+            animated.fill.b.animate_wrapped(app.now).0,
+            animated.fill.a.animate_wrapped(app.now).0,
+        )
+        .multiply_alpha(visible_amount);
+
         let editing = self.state.get(state).editing;
         if editing && app.editor.is_none() {
             let mut editor = PlainEditor::new(self.font_size as f32);
             editor.set_text(&self.state.get(state).text);
             let styles = editor.edit_styles();
+
+            styles.insert(StyleProperty::Brush(Brush::Solid(self.fill)));
+            styles.insert(parley::FontFamily::Named("Rubik".into()).into());
+            styles.insert(StyleProperty::FontWeight(self.font_weight));
             styles.insert(StyleProperty::LineHeight(LineHeight::FontSizeRelative(
                 self.line_height,
             )));
-            styles.insert(parley::FontFamily::Named("Rubik".into()).into());
-            styles.insert(StyleProperty::FontWeight(self.font_weight));
-            styles.insert(StyleProperty::Brush(self.fill.into()));
+            styles.insert(StyleProperty::FontSize(self.font_size as f32));
+            styles.insert(StyleProperty::OverflowWrap(parley::OverflowWrap::Anywhere));
+
             editor.set_alignment(self.alignment.into());
             editor.set_width(Some(area.width));
             let mut editor = Editor {
@@ -444,62 +463,12 @@ impl<State> Text<State> {
             *edit_area = area;
             return;
         }
-        let AnimatedView::Text(mut animated) = app
-            .view_state
-            .remove(&self.id)
-            .unwrap_or(AnimatedView::Text(Box::new(AnimatedText::new_from(self))))
-        else {
-            return;
-        };
-        AnimatedText::update(app.now, self, &mut animated);
-        let layout = self.current_layout(area.width, state, app);
 
-        let anim_fill = Color::from_rgba8(
-            animated.fill.r.animate_wrapped(app.now).0,
-            animated.fill.g.animate_wrapped(app.now).0,
-            animated.fill.b.animate_wrapped(app.now).0,
-            animated.fill.a.animate_wrapped(app.now).0,
-        )
-        .multiply_alpha(visible_amount);
+        let layout = self.current_layout(anim_fill, area.width, true, state, app);
+
         let transform =
             Affine::translate((area.x as f64, area.y as f64)).then_scale(app.scale_factor);
-        for line in layout.lines() {
-            for item in line.items() {
-                let PositionedLayoutItem::GlyphRun(glyph_run) = item else {
-                    continue;
-                };
-                let mut x = glyph_run.offset();
-                let y = glyph_run.baseline();
-                let run = glyph_run.run();
-                let font = run.font();
-                let font_size = run.font_size();
-                let synthesis = run.synthesis();
-                let glyph_xform = synthesis
-                    .skew()
-                    .map(|angle| Affine::skew(angle.to_radians().tan() as f64, 0.0));
-                app.scene
-                    .draw_glyphs(font)
-                    .brush(anim_fill)
-                    .hint(true)
-                    .transform(transform)
-                    .glyph_transform(glyph_xform)
-                    .font_size(font_size)
-                    .normalized_coords(run.normalized_coords())
-                    .draw(
-                        Fill::NonZero,
-                        glyph_run.glyphs().map(|glyph| {
-                            let gx = x + glyph.x;
-                            let gy = y - glyph.y;
-                            x += glyph.advance;
-                            vello_svg::vello::Glyph {
-                                id: glyph.id as _,
-                                x: gx,
-                                y: gy,
-                            }
-                        }),
-                    );
-            }
-        }
+        draw_layout(Some(anim_fill), transform, &layout, &mut app.scene);
         app.view_state.insert(self.id, AnimatedView::Text(animated));
     }
 }
@@ -507,7 +476,9 @@ impl<State> Text<State> {
 impl<'s, State> Text<State> {
     pub(crate) fn current_layout(
         &self,
+        current_fill: Color,
         available_width: f32,
+        cache: bool,
         state: &mut State,
         app: &mut AppState<State>,
     ) -> Layout<Brush> {
@@ -526,23 +497,22 @@ impl<'s, State> Text<State> {
         {
             layout.clone()
         } else {
-            let font_stack = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
             let mut builder = app.layout_cx.tree_builder(
                 &mut app.font_cx,
                 1.,
                 true,
                 &TextStyle {
-                    brush: Brush::Solid(AlphaColor::WHITE),
-                    font_stack,
+                    brush: Brush::Solid(current_fill),
+                    font_stack: FontStack::Single(parley::FontFamily::Named("Rubik".into())),
                     font_weight: self.font_weight,
                     line_height: LineHeight::FontSizeRelative(self.line_height),
                     font_size: self.font_size as f32,
+                    overflow_wrap: parley::OverflowWrap::Anywhere,
                     ..Default::default()
                 },
             );
             builder.push_text(&current_text);
             let mut layout = builder.build().0;
-
             layout.break_all_lines(Some(available_width));
             layout.align(
                 Some(available_width),
@@ -551,14 +521,16 @@ impl<'s, State> Text<State> {
                     align_when_overflowing: true,
                 },
             );
-            let entry = app.layout_cache.entry(self.id).or_insert(vec![(
-                current_text.clone(),
-                available_width,
-                layout.clone(),
-            )]);
-            entry.push((current_text.clone(), available_width, layout.clone()));
-            if entry.len() > 2 {
-                entry.remove(0);
+            if cache {
+                let entry = app.layout_cache.entry(self.id).or_insert(vec![(
+                    current_text.clone(),
+                    available_width,
+                    layout.clone(),
+                )]);
+                entry.push((current_text.clone(), available_width, layout.clone()));
+                if entry.len() > 2 {
+                    entry.remove(0);
+                }
             }
             layout
         }
@@ -574,10 +546,11 @@ impl<'s, State> Text<State> {
     {
         if self.wrap {
             node.dynamic_height(move |width, state, app| {
-                self.current_layout(width, state, app).height()
+                self.current_layout(Color::WHITE, width, false, state, app)
+                    .height()
             })
         } else {
-            let layout = self.current_layout(10000., state, app);
+            let layout = self.current_layout(Color::WHITE, 10000., false, state, app);
             node.height(layout.height()).width(layout.width().max(10.))
         }
     }
