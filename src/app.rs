@@ -7,6 +7,7 @@ use crate::{
 };
 use backer::{Layout, Node};
 use parley::fontique::Blob;
+use parley::fontique::FontInfoOverride;
 use parley::{FontContext, LayoutContext};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -22,6 +23,8 @@ use winit::{dpi::LogicalSize, event::MouseButton};
 #[cfg(target_os = "macos")]
 use winit::platform::macos::WindowAttributesExtMacOS;
 
+type FontEntry = (Arc<Vec<u8>>, Option<String>);
+
 pub struct AppBuilder<State> {
     state: State,
     view: fn() -> Node<'static, State, AppState<State>>,
@@ -29,6 +32,7 @@ pub struct AppBuilder<State> {
     inner_size: Option<(u32, u32)>,
     resizable: Option<bool>,
     title: Option<String>,
+    custom_fonts: Vec<FontEntry>,
 }
 
 impl<State: 'static> AppBuilder<State> {
@@ -40,7 +44,13 @@ impl<State: 'static> AppBuilder<State> {
             inner_size: None,
             resizable: None,
             title: None,
+            custom_fonts: Vec::new(),
         }
+    }
+    pub fn add_font_bytes(mut self, bytes: Vec<u8>, family: Option<&str>) -> Self {
+        self.custom_fonts
+            .push((Arc::new(bytes), family.map(|s| s.to_string())));
+        self
     }
 
     pub fn inner_size(mut self, width: u32, height: u32) -> Self {
@@ -78,6 +88,7 @@ impl<State: 'static> AppBuilder<State> {
                 self.inner_size,
                 self.resizable,
                 self.title,
+                self.custom_fonts,
             );
         }
     }
@@ -214,6 +225,7 @@ impl<State: 'static> App<'_, State> {
         inner_size: Option<(u32, u32)>,
         resizable: Option<bool>,
         title: Option<String>,
+        custom_fonts: Vec<FontEntry>,
     ) {
         #[allow(unused_mut)]
         let mut renderers: Vec<Option<Renderer>> = vec![];
@@ -223,6 +235,16 @@ impl<State: 'static> App<'_, State> {
         font_cx
             .collection
             .register_fonts(Blob::new(Arc::new(RUBIK_FONT)), None);
+
+        for (font_bytes, family_opt) in custom_fonts.into_iter() {
+            font_cx.collection.register_fonts(
+                Blob::new(font_bytes),
+                Some(FontInfoOverride {
+                    family_name: family_opt.as_deref(),
+                    ..Default::default()
+                }),
+            );
+        }
 
         let render_state = None::<RenderState>;
         let mut app = Self {
