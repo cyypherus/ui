@@ -225,7 +225,7 @@ impl<State: 'static> App<'_, State> {
         inner_size: Option<(u32, u32)>,
         resizable: Option<bool>,
         title: Option<String>,
-        custom_fonts: Vec<FontEntry>, // NEW parameter
+        custom_fonts: Vec<FontEntry>,
     ) {
         #[allow(unused_mut)]
         let mut renderers: Vec<Option<Renderer>> = vec![];

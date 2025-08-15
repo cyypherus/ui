@@ -541,7 +541,6 @@ impl<'s, State> Text<State> {
         {
             layout.clone()
         } else {
-            // let font_stack: FontStack<'_> = FontStack::Single(parley::FontFamily::Named("Rubik".into()));
             let font_stack = FontStack::Single(FontFamily::Named(
                 self.font_family
                     .clone()
