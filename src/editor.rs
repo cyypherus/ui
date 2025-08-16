@@ -1,18 +1,16 @@
-use backer::models::Area;
 use core::default::Default;
 use parley::{GenericFamily, StyleProperty, editor::SplitString};
 use std::time::{Duration, Instant};
 use vello_svg::vello::{
-    Scene,
-    kurbo::{Affine, Point, RoundedRect},
-    peniko::{Brush, Color, Fill, color::palette},
+    kurbo::Point,
+    peniko::{Brush, color::palette},
 };
 use winit::{event::Modifiers, keyboard::NamedKey};
 
 pub use parley::layout::editor::Generation;
 use parley::{FontContext, LayoutContext, PlainEditor, PlainEditorDriver};
 
-use crate::{Key, draw_layout::draw_layout};
+use crate::Key;
 
 #[derive(Clone)]
 pub struct Editor {
@@ -325,51 +323,5 @@ impl Editor {
             self.driver(font_cx, layout_cx)
                 .extend_selection_to_point(cursor_pos.0, cursor_pos.1);
         }
-    }
-    pub(crate) fn draw(
-        &mut self,
-        area: Area,
-        scene: &mut Scene,
-        scale: f64,
-        layout_cx: &mut LayoutContext<Brush>,
-        font_cx: &mut FontContext,
-        cursor_color: Color,
-        highlight_color: Color,
-        _visible: bool,
-        _visible_amount: f32,
-    ) -> Generation {
-        let transform = Affine::translate((area.x as f64, area.y as f64)).then_scale(scale);
-
-        for (rect, _i) in self.editor.selection_geometry().iter() {
-            scene.fill(
-                Fill::NonZero,
-                transform,
-                highlight_color,
-                None,
-                &RoundedRect::from_rect(*rect, 5.),
-            );
-        }
-        if self.cursor_visible
-            && let Some(cursor) = self.editor.cursor_geometry(1.5)
-        {
-            let width = 3.;
-            scene.fill(
-                Fill::NonZero,
-                transform,
-                cursor_color,
-                None,
-                &RoundedRect::from_origin_size(
-                    Point::new(cursor.x0, cursor.y0),
-                    vello_svg::vello::kurbo::Size::new(width, cursor.height()),
-                    width * 0.5,
-                ),
-            );
-        }
-
-        let editor = &mut self.editor;
-        editor.set_width(Some(area.width));
-        let layout = editor.layout(font_cx, layout_cx);
-        draw_layout(None, transform, layout, scene);
-        self.editor.generation()
     }
 }

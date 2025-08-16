@@ -86,7 +86,7 @@ fn scroller_cell<'n>(
                 row(vec![
                     text(id!(index as u64), s.clone())
                         .fill(Color::WHITE)
-                        .align(TextAlign::Leading)
+                        .align(parley::Alignment::Start)
                         .wrap()
                         .view()
                         .transition_duration(0.)

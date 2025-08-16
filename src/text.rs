@@ -1,39 +1,26 @@
 use crate::animated_color::{AnimatedColor, AnimatedU8};
-use crate::app::{AppState, EditState};
+use crate::app::AppState;
 use crate::draw_layout::draw_layout;
-use crate::gestures::EditInteraction;
-use crate::{
-    Binding, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE,
-    DEFAULT_PADDING, Editor, GestureState, id, rect,
-};
 use crate::{
     DEFAULT_DURATION, DEFAULT_EASING,
     view::{AnimatedView, View, ViewType},
 };
-use backer::nodes::{dynamic, space, stack};
+use crate::{DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE};
 use backer::{Node, models::*};
 use lilt::{Animated, Easing};
-use parley::{
-    AlignmentOptions, FontStack, FontWeight, Layout, LineHeight, PlainEditor, StyleProperty,
-    TextStyle,
-};
+use parley::{Alignment, AlignmentOptions, FontStack, FontWeight, Layout, LineHeight, TextStyle};
 use std::fmt::Debug;
-use std::rc::Rc;
 use std::time::Instant;
-use vello_svg::vello::kurbo::Point;
 use vello_svg::vello::peniko::Brush;
 use vello_svg::vello::peniko::color::AlphaColor;
 use vello_svg::vello::{kurbo::Affine, peniko::Color};
 
 pub(crate) const DEEP_PURP: Color = AlphaColor::from_rgb8(113, 70, 232);
 
-pub fn text<State>(id: u64, text: impl AsRef<str> + 'static) -> Text<State> {
+pub fn text(id: u64, text: impl AsRef<str> + 'static) -> Text {
     Text {
         id,
-        state: Binding::constant(TextState {
-            text: text.as_ref().to_string(),
-            editing: false,
-        }),
+        string: text.as_ref().to_string(),
         font_size: DEFAULT_FONT_SIZE,
         font_weight: FontWeight::NORMAL,
         font_family: None,
@@ -42,161 +29,65 @@ pub fn text<State>(id: u64, text: impl AsRef<str> + 'static) -> Text<State> {
         easing: None,
         duration: None,
         delay: 0.,
-        alignment: TextAlign::Centered,
-        editable: false,
+        alignment: Alignment::Middle,
         line_height: 1.,
-        background_fill: None,
-        background_stroke: None,
-        background_corner_rounding: DEFAULT_CORNER_ROUNDING,
-        background_padding: DEFAULT_PADDING,
         wrap: false,
-        cursor_fill: DEEP_PURP,
-        highlight_fill: DEEP_PURP,
-        on_edit: None,
     }
 }
 
-pub fn text_field<State>(id: u64, state: Binding<State, TextState>) -> Text<State> {
-    Text {
-        id,
-        state,
-        font_size: DEFAULT_FONT_SIZE,
-        font_weight: FontWeight::NORMAL,
-        font_family: None,
-        // font: None,
-        fill: DEFAULT_FG_COLOR,
-        easing: None,
-        duration: None,
-        delay: 0.,
-        alignment: TextAlign::Centered,
-        editable: true,
-        line_height: 1.,
-        background_fill: Some(Color::from_rgb8(50, 50, 50)),
-        background_stroke: Some((Color::from_rgb8(60, 60, 60), DEEP_PURP, 3.)),
-        background_corner_rounding: DEFAULT_CORNER_ROUNDING,
-        background_padding: DEFAULT_PADDING,
-        wrap: false,
-        cursor_fill: DEEP_PURP,
-        highlight_fill: DEEP_PURP,
-        on_edit: None,
-    }
-}
-
-pub struct Text<State> {
+pub struct Text {
     pub(crate) id: u64,
-    pub(crate) state: Binding<State, TextState>,
+    pub(crate) string: String,
     pub(crate) fill: Color,
     pub(crate) font_size: u32,
     pub(crate) font_weight: FontWeight,
-    font_family: Option<String>,
-    pub(crate) alignment: TextAlign,
-    pub(crate) editable: bool,
-    // font: Option<font::Id>,
+    pub(crate) font_family: Option<String>,
+    pub(crate) alignment: Alignment,
     pub(crate) easing: Option<Easing>,
     pub(crate) duration: Option<f32>,
     pub(crate) delay: f32,
     pub(crate) line_height: f32,
-    pub(crate) background_fill: Option<Color>,
-    pub(crate) background_stroke: Option<(Color, Color, f32)>, // (normal, focused, width)
-    pub(crate) background_corner_rounding: f32,
-    pub(crate) background_padding: f32,
     pub(crate) wrap: bool,
-    pub(crate) cursor_fill: Color,
-    pub(crate) highlight_fill: Color,
-    on_edit: Option<Rc<dyn Fn(&mut State, &mut AppState<State>, EditInteraction)>>,
 }
 
-impl<State> Debug for Text<State> {
+impl Debug for Text {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Text")
             .field("id", &self.id)
-            .field("state", &self.state)
+            .field("state", &self.string)
             .field("fill", &self.fill)
             .field("font_size", &self.font_size)
             .field("font_weight", &self.font_weight)
             .field("alignment", &self.alignment)
-            .field("editable", &self.editable)
             .field("easing", &self.easing)
             .field("duration", &self.duration)
             .field("delay", &self.delay)
             .field("line_height", &self.line_height)
-            .field("background_fill", &self.background_fill)
-            .field("background_stroke", &self.background_stroke)
-            .field(
-                "background_corner_rounding",
-                &self.background_corner_rounding,
-            )
-            .field("background_padding", &self.background_padding)
             .field("wrap", &self.wrap)
-            .field("cursor_fill", &self.cursor_fill)
-            .field("highlight_fill", &self.highlight_fill)
-            .field("on_edit", &self.on_edit.is_some())
             .finish()
     }
 }
 
-impl<State> Clone for Text<State> {
+impl Clone for Text {
     fn clone(&self) -> Self {
         Self {
             id: self.id,
-            state: self.state.clone(),
+            string: self.string.clone(),
             fill: self.fill,
             font_size: self.font_size,
             font_weight: self.font_weight,
             font_family: self.font_family.clone(),
             alignment: self.alignment,
-            editable: self.editable,
             easing: self.easing,
             duration: self.duration,
             delay: self.delay,
             line_height: self.line_height,
-            background_fill: self.background_fill,
-            background_stroke: self.background_stroke,
-            background_corner_rounding: self.background_corner_rounding,
-            background_padding: self.background_padding,
             wrap: self.wrap,
-            cursor_fill: self.cursor_fill,
-            highlight_fill: self.highlight_fill,
-            on_edit: self.on_edit.clone(),
         }
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct TextState {
-    pub text: String,
-    pub editing: bool,
-}
-
-impl TextState {
-    pub fn new(text: impl AsRef<str>) -> Self {
-        Self {
-            text: text.as_ref().to_string(),
-            editing: false,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum TextAlign {
-    Leading,
-    Centered,
-    Trailing,
-    Justified,
-}
-
-impl From<TextAlign> for parley::Alignment {
-    fn from(value: TextAlign) -> Self {
-        match value {
-            TextAlign::Leading => parley::Alignment::Start,
-            TextAlign::Centered => parley::Alignment::Middle,
-            TextAlign::Trailing => parley::Alignment::End,
-            TextAlign::Justified => parley::Alignment::Justified,
-        }
-    }
-}
-
-impl<State> Text<State> {
+impl Text {
     pub fn fill(mut self, color: Color) -> Self {
         self.fill = color;
         self
@@ -213,134 +104,31 @@ impl<State> Text<State> {
         self.font_family = Some(family.into());
         self
     }
-    pub fn align(mut self, align: TextAlign) -> Self {
+    pub fn align(mut self, align: Alignment) -> Self {
         self.alignment = align;
-        self
-    }
-    pub fn editable(mut self) -> Self {
-        self.editable = true;
-        self
-    }
-    pub fn background_fill(mut self, color: Option<Color>) -> Self {
-        self.background_fill = color;
-        self
-    }
-    pub fn background_stroke(mut self, normal: Color, focused: Color, width: f32) -> Self {
-        self.background_stroke = Some((normal, focused, width));
-        self
-    }
-    pub fn no_background_stroke(mut self) -> Self {
-        self.background_stroke = None;
-        self
-    }
-    pub fn background_corner_rounding(mut self, rounding: f32) -> Self {
-        self.background_corner_rounding = rounding;
-        self
-    }
-    pub fn background_padding(mut self, padding: f32) -> Self {
-        self.background_padding = padding;
-        self
-    }
-    pub fn cursor_fill(mut self, color: Color) -> Self {
-        self.cursor_fill = color;
-        self
-    }
-    pub fn highlight_fill(mut self, color: Color) -> Self {
-        self.highlight_fill = color;
-        self
-    }
-    pub fn on_edit(
-        mut self,
-        on_edit: impl Fn(&mut State, &mut AppState<State>, EditInteraction) + 'static,
-    ) -> Self {
-        self.on_edit = Some(Rc::new(on_edit));
         self
     }
     pub fn wrap(mut self) -> Self {
         self.wrap = true;
         self
     }
-    // pub(crate) fn font(mut self, font_id: font::Id) -> Self {
-    //     self.font = Some(font_id);
-    //     self
-    // }
-    pub fn view(self) -> View<State>
+}
+
+impl Text {
+    pub fn view<State>(self) -> View<State>
     where
         State: 'static,
     {
-        if self.editable {
-            let binding = self.state.clone();
-            let on_edit = self.on_edit.clone();
-            View {
-                view_type: ViewType::Text(self),
-                gesture_handlers: Vec::new(),
-            }
-            .on_click({
-                let binding = binding.clone();
-                move |state: &mut State, app, _, _| {
-                    let editing = binding.get(state).editing;
-                    if !editing && app.editor.is_none() {
-                        binding.update(state, |s| s.editing = true);
-                    }
-                }
-            })
-            .on_edit({
-                move |state, _app, edit| {
-                    if let Some(ref on_edit) = on_edit {
-                        on_edit(state, _app, edit.clone());
-                    }
-                    binding.update(state, move |s| match edit.clone() {
-                        EditInteraction::Update(text) => s.text = text.clone(),
-                        EditInteraction::End => s.editing = false,
-                    });
-                }
-            })
-        } else {
-            View {
-                view_type: ViewType::Text(self),
-                gesture_handlers: Vec::new(),
-            }
+        View {
+            view_type: ViewType::Text(self),
+            gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<'n>(self) -> Node<'n, State, AppState<State>>
+    pub fn finish<'n, State>(self) -> Node<'n, State, AppState<State>>
     where
         State: 'static,
     {
-        let binding = self.state.clone();
-        let id = self.id;
-        let editable = self.editable;
-        let bg_fill = self.background_fill;
-        let bg_stroke = self.background_stroke;
-        let bg_rounding = self.background_corner_rounding;
-        let bg_padding = self.background_padding;
-        stack(vec![
-            self.view()
-                .finish()
-                .pad(if editable { bg_padding } else { 0. })
-                .attach_under(if editable && (bg_fill.is_some() || bg_stroke.is_some()) {
-                    dynamic({
-                        move |s, _a| {
-                            let mut rect_node = rect(id!(id));
-                            if let Some(fill) = bg_fill {
-                                rect_node = rect_node.fill(fill);
-                            }
-                            if let Some((normal, focused, width)) = bg_stroke {
-                                rect_node = rect_node.stroke(
-                                    if binding.get(s).editing {
-                                        focused
-                                    } else {
-                                        normal
-                                    },
-                                    width,
-                                );
-                            }
-                            rect_node.corner_rounding(bg_rounding).finish()
-                        }
-                    })
-                } else {
-                    space()
-                }),
-        ])
+        self.view().finish()
     }
 }
 
@@ -350,7 +138,7 @@ pub(crate) struct AnimatedText {
 }
 
 impl AnimatedText {
-    pub(crate) fn update<State>(now: Instant, from: &Text<State>, existing: &mut AnimatedText) {
+    pub(crate) fn update(now: Instant, from: &Text, existing: &mut AnimatedText) {
         existing
             .fill
             .r
@@ -364,7 +152,7 @@ impl AnimatedText {
             .b
             .transition(AnimatedU8(from.fill.to_rgba8().b), now);
     }
-    pub(crate) fn new_from<State>(from: &Text<State>) -> Self {
+    pub(crate) fn new_from(from: &Text) -> Self {
         AnimatedText {
             fill: AnimatedColor {
                 r: Animated::new(AnimatedU8(from.fill.to_rgba8().r))
@@ -388,9 +176,10 @@ impl AnimatedText {
     }
 }
 
-impl<State> Text<State> {
-    pub(crate) fn draw(
+impl Text {
+    pub(crate) fn draw<State>(
         &mut self,
+        animated_area: Area,
         area: Area,
         state: &mut State,
         app: &mut AppState<State>,
@@ -417,97 +206,25 @@ impl<State> Text<State> {
         )
         .multiply_alpha(visible_amount);
 
-        let editing = self.state.get(state).editing;
-        if editing && app.editor.is_none() {
-            let mut editor = PlainEditor::new(self.font_size as f32);
-            editor.set_text(&self.state.get(state).text);
-            let styles = editor.edit_styles();
-
-            styles.insert(StyleProperty::Brush(Brush::Solid(self.fill)));
-            styles.insert(
-                parley::FontFamily::Named(
-                    self.font_family
-                        .clone()
-                        .unwrap_or(DEFAULT_FONT_FAMILY.to_string())
-                        .into(),
-                )
-                .into(),
-            );
-            styles.insert(StyleProperty::FontWeight(self.font_weight));
-            styles.insert(StyleProperty::LineHeight(LineHeight::FontSizeRelative(
-                self.line_height,
-            )));
-            styles.insert(StyleProperty::FontSize(self.font_size as f32));
-            styles.insert(StyleProperty::OverflowWrap(parley::OverflowWrap::Anywhere));
-
-            editor.set_alignment(self.alignment.into());
-            editor.set_width(Some(area.width));
-            let mut editor = Editor {
-                editor,
-                last_click_time: Default::default(),
-                click_count: Default::default(),
-                pointer_down: Default::default(),
-                cursor_pos: Default::default(),
-                cursor_visible: Default::default(),
-                modifiers: Default::default(),
-                start_time: Default::default(),
-                blink_period: Default::default(),
-            };
-
-            let AppState {
-                font_cx, layout_cx, ..
-            } = app;
-            if let Some(pos) = app.cursor_position {
-                editor.mouse_moved(
-                    Point::new(pos.x - area.x as f64, pos.y - area.y as f64),
-                    layout_cx,
-                    font_cx,
-                );
-                editor.mouse_pressed(layout_cx, font_cx);
-                if !matches!(app.gesture_state, GestureState::Dragging { .. }) {
-                    editor.mouse_released();
-                }
-            }
-            app.editor = Some(EditState {
-                id: self.id,
-                area,
-                editor,
-                editing: true,
-                binding: self.state.clone(),
-                cursor_color: self.cursor_fill,
-                highlight_color: self.highlight_fill,
-            });
-        }
-        if let Some(EditState {
-            id,
-            area: edit_area,
-            ..
-        }) = &mut app.editor
-            && *id == self.id
-        {
-            *edit_area = area;
-            return;
-        }
-
         let layout = self.current_layout(anim_fill, area.width, true, state, app);
 
-        let transform =
-            Affine::translate((area.x as f64, area.y as f64)).then_scale(app.scale_factor);
+        let transform = Affine::translate((animated_area.x as f64, animated_area.y as f64))
+            .then_scale(app.scale_factor);
         draw_layout(Some(anim_fill), transform, &layout, &mut app.scene);
         app.view_state.insert(self.id, AnimatedView::Text(animated));
     }
 }
 
-impl<'s, State> Text<State> {
-    pub(crate) fn current_layout(
+impl<'s> Text {
+    pub(crate) fn current_layout<State>(
         &self,
         current_fill: Color,
         available_width: f32,
         cache: bool,
-        state: &mut State,
+        _state: &mut State,
         app: &mut AppState<State>,
     ) -> Layout<Brush> {
-        let text = self.state.get(state).text;
+        let text = self.string.clone();
         let current_text = if text.is_empty() {
             " ".to_string()
         } else {
@@ -546,7 +263,7 @@ impl<'s, State> Text<State> {
             layout.break_all_lines(Some(available_width));
             layout.align(
                 Some(available_width),
-                self.alignment.into(),
+                self.alignment,
                 AlignmentOptions {
                     align_when_overflowing: true,
                 },
@@ -565,7 +282,7 @@ impl<'s, State> Text<State> {
             layout
         }
     }
-    pub(crate) fn create_node(
+    pub(crate) fn create_node<State>(
         self,
         state: &mut State,
         app: &mut AppState<State>,

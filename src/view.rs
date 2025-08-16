@@ -81,7 +81,7 @@ pub fn clipping<'a, State: 'a>(
 }
 
 pub struct View<State> {
-    pub(crate) view_type: ViewType<State>,
+    pub(crate) view_type: ViewType,
     pub(crate) gesture_handlers: Vec<GestureHandler<State, AppState<State>>>,
 }
 
@@ -95,15 +95,15 @@ impl<State> Clone for View<State> {
 }
 
 #[derive(Debug)]
-pub(crate) enum ViewType<State> {
-    Text(Text<State>),
+pub(crate) enum ViewType {
+    Text(Text),
     Rect(Rect),
     Circle(Circle),
     Svg(Svg),
     Image(Image),
 }
 
-impl<State> Clone for ViewType<State> {
+impl Clone for ViewType {
     fn clone(&self) -> Self {
         match self {
             ViewType::Text(text) => ViewType::Text(text.clone()),
@@ -366,7 +366,7 @@ impl<State> Drawable<State, AppState<State>> for View<State> {
         anim.height.transition(area.height, app.now);
         if visible || anim.visible.in_progress(app.now) {
             let visibility = anim.visible.animate_bool(0., 1., app.now);
-            let area = Area {
+            let animated_area = Area {
                 x: anim.x.animate_wrapped(app.now),
                 y: anim.y.animate_wrapped(app.now),
                 width: anim.width.animate_wrapped(app.now),
@@ -393,14 +393,16 @@ impl<State> Drawable<State, AppState<State>> for View<State> {
             app.gesture_handlers.extend(
                 self.gesture_handlers
                     .drain(..)
-                    .map(|handler| (id, area, handler)),
+                    .map(|handler| (id, animated_area, handler)),
             );
             match &mut self.view_type {
-                ViewType::Text(view) => view.draw(area, state, app, visible, visibility),
-                ViewType::Rect(view) => view.draw(area, state, app, visible, visibility),
-                ViewType::Svg(view) => view.draw(area, state, app, visible, visibility),
-                ViewType::Circle(view) => view.draw(area, state, app, visible, visibility),
-                ViewType::Image(view) => view.draw(area, state, app, visible, visibility),
+                ViewType::Text(view) => {
+                    view.draw(animated_area, area, state, app, visible, visibility)
+                }
+                ViewType::Rect(view) => view.draw(animated_area, state, app, visible, visibility),
+                ViewType::Svg(view) => view.draw(animated_area, state, app, visible, visibility),
+                ViewType::Circle(view) => view.draw(animated_area, state, app, visible, visibility),
+                ViewType::Image(view) => view.draw(animated_area, state, app, visible, visibility),
             }
         }
         app.animation_bank.animations.insert(self.id(), anim);

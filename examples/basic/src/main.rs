@@ -33,6 +33,6 @@ fn main() {
         },
     )
     .inner_size(800, 600)
-    .resizable(false)
+    // .resizable(false)
     .start()
 }

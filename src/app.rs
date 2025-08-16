@@ -1,10 +1,8 @@
 use crate::gestures::{ClickLocation, EditInteraction, Interaction, ScrollDelta};
 use crate::ui::AnimationBank;
 use crate::view::AnimatedView;
-use crate::{Area, GestureState, RUBIK_FONT, event};
-use crate::{
-    Binding, ClickState, DragState, Editor, GestureHandler, Point, TextState, area_contains,
-};
+use crate::{Area, GestureState, RUBIK_FONT, TextState, event};
+use crate::{Binding, ClickState, DragState, Editor, GestureHandler, Point, area_contains};
 use backer::{Layout, Node};
 use parley::fontique::Blob;
 use parley::fontique::FontInfoOverride;
@@ -67,6 +65,11 @@ impl<State: 'static> AppBuilder<State> {
 
     pub fn on_frame(mut self, on_frame: fn(&mut State, &mut AppState<State>) -> ()) -> Self {
         self.on_frame = on_frame;
+        self
+    }
+
+    pub fn on_start(mut self, on_start: fn(&mut State, &mut AppState<State>) -> ()) -> Self {
+        self.on_start = on_start;
         self
     }
 
@@ -322,26 +325,6 @@ impl<State: 'static> App<'_, State> {
                 &mut self.state,
                 &mut self.app_state,
             );
-            if let Some(EditState {
-                area,
-                ref mut editor,
-                cursor_color,
-                highlight_color,
-                ..
-            }) = self.app_state.editor
-            {
-                editor.draw(
-                    area,
-                    &mut self.app_state.scene,
-                    self.app_state.scale_factor,
-                    &mut self.app_state.layout_cx,
-                    &mut self.app_state.font_cx,
-                    cursor_color,
-                    highlight_color,
-                    true,
-                    1.0,
-                );
-            }
         }
         (self.on_frame)(&mut self.state, &mut self.app_state);
         let Self {

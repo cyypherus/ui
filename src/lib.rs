@@ -17,6 +17,7 @@ mod shape;
 mod slider;
 mod svg;
 mod text;
+mod text_field;
 mod toggle;
 mod ui;
 mod view;
@@ -28,21 +29,23 @@ pub use circle::circle;
 pub use editor::*;
 pub use gestures::{ClickState, DragState, EditInteraction, GestureHandler, GestureState};
 pub use image::{image, image_from_bytes, image_from_path};
-use lilt::Easing;
 pub use rect::rect;
 pub use scroller::*;
 pub use segment_picker::*;
 pub use slider::*;
 pub use svg::svg;
 pub use text::*;
+pub use text_field::*;
 pub use toggle::*;
 // pub use ui::scoper;
-use vello_svg::vello::kurbo::*;
-use vello_svg::vello::peniko::color::AlphaColor;
-use vello_svg::vello::peniko::color::Srgb;
 pub use view::clipping;
 pub use view::const_hash;
 pub use winit::keyboard::NamedKey;
+
+use lilt::Easing;
+use vello_svg::vello::kurbo::*;
+use vello_svg::vello::peniko::color::AlphaColor;
+use vello_svg::vello::peniko::color::Srgb;
 
 pub use models::*;
 
