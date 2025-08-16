@@ -21,6 +21,9 @@ pub struct Slider<State> {
     on_change: Option<fn(&mut State, &mut AppState<State>, f32)>,
     state: Binding<State, SliderState>,
     knob_fill: Color,
+    background_fill: Color,
+    track_fill: Color,
+    traveled_track_fill: Color,
 }
 
 pub fn slider<State>(id: u64, binding: Binding<State, SliderState>) -> Slider<State> {
@@ -31,6 +34,9 @@ pub fn slider<State>(id: u64, binding: Binding<State, SliderState>) -> Slider<St
         on_change: None,
         state: binding,
         knob_fill: DEFAULT_FG,
+        background_fill: DEFAULT_GRAY,
+        track_fill: DEFAULT_DARK_GRAY,
+        traveled_track_fill: DEFAULT_PURP,
     }
 }
 
@@ -51,6 +57,21 @@ impl<State> Slider<State> {
         self
     }
 
+    pub fn background_fill(mut self, fill: Color) -> Self {
+        self.background_fill = fill;
+        self
+    }
+
+    pub fn track_fill(mut self, fill: Color) -> Self {
+        self.track_fill = fill;
+        self
+    }
+
+    pub fn traveled_track_fill(mut self, fill: Color) -> Self {
+        self.traveled_track_fill = fill;
+        self
+    }
+
     pub fn finish<'n>(self) -> Node<'n, State, AppState<State>>
     where
         State: 'static,
@@ -63,20 +84,20 @@ impl<State> Slider<State> {
 
             stack(vec![
                 rect(id!(self.id))
-                    .fill(DEFAULT_GRAY)
+                    .fill(self.background_fill)
                     .corner_rounding(height * 0.5)
                     .finish()
                     .height(height)
                     .width(width),
                 rect(id!(self.id))
-                    .fill(DEFAULT_DARK_GRAY)
+                    .fill(self.track_fill)
                     .corner_rounding(height)
                     .finish()
                     .pad(height * 0.3)
                     .height(height)
                     .width(width),
                 rect(id!(self.id))
-                    .fill(DEFAULT_PURP)
+                    .fill(self.traveled_track_fill)
                     .corner_rounding(height)
                     .finish()
                     .pad(height * 0.2)
