@@ -136,7 +136,6 @@ fn main() {
                             })
                             .font_size(16)
                             .view()
-                            .transition_duration(0.)
                             .finish()
                             .pad(10.)
                             .width_range(..200.),
