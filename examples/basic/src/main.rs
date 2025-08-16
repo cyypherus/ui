@@ -5,6 +5,7 @@ struct State {
     text: TextState,
     toggle: ToggleState,
     slider: SliderState,
+    button: ButtonState,
 }
 
 fn main() {
@@ -17,6 +18,7 @@ fn main() {
             },
             toggle: ToggleState::default(),
             slider: SliderState::default(),
+            button: ButtonState::default(),
         },
         || {
             dynamic(|_, _: &mut AppState<State>| {
@@ -29,6 +31,7 @@ fn main() {
                             .finish(),
                         toggle(id!(), binding!(State, toggle)).finish().height(50.),
                         slider(id!(), binding!(State, slider)).finish().height(50.),
+                        button(id!(), binding!(State, button)).finish().height(50.),
                     ],
                 )
                 .pad(20.)
