@@ -76,7 +76,7 @@ impl<State> Toggle<State> {
     {
         area_reader(move |area, state, _app: &mut AppState<State>| {
             let width = area.width;
-            let height = area.height.min(width * 0.3);
+            let height = area.height; //.min(width * 0.3);
             stack(vec![
                 //
                 rect(id!(self.id))

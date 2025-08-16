@@ -78,7 +78,7 @@ impl<State> Slider<State> {
     {
         area_reader(move |area, state, _app: &mut AppState<State>| {
             let width = area.width;
-            let height = area.height.min(width * 0.3);
+            let height = area.height;
             let normalized_value = (self.state.get(state).value - self.min) / (self.max - self.min);
             let slider_width = (width - (height)) * normalized_value + height;
 
