@@ -1,11 +1,13 @@
-use crate::Color;
 use crate::{
-    Binding, ClickState, DEEP_PURP, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, app::AppState, rect,
+    Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, DEFAULT_PURP, app::AppState,
+    rect,
 };
+use crate::{Color, DEFAULT_FG};
 use backer::{
     Node,
     nodes::{dynamic, stack},
 };
+use vello_svg::vello::peniko::color::palette::css::TRANSPARENT;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ButtonState {
@@ -95,12 +97,12 @@ impl<'n, State> Button<'n, State> {
                                 self.state.get(state).hovered,
                             ) {
                                 (true, _) => {
-                                    self.fill.unwrap_or(DEEP_PURP).map_lightness(|l| l - 0.1)
+                                    self.fill.unwrap_or(DEFAULT_PURP).map_lightness(|l| l - 0.1)
                                 }
                                 (false, true) => {
-                                    self.fill.unwrap_or(DEEP_PURP).map_lightness(|l| l + 0.1)
+                                    self.fill.unwrap_or(DEFAULT_PURP).map_lightness(|l| l + 0.1)
                                 }
-                                (false, false) => self.fill.unwrap_or(DEEP_PURP),
+                                (false, false) => self.fill.unwrap_or(DEFAULT_PURP),
                             },
                         )
                         .corner_rounding(self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
@@ -123,13 +125,13 @@ impl<'n, State> Button<'n, State> {
                         ) {
                             (true, _) => self
                                 .text_fill
-                                .unwrap_or(Color::WHITE)
+                                .unwrap_or(DEFAULT_FG)
                                 .map_lightness(|l| l - 0.1),
                             (false, true) => self
                                 .text_fill
-                                .unwrap_or(Color::WHITE)
+                                .unwrap_or(DEFAULT_FG)
                                 .map_lightness(|l| l + 0.1),
-                            (false, false) => self.text_fill.unwrap_or(Color::WHITE),
+                            (false, false) => self.text_fill.unwrap_or(DEFAULT_FG),
                         },
                     )
                     .font_size(DEFAULT_FONT_SIZE)
@@ -140,7 +142,7 @@ impl<'n, State> Button<'n, State> {
             ])
             .attach_over(
                 rect(crate::id!(self.id))
-                    .fill(Color::TRANSPARENT)
+                    .fill(TRANSPARENT)
                     .view()
                     .on_hover({
                         let binding = self.state.clone();

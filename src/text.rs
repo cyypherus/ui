@@ -5,17 +5,14 @@ use crate::{
     DEFAULT_DURATION, DEFAULT_EASING,
     view::{AnimatedView, View, ViewType},
 };
-use crate::{DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE};
+use crate::{DEFAULT_FG, DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE};
 use backer::{Node, models::*};
 use lilt::{Animated, Easing};
 use parley::{Alignment, AlignmentOptions, FontStack, FontWeight, Layout, LineHeight, TextStyle};
 use std::fmt::Debug;
 use std::time::Instant;
 use vello_svg::vello::peniko::Brush;
-use vello_svg::vello::peniko::color::AlphaColor;
 use vello_svg::vello::{kurbo::Affine, peniko::Color};
-
-pub(crate) const DEEP_PURP: Color = AlphaColor::from_rgb8(113, 70, 232);
 
 pub fn text(id: u64, text: impl AsRef<str> + 'static) -> Text {
     Text {
@@ -293,11 +290,11 @@ impl<'s> Text {
     {
         if self.wrap {
             node.dynamic_height(move |width, state, app| {
-                self.current_layout(Color::WHITE, width, false, state, app)
+                self.current_layout(DEFAULT_FG, width, false, state, app)
                     .height()
             })
         } else {
-            let layout = self.current_layout(Color::WHITE, 10000., false, state, app);
+            let layout = self.current_layout(DEFAULT_FG, 10000., false, state, app);
             node.height(layout.height()).width(layout.width().max(10.))
         }
     }

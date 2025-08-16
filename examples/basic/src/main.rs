@@ -4,6 +4,7 @@ use ui::*;
 struct State {
     text: TextState,
     toggle: ToggleState,
+    slider: SliderState,
 }
 
 fn main() {
@@ -15,6 +16,7 @@ fn main() {
                 editing: false,
             },
             toggle: ToggleState::default(),
+            slider: SliderState::default(),
         },
         || {
             dynamic(|_, _: &mut AppState<State>| {
@@ -26,6 +28,7 @@ fn main() {
                             .font_size(40)
                             .finish(),
                         toggle(id!(), binding!(State, toggle)).finish().width(100.),
+                        slider(id!(), binding!(State, slider)).finish().width(200.),
                     ],
                 )
                 .pad(20.)

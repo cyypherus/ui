@@ -1,5 +1,5 @@
-use crate::Color;
 use crate::{Binding, ClickState, app::AppState, id, rect};
+use crate::{Color, DEFAULT_FG, DEFAULT_GRAY, DEFAULT_LIGHT_GRAY, TRANSPARENT};
 use backer::{
     Node,
     nodes::{area_reader, stack},
@@ -44,9 +44,9 @@ pub fn toggle<State>(id: u64, binding: Binding<State, ToggleState>) -> Toggle<St
         id,
         on_toggle: None,
         state: binding,
-        on_fill: Color::from_rgb8(113, 70, 232),
-        off_fill: Color::from_rgb8(50, 50, 50),
-        knob_fill: Color::from_rgb8(230, 230, 230),
+        on_fill: DEFAULT_LIGHT_GRAY,
+        off_fill: DEFAULT_GRAY,
+        knob_fill: DEFAULT_FG,
     }
 }
 
@@ -115,7 +115,7 @@ impl<State> Toggle<State> {
                         }
                     }),
                 rect(crate::id!(self.id))
-                    .fill(Color::TRANSPARENT)
+                    .fill(TRANSPARENT)
                     .view()
                     .on_hover({
                         let binding = self.state.clone();

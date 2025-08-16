@@ -4,14 +4,15 @@ use std::rc::Rc;
 use crate::app::{AppState, EditState};
 use crate::draw_layout::draw_layout;
 use crate::{
-    Binding, DEEP_PURP, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY,
-    DEFAULT_FONT_SIZE, DEFAULT_PADDING, EditInteraction, Editor, GestureState, Text, rect,
+    Binding, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE,
+    DEFAULT_PADDING, DEFAULT_PURP, EditInteraction, Editor, GestureState, Text, rect,
 };
 use backer::Node;
 use backer::nodes::*;
 use lilt::Easing;
 use parley::{Alignment, FontWeight, LineHeight, PlainEditor, Rect, StyleProperty};
 use vello_svg::vello::kurbo::{Affine, Point, RoundedRect};
+use vello_svg::vello::peniko::color::palette::css::TRANSPARENT;
 use vello_svg::vello::peniko::{Brush, Color, Fill};
 
 #[derive(Debug, Clone, Default)]
@@ -44,12 +45,12 @@ pub fn text_field<State>(id: u64, state: Binding<State, TextState>) -> TextField
         editable: true,
         line_height: 1.,
         background_fill: Some(Color::from_rgb8(50, 50, 50)),
-        background_stroke: Some((Color::from_rgb8(60, 60, 60), DEEP_PURP, 3.)),
+        background_stroke: Some((Color::from_rgb8(60, 60, 60), DEFAULT_PURP, 3.)),
         background_corner_rounding: DEFAULT_CORNER_ROUNDING,
         background_padding: DEFAULT_PADDING,
         wrap: false,
-        cursor_fill: DEEP_PURP,
-        highlight_fill: DEEP_PURP,
+        cursor_fill: DEFAULT_PURP,
+        highlight_fill: DEFAULT_PURP,
         on_edit: None,
     }
 }
@@ -297,7 +298,7 @@ impl<State> TextField<State> {
                     font_weight,
                     font_family: font_family.clone(),
                     fill: if binding.get(state).editing {
-                        Color::TRANSPARENT
+                        TRANSPARENT
                     } else {
                         fill
                     },
@@ -326,7 +327,7 @@ impl<State> TextField<State> {
                         *edit_area = area;
                     }
                     rect(root_id)
-                        .fill(Color::TRANSPARENT)
+                        .fill(TRANSPARENT)
                         .view()
                         .on_edit({
                             let binding = binding.clone();

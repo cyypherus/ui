@@ -629,15 +629,23 @@ impl<State: 'static> App<'_, State> {
                 .clone()
                 .iter()
                 .filter(|(id, _, gh)| *id == capturer && gh.interaction_type.drag)
-                .for_each(|(_, _, gh)| {
+                .for_each(|(_, area, gh)| {
                     needs_redraw = true;
                     if let Some(handler) = &gh.interaction_handler {
                         (handler)(
                             &mut self.state,
                             &mut self.app_state,
                             Interaction::Drag(DragState::Updated {
-                                start,
-                                current: pos,
+                                start: Point {
+                                    x: start.x - area.x as f64,
+                                    y: start.y - area.y as f64,
+                                },
+                                current: Point {
+                                    x: pos.x - area.x as f64,
+                                    y: pos.y - area.y as f64,
+                                },
+                                start_global: start,
+                                current_global: pos,
                                 delta,
                                 distance: distance as f32,
                             }),
@@ -713,7 +721,13 @@ impl<State: 'static> App<'_, State> {
                     on_drag(
                         &mut self.state,
                         &mut self.app_state,
-                        Interaction::Drag(DragState::Began(point)),
+                        Interaction::Drag(DragState::Began {
+                            start: Point {
+                                x: point.x - area.x as f64,
+                                y: point.y - area.y as f64,
+                            },
+                            start_global: point,
+                        }),
                     );
                 }
                 self.app_state.gesture_state = GestureState::Dragging {
@@ -808,8 +822,16 @@ impl<State: 'static> App<'_, State> {
                                 &mut self.state,
                                 &mut self.app_state,
                                 Interaction::Drag(DragState::Completed {
-                                    start,
-                                    current,
+                                    start: Point {
+                                        x: start.x - area.x as f64,
+                                        y: start.y - area.y as f64,
+                                    },
+                                    current: Point {
+                                        x: current.x - area.x as f64,
+                                        y: current.y - area.y as f64,
+                                    },
+                                    start_global: start,
+                                    current_global: current,
                                     delta,
                                     distance: distance as f32,
                                 }),

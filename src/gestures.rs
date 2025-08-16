@@ -15,16 +15,23 @@ pub enum GestureState {
 
 #[derive(Debug, Clone, Copy)]
 pub enum DragState {
-    Began(Point),
+    Began {
+        start: Point,
+        start_global: Point,
+    },
     Updated {
         start: Point,
         current: Point,
+        start_global: Point,
+        current_global: Point,
         delta: Point,
         distance: f32,
     },
     Completed {
         start: Point,
         current: Point,
+        start_global: Point,
+        current_global: Point,
         delta: Point,
         distance: f32,
     },
