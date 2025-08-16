@@ -1,9 +1,11 @@
-use crate::{Binding, ClickState, app::AppState, id, rect};
+use crate::{
+    Binding, Color, DEFAULT_DARK_GRAY, DEFAULT_FG, DEFAULT_GRAY, DEFAULT_PURP, TRANSPARENT,
+    app::AppState, id, rect,
+};
 use backer::{
     Node,
-    nodes::{dynamic, stack},
+    nodes::{area_reader, stack},
 };
-use vello_svg::vello::peniko::color::AlphaColor;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SliderState {
@@ -18,6 +20,10 @@ pub struct Slider<State> {
     max: f32,
     on_change: Option<fn(&mut State, &mut AppState<State>, f32)>,
     state: Binding<State, SliderState>,
+    knob_fill: Color,
+    background_fill: Color,
+    track_fill: Color,
+    traveled_track_fill: Color,
 }
 
 pub fn slider<State>(id: u64, binding: Binding<State, SliderState>) -> Slider<State> {
@@ -27,6 +33,10 @@ pub fn slider<State>(id: u64, binding: Binding<State, SliderState>) -> Slider<St
         max: 1.0,
         on_change: None,
         state: binding,
+        knob_fill: DEFAULT_FG,
+        background_fill: DEFAULT_GRAY,
+        track_fill: DEFAULT_DARK_GRAY,
+        traveled_track_fill: DEFAULT_PURP,
     }
 }
 
@@ -42,88 +52,86 @@ impl<State> Slider<State> {
         self
     }
 
+    pub fn knob_fill(mut self, fill: Color) -> Self {
+        self.knob_fill = fill;
+        self
+    }
+
+    pub fn background_fill(mut self, fill: Color) -> Self {
+        self.background_fill = fill;
+        self
+    }
+
+    pub fn track_fill(mut self, fill: Color) -> Self {
+        self.track_fill = fill;
+        self
+    }
+
+    pub fn traveled_track_fill(mut self, fill: Color) -> Self {
+        self.traveled_track_fill = fill;
+        self
+    }
+
     pub fn finish<'n>(self) -> Node<'n, State, AppState<State>>
     where
         State: 'static,
     {
-        let height = 24.;
-        let width = 200.;
-        let handle_size = 20.;
-
-        dynamic(move |state, _app: &mut AppState<State>| {
+        area_reader(move |area, state, _app: &mut AppState<State>| {
+            let width = area.width;
+            let height = area.height.min(width * 0.3);
             let normalized_value = (self.state.get(state).value - self.min) / (self.max - self.min);
-            let handle_position =
-                normalized_value * (width - handle_size) - (width - handle_size) * 0.5;
+            let slider_width = (width - (height)) * normalized_value + height;
 
             stack(vec![
                 rect(id!(self.id))
-                    .fill(AlphaColor::from_rgb8(100, 100, 100))
+                    .fill(self.background_fill)
                     .corner_rounding(height * 0.5)
                     .finish()
-                    .height(6.)
+                    .height(height)
                     .width(width),
                 rect(id!(self.id))
-                    .fill(AlphaColor::from_rgb8(113, 70, 232))
-                    .corner_rounding(height * 0.5)
+                    .fill(self.track_fill)
+                    .corner_rounding(height)
                     .finish()
-                    .height(6.)
-                    .width((width * normalized_value).max(6.))
-                    .offset_x(-(width - width * normalized_value) * 0.5),
+                    .pad(height * 0.3)
+                    .height(height)
+                    .width(width),
+                rect(id!(self.id))
+                    .fill(self.traveled_track_fill)
+                    .corner_rounding(height)
+                    .finish()
+                    .pad(height * 0.2)
+                    .height(height)
+                    .width(slider_width)
+                    .offset_x((-width * 0.5) + (slider_width * 0.5)),
                 rect(id!(self.id))
                     .fill(
                         match (
                             self.state.get(state).dragging,
                             self.state.get(state).hovered,
                         ) {
-                            (true, _) => AlphaColor::from_rgb8(190, 190, 190),
-                            (false, true) => AlphaColor::from_rgb8(255, 255, 255),
-                            (false, false) => AlphaColor::from_rgb8(230, 230, 230),
+                            (true, _) => self.knob_fill.map_lightness(|l| l - 0.1),
+                            (false, true) => self.knob_fill.map_lightness(|l| l + 0.1),
+                            (false, false) => self.knob_fill,
                         },
                     )
-                    .corner_rounding(handle_size * 0.5)
-                    // .box_shadow(AlphaColor::from_rgba8(0, 0, 0, 100), 3.)
+                    .corner_rounding(height)
                     .finish()
-                    .height(handle_size)
-                    .width(handle_size)
-                    .offset_x(handle_position),
+                    .pad(height * 0.2)
+                    .height(if self.state.get(state).dragging {
+                        height * 1.1
+                    } else {
+                        height
+                    })
+                    .width(height)
+                    .offset_x((-width * 0.5) + slider_width - (height * 0.5)),
                 rect(id!(self.id))
-                    .fill(AlphaColor::TRANSPARENT)
+                    .fill(TRANSPARENT)
                     .view()
                     .on_hover({
                         let binding = self.state.clone();
                         move |state: &mut State, _app: &mut AppState<State>, h| {
                             binding.update(state, |s| s.hovered = h)
-                        }
-                    })
-                    .on_click({
-                        let binding = self.state.clone();
-                        let min = self.min;
-                        let max = self.max;
-                        let on_change = self.on_change;
-                        move |state: &mut State,
-                              app: &mut AppState<State>,
-                              click_state,
-                              position| {
-                            match click_state {
-                                ClickState::Started => {
-                                    binding.update(state, |s| s.dragging = true);
-                                    let pos = position.local();
-                                    let normalized = ((pos.x + width as f64 * 0.5) / width as f64)
-                                        .clamp(0.0, 1.0)
-                                        as f32;
-                                    let new_value = min + normalized * (max - min);
-                                    binding.update(state, |s| s.value = new_value);
-                                    if let Some(f) = on_change {
-                                        f(state, app, new_value);
-                                    }
-                                }
-                                ClickState::Cancelled => {
-                                    binding.update(state, |s| s.dragging = false)
-                                }
-                                ClickState::Completed => {
-                                    binding.update(state, |s| s.dragging = false)
-                                }
-                            }
                         }
                     })
                     .on_drag({
@@ -132,21 +140,35 @@ impl<State> Slider<State> {
                         let max = self.max;
                         let on_change = self.on_change;
                         move |state: &mut State, app: &mut AppState<State>, drag_state| {
-                            if binding.get(state).dragging {
-                                match drag_state {
-                                    crate::DragState::Updated { current, .. }
-                                    | crate::DragState::Began(current) => {
-                                        let normalized = ((current.x + width as f64 * 0.5)
-                                            / width as f64)
-                                            .clamp(0.0, 1.0)
-                                            as f32;
-                                        let new_value = min + normalized * (max - min);
-                                        binding.update(state, |s| s.value = new_value);
-                                        if let Some(f) = on_change {
-                                            f(state, app, new_value);
-                                        }
+                            let gesture_padding = height / width;
+                            let update_value = |x: f64| {
+                                let padded_start = gesture_padding * width;
+                                let padded_end = width - (gesture_padding * width);
+                                let padded_width = padded_end - padded_start;
+                                let normalized = ((x - padded_start as f64) / padded_width as f64)
+                                    .clamp(0.0, 1.0)
+                                    as f32;
+                                min + normalized * (max - min)
+                            };
+
+                            match drag_state {
+                                crate::DragState::Began { start, .. } => {
+                                    binding.update(state, |s| s.dragging = true);
+                                    let new_value = update_value(start.x);
+                                    binding.update(state, |s| s.value = new_value);
+                                    if let Some(f) = on_change {
+                                        f(state, app, new_value);
                                     }
-                                    _ => {}
+                                }
+                                crate::DragState::Updated { current, .. } => {
+                                    let new_value = update_value(current.x);
+                                    binding.update(state, |s| s.value = new_value);
+                                    if let Some(f) = on_change {
+                                        f(state, app, new_value);
+                                    }
+                                }
+                                crate::DragState::Completed { .. } => {
+                                    binding.update(state, |s| s.dragging = false);
                                 }
                             }
                         }

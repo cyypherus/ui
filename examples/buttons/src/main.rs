@@ -16,13 +16,19 @@ fn main() {
             row_spaced(
                 20.,
                 vec![
-                    toggle(id!(), binding!(State, t1)).finish(),
                     column_spaced(
                         20.,
                         vec![
-                            text(id!(), "Custom Label Text")
-                                .fill(AlphaColor::WHITE)
-                                .finish(),
+                            text(id!(), "Custom Label Text").fill(Color::WHITE).finish(),
+                            toggle(id!(), binding!(State, t1)).finish().height(80.),
+                        ],
+                    )
+                    .height(150.)
+                    .width(200.),
+                    column_spaced(
+                        20.,
+                        vec![
+                            text(id!(), "Custom Label Text").fill(Color::WHITE).finish(),
                             dynamic(|s: &mut State, _: &mut AppState<State>| {
                                 button(id!(), binding!(State, b1))
                                     .text_label(format!("Click count {}", s.count))
@@ -36,7 +42,7 @@ fn main() {
                     column_spaced(
                         20.,
                         vec![
-                            text(id!(), "Custom Body").fill(AlphaColor::WHITE).finish(),
+                            text(id!(), "Custom Body").fill(Color::WHITE).finish(),
                             button(id!(), binding!(State, b2))
                                 .on_click(|s, _| s.count += 1)
                                 .surface(|_, button| {
@@ -61,11 +67,11 @@ fn main() {
                     column_spaced(
                         20.,
                         vec![
-                            text(id!(), "Svg Label").fill(AlphaColor::WHITE).finish(),
+                            text(id!(), "Svg Label").fill(Color::WHITE).finish(),
                             button(id!(), binding!(State, b3))
                                 .on_click(|s, _| s.count += 1)
                                 .label(|_, button| {
-                                    svg(id!(), "assets/download.svg")
+                                    svg(id!(), include_str!("../../../assets/download.svg"))
                                         .fill(match (button.depressed, button.hovered) {
                                             (true, _) => AlphaColor::from_rgb8(190, 190, 190),
                                             (false, true) => AlphaColor::from_rgb8(250, 250, 250),

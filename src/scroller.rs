@@ -6,7 +6,7 @@ use backer::{
 };
 use vello_svg::vello::{
     kurbo::{Point, RoundedRect, Shape, Size},
-    peniko::Color,
+    peniko::color::palette::css::TRANSPARENT,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -199,7 +199,7 @@ where
         ),
         rect(crate::id!())
             .corner_rounding(DEFAULT_CORNER_ROUNDING)
-            .fill(Color::TRANSPARENT)
+            .fill(TRANSPARENT)
             .view()
             .on_scroll({
                 let scroller = scroller.clone();

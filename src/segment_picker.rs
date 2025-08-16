@@ -1,12 +1,13 @@
-use crate::Color;
 use crate::{
-    Binding, ClickState, DEEP_PURP, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, app::AppState,
+    Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, DEFAULT_PURP, app::AppState,
     rect, text,
 };
+use crate::{Color, DEFAULT_FG};
 use backer::{
     Node,
     nodes::{column, dynamic, row, stack},
 };
+use vello_svg::vello::peniko::color::palette::css::TRANSPARENT;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Orientation {
@@ -170,7 +171,7 @@ where
                         .fill(if is_hovered {
                             Color::from_rgba8(100, 100, 100, 255)
                         } else {
-                            Color::TRANSPARENT
+                            TRANSPARENT
                         })
                         .corner_rounding(corner_rounding - 2.0)
                         .view()
@@ -179,9 +180,9 @@ where
                         .pad(2.0),
                     rect(crate::id!(self.id, index as u64))
                         .fill(if is_selected {
-                            self.selected_fill.unwrap_or(DEEP_PURP)
+                            self.selected_fill.unwrap_or(DEFAULT_PURP)
                         } else {
-                            Color::TRANSPARENT
+                            TRANSPARENT
                         })
                         .corner_rounding(corner_rounding - 2.0)
                         .view()
@@ -192,15 +193,15 @@ where
                         self.labels.get(index).cloned().unwrap_or_default(),
                     )
                     .fill(if is_selected {
-                        self.selected_text_fill.unwrap_or(Color::WHITE)
+                        self.selected_text_fill.unwrap_or(DEFAULT_FG)
                     } else {
-                        self.text_fill.unwrap_or(Color::WHITE)
+                        self.text_fill.unwrap_or(DEFAULT_FG)
                     })
                     .font_size(DEFAULT_FONT_SIZE)
                     .view()
                     .finish(),
                     rect(crate::id!(self.id, index as u64))
-                        .fill(Color::TRANSPARENT)
+                        .fill(TRANSPARENT)
                         .view()
                         .on_hover({
                             let binding = self.state.clone();

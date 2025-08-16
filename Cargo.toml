@@ -17,10 +17,6 @@ name = "scroller"
 path = "examples/scroller/src/main.rs"
 
 [[example]]
-name = "idle-hue"
-path = "examples/idle-hue/src/main.rs"
-
-[[example]]
 name = "image"
 path = "examples/image/src/main.rs"
 
@@ -40,7 +36,6 @@ tokio = { version = "1.43.0", features = ["full"] }
 vello_svg = { version = "0.7.1", features = ["wgpu"] }
 wgpu = "24.0.5"
 winit = "0.30.8"
-
 
 [dev-dependencies]
 arboard = "3.4"

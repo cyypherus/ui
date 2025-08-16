@@ -1,10 +1,8 @@
 use crate::gestures::{ClickLocation, EditInteraction, Interaction, ScrollDelta};
 use crate::ui::AnimationBank;
 use crate::view::AnimatedView;
-use crate::{Area, GestureState, RUBIK_FONT, event};
-use crate::{
-    Binding, ClickState, DragState, Editor, GestureHandler, Point, TextState, area_contains,
-};
+use crate::{Area, GestureState, RUBIK_FONT, TextState, event};
+use crate::{Binding, ClickState, DragState, Editor, GestureHandler, Point, area_contains};
 use backer::{Layout, Node};
 use parley::fontique::Blob;
 use parley::fontique::FontInfoOverride;
@@ -29,6 +27,7 @@ pub struct AppBuilder<State> {
     state: State,
     view: fn() -> Node<'static, State, AppState<State>>,
     on_frame: fn(&mut State, &mut AppState<State>) -> (),
+    on_start: fn(&mut State, &mut AppState<State>) -> (),
     inner_size: Option<(u32, u32)>,
     resizable: Option<bool>,
     title: Option<String>,
@@ -41,6 +40,7 @@ impl<State: 'static> AppBuilder<State> {
             state,
             view,
             on_frame: |_, _| {},
+            on_start: |_, _| {},
             inner_size: None,
             resizable: None,
             title: None,
@@ -68,6 +68,11 @@ impl<State: 'static> AppBuilder<State> {
         self
     }
 
+    pub fn on_start(mut self, on_start: fn(&mut State, &mut AppState<State>) -> ()) -> Self {
+        self.on_start = on_start;
+        self
+    }
+
     pub fn title(mut self, title: &str) -> Self {
         self.title = Some(title.to_string());
         self
@@ -85,6 +90,7 @@ impl<State: 'static> AppBuilder<State> {
                 render_cx,
                 self.view,
                 self.on_frame,
+                self.on_start,
                 self.inner_size,
                 self.resizable,
                 self.title,
@@ -106,6 +112,8 @@ pub struct App<'s, State> {
     pub state: State,
     pub(crate) view: fn() -> Node<'static, State, AppState<State>>,
     pub(crate) on_frame: fn(&mut State, &mut AppState<State>) -> (),
+    pub(crate) on_start: fn(&mut State, &mut AppState<State>) -> (),
+    pub(crate) started: bool,
 }
 
 pub(crate) struct RenderState<'surface> {
@@ -222,6 +230,7 @@ impl<State: 'static> App<'_, State> {
         #[cfg(target_arch = "wasm32")] render_state: RenderState,
         view: fn() -> Node<'static, State, AppState<State>>,
         on_frame: fn(&mut State, &mut AppState<State>) -> (),
+        on_start: fn(&mut State, &mut AppState<State>) -> (),
         inner_size: Option<(u32, u32)>,
         resizable: Option<bool>,
         title: Option<String>,
@@ -277,14 +286,18 @@ impl<State: 'static> App<'_, State> {
                 appeared_views: std::collections::HashSet::new(),
             },
             on_frame,
+            on_start,
+            started: false,
         };
         event_loop.run_app(&mut app).expect("run to completion");
     }
 
     fn redraw(&mut self) {
-        // self.app_state
-        //     .background_scheduler
-        //     .process_completions(&mut self.state);
+        if !self.started {
+            self.started = true;
+            (self.on_start)(&mut self.state, &mut self.app_state);
+        }
+
         self.app_state.now = Instant::now();
         self.app_state.gesture_handlers.clear();
         if let Self {
@@ -312,26 +325,6 @@ impl<State: 'static> App<'_, State> {
                 &mut self.state,
                 &mut self.app_state,
             );
-            if let Some(EditState {
-                area,
-                ref mut editor,
-                cursor_color,
-                highlight_color,
-                ..
-            }) = self.app_state.editor
-            {
-                editor.draw(
-                    area,
-                    &mut self.app_state.scene,
-                    self.app_state.scale_factor,
-                    &mut self.app_state.layout_cx,
-                    &mut self.app_state.font_cx,
-                    cursor_color,
-                    highlight_color,
-                    true,
-                    1.0,
-                );
-            }
         }
         (self.on_frame)(&mut self.state, &mut self.app_state);
         let Self {
@@ -365,7 +358,7 @@ impl<State: 'static> App<'_, State> {
             .render_to_texture(
                 &device_handle.device,
                 &device_handle.queue,
-                &scene,
+                scene,
                 &surface.target_view,
                 &render_params,
             )
@@ -636,15 +629,23 @@ impl<State: 'static> App<'_, State> {
                 .clone()
                 .iter()
                 .filter(|(id, _, gh)| *id == capturer && gh.interaction_type.drag)
-                .for_each(|(_, _, gh)| {
+                .for_each(|(_, area, gh)| {
                     needs_redraw = true;
                     if let Some(handler) = &gh.interaction_handler {
                         (handler)(
                             &mut self.state,
                             &mut self.app_state,
                             Interaction::Drag(DragState::Updated {
-                                start,
-                                current: pos,
+                                start: Point {
+                                    x: start.x - area.x as f64,
+                                    y: start.y - area.y as f64,
+                                },
+                                current: Point {
+                                    x: pos.x - area.x as f64,
+                                    y: pos.y - area.y as f64,
+                                },
+                                start_global: start,
+                                current_global: pos,
                                 delta,
                                 distance: distance as f32,
                             }),
@@ -720,7 +721,13 @@ impl<State: 'static> App<'_, State> {
                     on_drag(
                         &mut self.state,
                         &mut self.app_state,
-                        Interaction::Drag(DragState::Began(point)),
+                        Interaction::Drag(DragState::Began {
+                            start: Point {
+                                x: point.x - area.x as f64,
+                                y: point.y - area.y as f64,
+                            },
+                            start_global: point,
+                        }),
                     );
                 }
                 self.app_state.gesture_state = GestureState::Dragging {
@@ -815,8 +822,16 @@ impl<State: 'static> App<'_, State> {
                                 &mut self.state,
                                 &mut self.app_state,
                                 Interaction::Drag(DragState::Completed {
-                                    start,
-                                    current,
+                                    start: Point {
+                                        x: start.x - area.x as f64,
+                                        y: start.y - area.y as f64,
+                                    },
+                                    current: Point {
+                                        x: current.x - area.x as f64,
+                                        y: current.y - area.y as f64,
+                                    },
+                                    start_global: start,
+                                    current_global: current,
                                     delta,
                                     distance: distance as f32,
                                 }),

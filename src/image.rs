@@ -1,10 +1,12 @@
+use crate::DEFAULT_CORNER_ROUNDING;
 use crate::app::AppState;
 use crate::view::{View, ViewType};
 use backer::Node;
 use backer::models::Area;
 use lilt::Easing;
 use std::sync::Arc;
-use vello_svg::vello::kurbo::{Affine, Vec2};
+use vello_svg::vello::kurbo::{Affine, Point, RoundedRect, Size, Vec2};
+use vello_svg::vello::peniko::Mix;
 use vello_svg::vello::{Scene, peniko};
 
 #[derive(Debug, Clone)]
@@ -16,6 +18,7 @@ pub struct Image {
     pub(crate) duration: Option<f32>,
     pub(crate) delay: f32,
     pub(crate) image_id: Option<String>,
+    pub(crate) corner_rounding: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -33,6 +36,7 @@ pub fn image(id: u64, source: impl Into<ImageSource>) -> Image {
         delay: 0.,
         unlocked_aspect_ratio: false,
         image_id: None,
+        corner_rounding: DEFAULT_CORNER_ROUNDING,
     }
 }
 
@@ -72,6 +76,11 @@ impl Image {
     /// Used to differentiate images when a view with the same id() is passed different image data.
     pub fn image_id(mut self, image_id: impl Into<String>) -> Self {
         self.image_id = Some(image_id.into());
+        self
+    }
+
+    pub fn corner_rounding(mut self, radius: f32) -> Self {
+        self.corner_rounding = radius;
         self
     }
 
@@ -144,13 +153,14 @@ impl Image {
             let area_y = area.y as f64 * app.scale_factor;
             let area_width = area.width as f64 * app.scale_factor;
             let area_height = area.height as f64 * app.scale_factor;
+            let mut scale = 1.;
 
             let transform = if self.unlocked_aspect_ratio {
                 Affine::IDENTITY
                     .then_scale_non_uniform(area_width / width, area_height / height)
                     .then_translate(Vec2::new(area_x, area_y))
             } else {
-                let scale = (area_width / width).min(area_height / height);
+                scale = (area_width / width).min(area_height / height);
                 let dx = area_x + (area_width - width * scale) / 2.0;
                 let dy = area_y + (area_height - height * scale) / 2.0;
                 Affine::IDENTITY
@@ -158,7 +168,18 @@ impl Image {
                     .then_translate(Vec2::new(dx, dy))
             };
 
+            scene.push_layer(
+                Mix::Normal,
+                1.,
+                transform,
+                &RoundedRect::from_origin_size(
+                    Point::ZERO,
+                    Size::new(width, height),
+                    self.corner_rounding as f64 / scale,
+                ),
+            );
             scene.append(image_scene, Some(transform));
+            app.scene.pop_layer();
         }
     }
 

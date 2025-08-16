@@ -86,12 +86,13 @@ fn scroller_cell<'n>(
                 row(vec![
                     text(id!(index as u64), s.clone())
                         .fill(Color::WHITE)
-                        .align(TextAlign::Leading)
+                        .align(parley::Alignment::Start)
+                        .wrap()
                         .view()
                         .transition_duration(0.)
                         .finish()
                         .pad(10.),
-                    svg(id!(index as u64), "assets/tiger.svg")
+                    svg(id!(index as u64), include_str!("../../../assets/tiger.svg"))
                         .view()
                         .transition_duration(0.)
                         .finish()
