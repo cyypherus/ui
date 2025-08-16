@@ -247,7 +247,8 @@ impl<State> TextField<State> {
                     if wrap && let Some(ref mut edit_state) = app.editor {
                         edit_state.editor.editor.set_width(Some(area.width));
                     }
-                    let transform = Affine::translate((area.x as f64, area.y as f64));
+                    let transform = Affine::translate((area.x as f64, area.y as f64))
+                        .then_scale(app.scale_factor);
                     for rect in selection_rects.clone() {
                         app.scene.fill(
                             Fill::NonZero,
@@ -273,7 +274,7 @@ impl<State> TextField<State> {
                         app.scene.fill(
                             Fill::NonZero,
                             if is_empty {
-                                Affine::IDENTITY
+                                Affine::IDENTITY.then_scale(app.scale_factor)
                             } else {
                                 transform
                             },

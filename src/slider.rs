@@ -78,7 +78,7 @@ impl<State> Slider<State> {
     {
         area_reader(move |area, state, _app: &mut AppState<State>| {
             let width = area.width;
-            let height = area.height;
+            let height = area.height.min(width * 0.3);
             let normalized_value = (self.state.get(state).value - self.min) / (self.max - self.min);
             let slider_width = (width - (height)) * normalized_value + height;
 
@@ -140,8 +140,8 @@ impl<State> Slider<State> {
                         let max = self.max;
                         let on_change = self.on_change;
                         move |state: &mut State, app: &mut AppState<State>, drag_state| {
+                            let gesture_padding = height / width;
                             let update_value = |x: f64| {
-                                let gesture_padding = 0.2;
                                 let padded_start = gesture_padding * width;
                                 let padded_end = width - (gesture_padding * width);
                                 let padded_width = padded_end - padded_start;
@@ -178,6 +178,5 @@ impl<State> Slider<State> {
                     .width(width),
             ])
         })
-        .aspect(3.)
     }
 }

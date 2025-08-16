@@ -27,8 +27,8 @@ fn main() {
                             .wrap()
                             .font_size(40)
                             .finish(),
-                        toggle(id!(), binding!(State, toggle)).finish().width(100.),
-                        slider(id!(), binding!(State, slider)).finish().width(200.),
+                        toggle(id!(), binding!(State, toggle)).finish().height(50.),
+                        slider(id!(), binding!(State, slider)).finish().height(50.),
                     ],
                 )
                 .pad(20.)
