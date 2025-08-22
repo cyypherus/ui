@@ -114,6 +114,7 @@ pub struct App<'s, State> {
     pub(crate) on_frame: fn(&mut State, &mut AppState<State>) -> (),
     pub(crate) on_start: fn(&mut State, &mut AppState<State>) -> (),
     pub(crate) started: bool,
+    pub(crate) last_window_size: Option<winit::dpi::PhysicalSize<u32>>,
 }
 
 pub(crate) struct RenderState<'surface> {
@@ -143,6 +144,7 @@ pub struct AppState<State> {
     pub(crate) modifiers: Option<Modifiers>,
     pub(crate) now: Instant,
     pub(crate) appeared_views: std::collections::HashSet<u64>,
+    pub(crate) resizing: bool,
 }
 
 pub(crate) struct EditState<State> {
@@ -284,10 +286,12 @@ impl<State: 'static> App<'_, State> {
                 modifiers: None,
                 now: Instant::now(),
                 appeared_views: std::collections::HashSet::new(),
+                resizing: false,
             },
             on_frame,
             on_start,
             started: false,
+            last_window_size: None,
         };
         event_loop.run_app(&mut app).expect("run to completion");
     }
@@ -306,6 +310,15 @@ impl<State: 'static> App<'_, State> {
             ..
         } = self
         {
+            let size = window.inner_size();
+            if let Some(last_size) = self.last_window_size
+                && last_size != size
+            {
+                self.app_state.resizing = true;
+            } else {
+                self.app_state.resizing = false;
+            }
+            self.last_window_size = Some(size);
             self.app_state.scale_factor = window.scale_factor();
             let size = window.inner_size();
             let width = size.width;
