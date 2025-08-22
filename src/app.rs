@@ -266,6 +266,7 @@ impl<State: 'static> App<'_, State> {
             window_title: title,
             state,
             view,
+
             app_state: AppState {
                 cursor_position: None,
                 gesture_state: GestureState::None,
@@ -421,7 +422,9 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
             let mut attributes = Window::default_attributes()
                 .with_inner_size(LogicalSize::new(inner_size.0, inner_size.1))
                 .with_resizable(resizable)
-                .with_decorations(true);
+                .with_decorations(true)
+                // .with_transparent(true)
+                .with_maximized(true);
 
             if let Some(ref title) = self.window_title {
                 attributes = attributes.with_title(title.clone());
