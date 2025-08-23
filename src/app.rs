@@ -140,7 +140,7 @@ pub struct AppState<State> {
     pub(crate) gesture_state: GestureState,
     pub gesture_handlers: Vec<(u64, Area, GestureHandler<State, Self>)>,
     // pub(crate) background_scheduler: BackgroundScheduler<State>,
-    pub(crate) runtime: Option<Runtime>,
+    pub(crate) runtime: Runtime,
     pub(crate) cancellation_token: CancellationToken,
     pub(crate) task_tracker: TaskTracker,
     pub(crate) scale_factor: f64,
@@ -215,7 +215,7 @@ impl<State> AppState<State> {
     }
 
     pub fn spawn(&self, task: impl std::future::Future<Output = ()> + Send + 'static) {
-        self.task_tracker.spawn(task);
+        self.task_tracker.spawn_on(task, self.runtime.handle());
     }
 }
 
@@ -285,7 +285,7 @@ impl<State: 'static> App<'_, State> {
                 cursor_position: None,
                 gesture_state: GestureState::None,
                 gesture_handlers: Vec::new(),
-                runtime: Some(Runtime::new().unwrap()),
+                runtime: Runtime::new().expect("Failed to create runtime"),
                 cancellation_token: CancellationToken::new(),
                 task_tracker: TaskTracker::new(),
                 scale_factor: 1.,
@@ -315,15 +315,14 @@ impl<State: 'static> App<'_, State> {
 
         app.app_state.task_tracker.close();
 
-        if let Some(rt) = app.app_state.runtime.take() {
-            let tracker = app.app_state.task_tracker.clone();
+        let tracker = app.app_state.task_tracker.clone();
+        app.app_state.runtime.block_on(async {
+            tracker.wait().await;
+        });
 
-            rt.block_on(async {
-                tracker.wait().await;
-            });
-
-            rt.shutdown_timeout(Duration::from_secs(5));
-        }
+        app.app_state
+            .runtime
+            .shutdown_timeout(Duration::from_secs(5));
     }
 
     fn redraw(&mut self) {
