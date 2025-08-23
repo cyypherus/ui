@@ -1,7 +1,7 @@
 use crate::gestures::{ClickLocation, EditInteraction, Interaction, ScrollDelta};
 use crate::ui::AnimationBank;
 use crate::view::AnimatedView;
-use crate::{Area, GestureState, RUBIK_FONT, TextState, event};
+use crate::{Area, GestureState, RUBIK_FONT, TextState, area_contains_padded, event};
 use crate::{Binding, ClickState, DragState, Editor, GestureHandler, Point, area_contains};
 use backer::{Layout, Node};
 use parley::fontique::Blob;
@@ -469,9 +469,6 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
         };
         self.render_state = render_state;
         self.request_redraw();
-        event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
-            std::time::Instant::now() + std::time::Duration::from_millis(500),
-        ));
     }
 
     // fn new_events(
@@ -690,7 +687,7 @@ impl<State: 'static> App<'_, State> {
                 ..
             } = self;
             if let Some(EditState { editor, area, .. }) = editor.as_mut()
-                && area_contains(area, point)
+                && area_contains_padded(area, point, 10.)
             {
                 editor.mouse_pressed(layout_cx, font_cx);
             }
