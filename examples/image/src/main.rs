@@ -1,6 +1,6 @@
 use arboard::Clipboard;
 use parley::FontWeight;
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 use tokio::sync::Mutex;
 use ui::*;
 
