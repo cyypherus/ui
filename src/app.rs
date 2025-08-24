@@ -11,10 +11,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::runtime::Runtime;
+use tokio::sync::mpsc::Sender;
 use vello_svg::vello::peniko::{Brush, Color};
 use vello_svg::vello::util::{RenderContext, RenderSurface};
 use vello_svg::vello::{Renderer, RendererOptions, Scene};
 use winit::event::{Modifiers, MouseScrollDelta};
+use winit::event_loop::ActiveEventLoop;
 use winit::{application::ApplicationHandler, event_loop::EventLoop, window::Window};
 use winit::{dpi::LogicalSize, event::MouseButton};
 
@@ -79,7 +81,9 @@ impl<State: 'static> AppBuilder<State> {
     }
 
     pub fn start(self) {
-        let event_loop = EventLoop::new().expect("Could not create event loop");
+        let event_loop: EventLoop<AppEvent> = EventLoop::with_user_event()
+            .build()
+            .expect("Could not create event loop");
         #[allow(unused_mut)]
         let mut render_cx = RenderContext::new();
         #[cfg(not(target_arch = "wasm32"))]
@@ -145,6 +149,7 @@ pub struct AppState<State> {
     pub(crate) now: Instant,
     pub(crate) appeared_views: std::collections::HashSet<u64>,
     pub(crate) resizing: bool,
+    pub(crate) redraw: Sender<()>,
 }
 
 pub(crate) struct EditState<State> {
@@ -206,6 +211,24 @@ impl<State> AppState<State> {
     pub fn spawn(&self, task: impl std::future::Future<Output = ()> + Send + 'static) {
         self.runtime.spawn(task);
     }
+
+    pub fn redraw_trigger(&self) -> RedrawTrigger {
+        RedrawTrigger::new(self.redraw.clone())
+    }
+}
+
+pub struct RedrawTrigger {
+    sender: Sender<()>,
+}
+
+impl RedrawTrigger {
+    pub(crate) fn new(sender: Sender<()>) -> Self {
+        Self { sender }
+    }
+
+    pub async fn trigger(&self) {
+        self.sender.send(()).await.ok();
+    }
 }
 
 impl<State: 'static> App<'_, State> {
@@ -227,7 +250,7 @@ impl<State: 'static> App<'_, State> {
     }
     fn run(
         state: State,
-        event_loop: EventLoop<()>,
+        event_loop: EventLoop<AppEvent>,
         render_cx: RenderContext,
         #[cfg(target_arch = "wasm32")] render_state: RenderState,
         view: fn() -> Node<'static, State, AppState<State>>,
@@ -258,6 +281,20 @@ impl<State: 'static> App<'_, State> {
         }
 
         let render_state = None::<RenderState>;
+        let runtime = Runtime::new().expect("Failed to create runtime");
+
+        let redraw_proxy = event_loop.create_proxy();
+        let (redraw_sender, mut redraw_receiver) = tokio::sync::mpsc::channel::<()>(10);
+        runtime.spawn(async move {
+            loop {
+                if redraw_receiver.recv().await.is_some() {
+                    redraw_proxy
+                        .send_event(AppEvent::RequestRedraw)
+                        .expect("Event send failed");
+                }
+            }
+        });
+
         let mut app = Self {
             context: render_cx,
             renderers,
@@ -272,7 +309,7 @@ impl<State: 'static> App<'_, State> {
                 cursor_position: None,
                 gesture_state: GestureState::None,
                 gesture_handlers: Vec::new(),
-                runtime: Runtime::new().unwrap(),
+                runtime,
                 scale_factor: 1.,
                 editor: None,
                 view_state: HashMap::new(),
@@ -287,6 +324,7 @@ impl<State: 'static> App<'_, State> {
                 now: Instant::now(),
                 appeared_views: std::collections::HashSet::new(),
                 resizing: false,
+                redraw: redraw_sender,
             },
             on_frame,
             on_start,
@@ -411,7 +449,19 @@ impl<State: 'static> App<'_, State> {
     }
 }
 
-impl<State: 'static> ApplicationHandler for App<'_, State> {
+#[derive(Debug, Clone, Copy)]
+enum AppEvent {
+    RequestRedraw,
+}
+
+impl<State: 'static> ApplicationHandler<AppEvent> for App<'_, State> {
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: AppEvent) {
+        match event {
+            AppEvent::RequestRedraw => {
+                self.request_redraw();
+            }
+        }
+    }
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         let Option::None = self.render_state else {
             return;
@@ -468,6 +518,7 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
             Some(render_state)
         };
         self.render_state = render_state;
+
         self.request_redraw();
     }
 

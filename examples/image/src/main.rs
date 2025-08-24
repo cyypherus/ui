@@ -1,6 +1,6 @@
 use arboard::Clipboard;
 use parley::FontWeight;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 use ui::*;
 
@@ -37,6 +37,7 @@ impl State {
 
         let download_state = self.download_state.clone();
 
+        let redraw = app.redraw_trigger();
         if input.starts_with("http://") || input.starts_with("https://") {
             app.spawn(async move {
                 {
@@ -78,6 +79,7 @@ impl State {
                         *state = DownloadState::Error(format!("Request failed: {e}"));
                     }
                 }
+                redraw.trigger().await;
             });
         } else {
             app.spawn(async move {
@@ -96,6 +98,7 @@ impl State {
                         *state = DownloadState::Error(format!("Failed to read file: {e}"));
                     }
                 }
+                redraw.trigger().await;
             });
         }
     }
