@@ -217,6 +217,7 @@ impl<State> AppState<State> {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct RedrawTrigger {
     sender: Sender<()>,
 }
