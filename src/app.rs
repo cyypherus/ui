@@ -1,4 +1,4 @@
-use crate::gestures::{ClickLocation, EditInteraction, Interaction, ScrollDelta};
+use crate::gestures::{ClickLocation, Interaction, ScrollDelta};
 use crate::ui::AnimationBank;
 use crate::view::AnimatedView;
 use crate::{Area, GestureState, RUBIK_FONT, TextState, area_contains_padded, event};
@@ -177,25 +177,8 @@ impl<State> Clone for EditState<State> {
 }
 
 impl<State> AppState<State> {
-    pub fn end_editing(&mut self, state: &mut State) {
-        if let Some(EditState { id, binding, .. }) = self.editor.as_mut() {
-            let current = binding.get(state);
-            binding.set(
-                state,
-                TextState {
-                    text: current.text,
-                    editing: false,
-                },
-            );
-            if let Some((_, _, handler)) = self
-                .gesture_handlers
-                .clone()
-                .iter()
-                .find(|(handler_id, _, handler)| handler_id == id && handler.interaction_type.edit)
-                && let Some(ref handler) = handler.interaction_handler
-            {
-                (handler)(state, self, Interaction::Edit(EditInteraction::End));
-            }
+    pub fn end_editing(&mut self) {
+        if self.editor.is_some() {
             self.editor = None;
         }
     }
@@ -550,48 +533,17 @@ impl<State: 'static> ApplicationHandler<AppEvent> for App<'_, State> {
                     let Some(key) = crate::Key::from(key) else {
                         return;
                     };
-                    let App {
-                        app_state:
-                            AppState {
-                                editor,
-                                layout_cx,
-                                font_cx,
-                                modifiers,
-                                ..
-                            },
-                        ..
-                    } = self;
                     let mut needs_redraw = false;
-                    if let Some(EditState { editor, .. }) = editor {
-                        editor.handle_key(key.clone(), layout_cx, font_cx, *modifiers);
-                    }
-                    for (id, _area, handler) in self.app_state.gesture_handlers.clone().iter() {
-                        if let Some(ref interaction_handler) = handler.interaction_handler {
-                            if handler.interaction_type.key {
-                                needs_redraw = true;
-                                interaction_handler(
-                                    &mut self.state,
-                                    &mut self.app_state,
-                                    Interaction::Key(key.clone()),
-                                );
-                            } else if handler.interaction_type.edit {
-                                needs_redraw = true;
-                                if let Some(EditState {
-                                    id: edit_id,
-                                    editor,
-                                    ..
-                                }) = &self.app_state.editor.clone()
-                                    && edit_id == id
-                                {
-                                    (interaction_handler)(
-                                        &mut self.state,
-                                        &mut self.app_state,
-                                        Interaction::Edit(EditInteraction::Update(
-                                            editor.text().to_string(),
-                                        )),
-                                    );
-                                }
-                            }
+                    for (_id, _area, handler) in self.app_state.gesture_handlers.clone().iter() {
+                        if let Some(ref interaction_handler) = handler.interaction_handler
+                            && handler.interaction_type.key
+                        {
+                            needs_redraw = true;
+                            interaction_handler(
+                                &mut self.state,
+                                &mut self.app_state,
+                                Interaction::Key(key.clone()),
+                            );
                         }
                     }
                     if needs_redraw {
@@ -728,22 +680,29 @@ impl<State: 'static> App<'_, State> {
     pub(crate) fn mouse_pressed(&mut self) {
         let mut needs_redraw = false;
         if let Some(point) = self.app_state.cursor_position {
-            let App {
-                app_state:
-                    AppState {
-                        editor,
-                        font_cx,
-                        layout_cx,
-                        ..
-                    },
-                ..
-            } = self;
-            if let Some(EditState { editor, area, .. }) = editor.as_mut()
-                && area_contains_padded(area, point, 10.)
+            for (_, area, handler) in
+                self.app_state
+                    .gesture_handlers
+                    .clone()
+                    .iter()
+                    .rev()
+                    .filter(|(_, area, handler)| {
+                        handler.interaction_type.click_outside && !area_contains(area, point)
+                    })
             {
-                editor.mouse_pressed(layout_cx, font_cx);
+                if handler.interaction_type.click_outside
+                    && let Some(ref on_click_outside) = handler.interaction_handler
+                {
+                    on_click_outside(
+                        &mut self.state,
+                        &mut self.app_state,
+                        Interaction::ClickOutside(
+                            ClickState::Started,
+                            ClickLocation::new(point, *area),
+                        ),
+                    );
+                }
             }
-
             if let Some((capturer, area, handler)) = self
                 .app_state
                 .gesture_handlers
@@ -798,7 +757,19 @@ impl<State: 'static> App<'_, State> {
                     capturer: *capturer,
                 }
             }
+            // Once all click handlers are run, text fields will have set up an editor if they have been clicked, so we can send the mouse press to the editor
+            if let AppState {
+                editor: Some(EditState { editor, area, .. }),
+                font_cx,
+                layout_cx,
+                ..
+            } = &mut self.app_state
+                && area_contains_padded(area, point, 10.)
+            {
+                editor.mouse_pressed(layout_cx, font_cx);
+            }
         }
+
         if needs_redraw {
             self.request_redraw();
         }
@@ -832,7 +803,7 @@ impl<State: 'static> App<'_, State> {
                             _ => false,
                         })
                 {
-                    self.app_state.end_editing(&mut self.state);
+                    self.app_state.end_editing();
                 }
             }
             if let GestureState::Dragging {

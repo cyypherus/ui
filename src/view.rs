@@ -1,6 +1,6 @@
 use crate::app::AppState;
 use crate::circle::{AnimatedCircle, Circle};
-use crate::gestures::{ClickLocation, EditInteraction, Interaction, InteractionType, ScrollDelta};
+use crate::gestures::{ClickLocation, Interaction, InteractionType, ScrollDelta};
 use crate::image::Image;
 use crate::rect::{AnimatedRect, Rect};
 use crate::svg::Svg;
@@ -123,24 +123,6 @@ pub(crate) enum AnimatedView {
 }
 
 impl<State> View<State> {
-    pub fn on_edit(
-        mut self,
-        f: impl Fn(&mut State, &mut AppState<State>, EditInteraction) + 'static,
-    ) -> Self {
-        self.gesture_handlers.push(GestureHandler {
-            interaction_type: InteractionType {
-                edit: true,
-                ..Default::default()
-            },
-            interaction_handler: Some(Rc::new(move |state, app_state, interaction| {
-                let Interaction::Edit(edit_interaction) = interaction else {
-                    return;
-                };
-                (f)(state, app_state, edit_interaction);
-            })),
-        });
-        self
-    }
     pub fn on_click(
         mut self,
         f: impl Fn(&mut State, &mut AppState<State>, ClickState, ClickLocation) + 'static,
@@ -152,6 +134,24 @@ impl<State> View<State> {
             },
             interaction_handler: Some(Rc::new(move |state, app_state, interaction| {
                 let Interaction::Click(click, location) = interaction else {
+                    return;
+                };
+                (f)(state, app_state, click, location);
+            })),
+        });
+        self
+    }
+    pub fn on_click_outside(
+        mut self,
+        f: impl Fn(&mut State, &mut AppState<State>, ClickState, ClickLocation) + 'static,
+    ) -> Self {
+        self.gesture_handlers.push(GestureHandler {
+            interaction_type: InteractionType {
+                click_outside: true,
+                ..Default::default()
+            },
+            interaction_handler: Some(Rc::new(move |state, app_state, interaction| {
+                let Interaction::ClickOutside(click, location) = interaction else {
                     return;
                 };
                 (f)(state, app_state, click, location);
