@@ -66,8 +66,8 @@ impl ClickLocation {
 }
 
 pub(crate) enum Interaction {
-    Edit(EditInteraction),
     Click(ClickState, ClickLocation),
+    ClickOutside(ClickState, ClickLocation),
     Drag(DragState),
     Hover(bool),
     Key(Key),
@@ -83,8 +83,8 @@ pub enum EditInteraction {
 
 #[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct InteractionType {
-    pub(crate) edit: bool,
     pub(crate) click: bool,
+    pub(crate) click_outside: bool,
     pub(crate) drag: bool,
     pub(crate) hover: bool,
     pub(crate) key: bool,
