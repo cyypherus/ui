@@ -1,7 +1,7 @@
-use crate::gestures::{ClickLocation, EditInteraction, Interaction, ScrollDelta};
+use crate::gestures::{ClickLocation, Interaction, ScrollDelta};
 use crate::ui::AnimationBank;
 use crate::view::AnimatedView;
-use crate::{Area, GestureState, RUBIK_FONT, TextState, event};
+use crate::{Area, GestureState, RUBIK_FONT, TextState, area_contains_padded, event};
 use crate::{Binding, ClickState, DragState, Editor, GestureHandler, Point, area_contains};
 use backer::{Layout, Node};
 use parley::fontique::Blob;
@@ -12,16 +12,22 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use tokio_util::sync::CancellationToken;
+use tokio::sync::mpsc::Sender;
 use tokio_util::task::TaskTracker;
 use vello_svg::vello::peniko::{Brush, Color};
 use vello_svg::vello::util::{RenderContext, RenderSurface};
 use vello_svg::vello::{Renderer, RendererOptions, Scene};
 use winit::event::{Modifiers, MouseScrollDelta};
+use winit::event_loop::ActiveEventLoop;
+use winit::window::Icon;
 use winit::{application::ApplicationHandler, event_loop::EventLoop, window::Window};
 use winit::{dpi::LogicalSize, event::MouseButton};
 
 #[cfg(target_os = "macos")]
 use winit::platform::macos::WindowAttributesExtMacOS;
+
+#[cfg(target_os = "windows")]
+use winit::platform::windows::WindowAttributesExtWindows;
 
 type FontEntry = (Arc<Vec<u8>>, Option<String>);
 
@@ -34,6 +40,7 @@ pub struct AppBuilder<State> {
     inner_size: Option<(u32, u32)>,
     resizable: Option<bool>,
     title: Option<String>,
+    icon: Option<Icon>,
     custom_fonts: Vec<FontEntry>,
 }
 
@@ -48,6 +55,7 @@ impl<State: 'static> AppBuilder<State> {
             inner_size: None,
             resizable: None,
             title: None,
+            icon: None,
             custom_fonts: Vec::new(),
         }
     }
@@ -87,8 +95,22 @@ impl<State: 'static> AppBuilder<State> {
         self
     }
 
+    /// Does nothing on macOS
+    /// 32x32 is a reasonable size
+    pub fn icon(mut self, icon: &[u8]) -> Self {
+        let img = image::load_from_memory(icon).expect("Invalid icon bytes");
+        let rgba_img = img.to_rgba8();
+        let (width, height) = rgba_img.dimensions();
+        self.icon = Some(
+            Icon::from_rgba(rgba_img.into_raw(), width, height).expect("Failed to create icon"),
+        );
+        self
+    }
+
     pub fn start(self) {
-        let event_loop = EventLoop::new().expect("Could not create event loop");
+        let event_loop: EventLoop<AppEvent> = EventLoop::with_user_event()
+            .build()
+            .expect("Could not create event loop");
         #[allow(unused_mut)]
         let mut render_cx = RenderContext::new();
         #[cfg(not(target_arch = "wasm32"))]
@@ -104,6 +126,7 @@ impl<State: 'static> AppBuilder<State> {
                 self.inner_size,
                 self.resizable,
                 self.title,
+                self.icon,
                 self.custom_fonts,
             );
         }
@@ -118,6 +141,7 @@ pub struct App<'s, State> {
     pub(crate) window_inner_size: Option<(u32, u32)>,
     pub(crate) window_resizable: Option<bool>,
     pub(crate) window_title: Option<String>,
+    pub(crate) window_icon: Option<Icon>,
     pub(crate) app_state: AppState<State>,
     pub state: State,
     pub(crate) view: fn() -> Node<'static, State, AppState<State>>,
@@ -125,6 +149,7 @@ pub struct App<'s, State> {
     pub(crate) on_start: fn(&mut State, &mut AppState<State>) -> (),
     pub(crate) on_exit: fn(&mut State, &mut AppState<State>) -> (),
     pub(crate) started: bool,
+    pub(crate) last_window_size: Option<winit::dpi::PhysicalSize<u32>>,
 }
 
 pub(crate) struct RenderState<'surface> {
@@ -156,6 +181,8 @@ pub struct AppState<State> {
     pub(crate) modifiers: Option<Modifiers>,
     pub(crate) now: Instant,
     pub(crate) appeared_views: std::collections::HashSet<u64>,
+    pub(crate) resizing: bool,
+    pub(crate) redraw: Sender<()>,
 }
 
 pub(crate) struct EditState<State> {
@@ -183,25 +210,8 @@ impl<State> Clone for EditState<State> {
 }
 
 impl<State> AppState<State> {
-    pub fn end_editing(&mut self, state: &mut State) {
-        if let Some(EditState { id, binding, .. }) = self.editor.as_mut() {
-            let current = binding.get(state);
-            binding.set(
-                state,
-                TextState {
-                    text: current.text,
-                    editing: false,
-                },
-            );
-            if let Some((_, _, handler)) = self
-                .gesture_handlers
-                .clone()
-                .iter()
-                .find(|(handler_id, _, handler)| handler_id == id && handler.interaction_type.edit)
-                && let Some(ref handler) = handler.interaction_handler
-            {
-                (handler)(state, self, Interaction::Edit(EditInteraction::End));
-            }
+    pub fn end_editing(&mut self) {
+        if self.editor.is_some() {
             self.editor = None;
         }
     }
@@ -216,6 +226,25 @@ impl<State> AppState<State> {
 
     pub fn spawn(&self, task: impl std::future::Future<Output = ()> + Send + 'static) {
         self.task_tracker.spawn_on(task, self.runtime.handle());
+    }
+
+    pub fn redraw_trigger(&self) -> RedrawTrigger {
+        RedrawTrigger::new(self.redraw.clone())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RedrawTrigger {
+    sender: Sender<()>,
+}
+
+impl RedrawTrigger {
+    pub(crate) fn new(sender: Sender<()>) -> Self {
+        Self { sender }
+    }
+
+    pub async fn trigger(&self) {
+        self.sender.send(()).await.ok();
     }
 }
 
@@ -238,7 +267,7 @@ impl<State: 'static> App<'_, State> {
     }
     fn run(
         state: State,
-        event_loop: EventLoop<()>,
+        event_loop: EventLoop<AppEvent>,
         render_cx: RenderContext,
         #[cfg(target_arch = "wasm32")] render_state: RenderState,
         view: fn() -> Node<'static, State, AppState<State>>,
@@ -248,6 +277,7 @@ impl<State: 'static> App<'_, State> {
         inner_size: Option<(u32, u32)>,
         resizable: Option<bool>,
         title: Option<String>,
+        icon: Option<Icon>,
         custom_fonts: Vec<FontEntry>,
     ) {
         #[allow(unused_mut)]
@@ -270,6 +300,20 @@ impl<State: 'static> App<'_, State> {
         }
 
         let render_state = None::<RenderState>;
+        let runtime = Runtime::new().expect("Failed to create runtime");
+
+        let redraw_proxy = event_loop.create_proxy();
+        let (redraw_sender, mut redraw_receiver) = tokio::sync::mpsc::channel::<()>(10);
+        runtime.spawn(async move {
+            loop {
+                if redraw_receiver.recv().await.is_some() {
+                    redraw_proxy
+                        .send_event(AppEvent::RequestRedraw)
+                        .expect("Event send failed");
+                }
+            }
+        });
+
         let mut app = Self {
             context: render_cx,
             renderers,
@@ -278,6 +322,7 @@ impl<State: 'static> App<'_, State> {
             window_inner_size: inner_size,
             window_resizable: resizable,
             window_title: title,
+            window_icon: icon,
             state,
             view,
 
@@ -286,6 +331,7 @@ impl<State: 'static> App<'_, State> {
                 gesture_state: GestureState::None,
                 gesture_handlers: Vec::new(),
                 runtime: Runtime::new().expect("Failed to create runtime"),
+                runtime,
                 cancellation_token: CancellationToken::new(),
                 task_tracker: TaskTracker::new(),
                 scale_factor: 1.,
@@ -301,11 +347,14 @@ impl<State: 'static> App<'_, State> {
                 modifiers: None,
                 now: Instant::now(),
                 appeared_views: std::collections::HashSet::new(),
+                resizing: false,
+                redraw: redraw_sender,
             },
             on_frame,
             on_start,
             on_exit,
             started: false,
+            last_window_size: None,
         };
 
         event_loop.run_app(&mut app).expect("run to completion");
@@ -334,6 +383,15 @@ impl<State: 'static> App<'_, State> {
             ..
         } = self
         {
+            let size = window.inner_size();
+            if let Some(last_size) = self.last_window_size
+                && last_size != size
+            {
+                self.app_state.resizing = true;
+            } else {
+                self.app_state.resizing = false;
+            }
+            self.last_window_size = Some(size);
             self.app_state.scale_factor = window.scale_factor();
             let size = window.inner_size();
             let width = size.width;
@@ -426,7 +484,19 @@ impl<State: 'static> App<'_, State> {
     }
 }
 
-impl<State: 'static> ApplicationHandler for App<'_, State> {
+#[derive(Debug, Clone, Copy)]
+enum AppEvent {
+    RequestRedraw,
+}
+
+impl<State: 'static> ApplicationHandler<AppEvent> for App<'_, State> {
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: AppEvent) {
+        match event {
+            AppEvent::RequestRedraw => {
+                self.request_redraw();
+            }
+        }
+    }
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         let Option::None = self.render_state else {
             return;
@@ -443,15 +513,17 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
                 .with_titlebar_hidden(false)
                 .with_titlebar_transparent(true)
                 .with_title_hidden(true)
-                .with_fullsize_content_view(true);
+                .with_fullsize_content_view(true)
+                .with_window_icon(self.window_icon.clone());
 
-            #[cfg(not(target_os = "macos"))]
+            #[cfg(target_os = "windows")]
             let mut attributes = Window::default_attributes()
                 .with_inner_size(LogicalSize::new(inner_size.0, inner_size.1))
                 .with_resizable(resizable)
                 .with_decorations(true)
-                // .with_transparent(true)
-                .with_maximized(true);
+                .with_visible(false)
+                .with_window_icon(self.window_icon.clone())
+                .with_taskbar_icon(self.window_icon.clone());
 
             if let Some(ref title) = self.window_title {
                 attributes = attributes.with_title(title.clone());
@@ -485,10 +557,17 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
             Some(render_state)
         };
         self.render_state = render_state;
+
+        #[cfg(target_os = "windows")]
+        if let Self {
+            render_state: Some(RenderState { window, .. }),
+            ..
+        } = self
+        {
+            // Windows flashes white on startup so we delay display until the renderer is configured
+            window.set_visible(true);
+        }
         self.request_redraw();
-        event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
-            std::time::Instant::now() + std::time::Duration::from_millis(500),
-        ));
     }
 
     // fn new_events(
@@ -518,48 +597,17 @@ impl<State: 'static> ApplicationHandler for App<'_, State> {
                     let Some(key) = crate::Key::from(key) else {
                         return;
                     };
-                    let App {
-                        app_state:
-                            AppState {
-                                editor,
-                                layout_cx,
-                                font_cx,
-                                modifiers,
-                                ..
-                            },
-                        ..
-                    } = self;
                     let mut needs_redraw = false;
-                    if let Some(EditState { editor, .. }) = editor {
-                        editor.handle_key(key.clone(), layout_cx, font_cx, *modifiers);
-                    }
-                    for (id, _area, handler) in self.app_state.gesture_handlers.clone().iter() {
-                        if let Some(ref interaction_handler) = handler.interaction_handler {
-                            if handler.interaction_type.key {
-                                needs_redraw = true;
-                                interaction_handler(
-                                    &mut self.state,
-                                    &mut self.app_state,
-                                    Interaction::Key(key.clone()),
-                                );
-                            } else if handler.interaction_type.edit {
-                                needs_redraw = true;
-                                if let Some(EditState {
-                                    id: edit_id,
-                                    editor,
-                                    ..
-                                }) = &self.app_state.editor.clone()
-                                    && edit_id == id
-                                {
-                                    (interaction_handler)(
-                                        &mut self.state,
-                                        &mut self.app_state,
-                                        Interaction::Edit(EditInteraction::Update(
-                                            editor.text().to_string(),
-                                        )),
-                                    );
-                                }
-                            }
+                    for (_id, _area, handler) in self.app_state.gesture_handlers.clone().iter() {
+                        if let Some(ref interaction_handler) = handler.interaction_handler
+                            && handler.interaction_type.key
+                        {
+                            needs_redraw = true;
+                            interaction_handler(
+                                &mut self.state,
+                                &mut self.app_state,
+                                Interaction::Key(key.clone()),
+                            );
                         }
                     }
                     if needs_redraw {
@@ -696,22 +744,29 @@ impl<State: 'static> App<'_, State> {
     pub(crate) fn mouse_pressed(&mut self) {
         let mut needs_redraw = false;
         if let Some(point) = self.app_state.cursor_position {
-            let App {
-                app_state:
-                    AppState {
-                        editor,
-                        font_cx,
-                        layout_cx,
-                        ..
-                    },
-                ..
-            } = self;
-            if let Some(EditState { editor, area, .. }) = editor.as_mut()
-                && area_contains(area, point)
+            for (_, area, handler) in
+                self.app_state
+                    .gesture_handlers
+                    .clone()
+                    .iter()
+                    .rev()
+                    .filter(|(_, area, handler)| {
+                        handler.interaction_type.click_outside && !area_contains(area, point)
+                    })
             {
-                editor.mouse_pressed(layout_cx, font_cx);
+                if handler.interaction_type.click_outside
+                    && let Some(ref on_click_outside) = handler.interaction_handler
+                {
+                    on_click_outside(
+                        &mut self.state,
+                        &mut self.app_state,
+                        Interaction::ClickOutside(
+                            ClickState::Started,
+                            ClickLocation::new(point, *area),
+                        ),
+                    );
+                }
             }
-
             if let Some((capturer, area, handler)) = self
                 .app_state
                 .gesture_handlers
@@ -766,7 +821,19 @@ impl<State: 'static> App<'_, State> {
                     capturer: *capturer,
                 }
             }
+            // Once all click handlers are run, text fields will have set up an editor if they have been clicked, so we can send the mouse press to the editor
+            if let AppState {
+                editor: Some(EditState { editor, area, .. }),
+                font_cx,
+                layout_cx,
+                ..
+            } = &mut self.app_state
+                && area_contains_padded(area, point, 10.)
+            {
+                editor.mouse_pressed(layout_cx, font_cx);
+            }
         }
+
         if needs_redraw {
             self.request_redraw();
         }
@@ -800,7 +867,7 @@ impl<State: 'static> App<'_, State> {
                             _ => false,
                         })
                 {
-                    self.app_state.end_editing(&mut self.state);
+                    self.app_state.end_editing();
                 }
             }
             if let GestureState::Dragging {

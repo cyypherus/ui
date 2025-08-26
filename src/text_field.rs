@@ -5,7 +5,7 @@ use crate::app::{AppState, EditState};
 use crate::draw_layout::draw_layout;
 use crate::{
     Binding, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE,
-    DEFAULT_PADDING, DEFAULT_PURP, EditInteraction, Editor, GestureState, Text, rect,
+    DEFAULT_PADDING, DEFAULT_PURP, EditInteraction, Editor, Key, Text, rect,
 };
 use backer::Node;
 use backer::nodes::*;
@@ -52,6 +52,8 @@ pub fn text_field<State>(id: u64, state: Binding<State, TextState>) -> TextField
         cursor_fill: DEFAULT_PURP,
         highlight_fill: DEFAULT_PURP,
         on_edit: None,
+        esc_end_editing: false,
+        enter_end_editing: false,
     }
 }
 
@@ -73,6 +75,8 @@ pub struct TextField<State> {
     pub(crate) background_corner_rounding: f32,
     pub(crate) background_padding: f32,
     pub(crate) wrap: bool,
+    pub(crate) esc_end_editing: bool,
+    pub(crate) enter_end_editing: bool,
     pub(crate) cursor_fill: Color,
     pub(crate) highlight_fill: Color,
     on_edit: Option<Rc<dyn Fn(&mut State, &mut AppState<State>, EditInteraction)>>,
@@ -130,6 +134,8 @@ impl<State> Clone for TextField<State> {
             cursor_fill: self.cursor_fill,
             highlight_fill: self.highlight_fill,
             on_edit: self.on_edit.clone(),
+            esc_end_editing: false,
+            enter_end_editing: false,
         }
     }
 }
@@ -194,6 +200,14 @@ impl<State> TextField<State> {
         self.wrap = true;
         self
     }
+    pub fn esc_end_editing(mut self) -> Self {
+        self.esc_end_editing = true;
+        self
+    }
+    pub fn enter_end_editing(mut self) -> Self {
+        self.enter_end_editing = true;
+        self
+    }
 }
 
 impl<State> TextField<State> {
@@ -226,6 +240,8 @@ impl<State> TextField<State> {
             if binding.get(state).editing
                 && let Some(ref mut edit_state) = app.editor
             {
+                let cursor_width = 2f64;
+                let half_cursor_width = 1f64;
                 let selection_rects = edit_state
                     .editor
                     .editor
@@ -234,7 +250,10 @@ impl<State> TextField<State> {
                     .map(|(rect, _i)| *rect)
                     .collect::<Vec<_>>();
                 let is_empty = edit_state.editor.text().to_string().is_empty();
-                let cursor = edit_state.editor.editor.cursor_geometry(1.5);
+                let cursor = edit_state
+                    .editor
+                    .editor
+                    .cursor_geometry(cursor_width as f32);
                 let layout = edit_state
                     .editor
                     .editor
@@ -255,17 +274,15 @@ impl<State> TextField<State> {
                             transform,
                             highlight_fill,
                             None,
-                            &RoundedRect::from_rect(rect, 5.),
+                            &RoundedRect::from_rect(rect, 2.),
                         );
                     }
 
-                    let width = 3.;
-
                     if let Some(cursor) = if is_empty {
                         Some(Rect::new(
-                            (area.x) as f64 - 1.5,
+                            (area.x) as f64 - half_cursor_width,
                             (area.y) as f64,
-                            (area.x) as f64 - 1.5,
+                            (area.x) as f64 - half_cursor_width,
                             (area.y + area.height) as f64,
                         ))
                     } else {
@@ -282,8 +299,8 @@ impl<State> TextField<State> {
                             None,
                             &RoundedRect::from_origin_size(
                                 Point::new(cursor.x0, cursor.y0),
-                                vello_svg::vello::kurbo::Size::new(width, cursor.height()),
-                                width * 0.5,
+                                vello_svg::vello::kurbo::Size::new(cursor_width, cursor.height()),
+                                cursor_width * 0.5,
                             ),
                         );
                     }
@@ -330,19 +347,60 @@ impl<State> TextField<State> {
                     rect(root_id)
                         .fill(TRANSPARENT)
                         .view()
-                        .on_edit({
+                        .on_key({
+                            let on_edit = on_edit.clone();
+                            let binding = binding.clone();
+                            move |state, app, key| {
+                                if (self.enter_end_editing
+                                    && key == Key::Named(winit::keyboard::NamedKey::Enter))
+                                    || (self.esc_end_editing
+                                        && key == Key::Named(winit::keyboard::NamedKey::Escape))
+                                {
+                                    app.end_editing();
+                                    binding.update(state, |s| s.editing = false);
+                                    if let Some(ref on_edit) = on_edit {
+                                        (on_edit)(state, app, EditInteraction::End);
+                                    }
+                                    return;
+                                };
+                                if let AppState {
+                                    editor: Some(EditState { editor, id, .. }),
+                                    layout_cx,
+                                    font_cx,
+                                    modifiers,
+                                    ..
+                                } = app
+                                    && *id == root_id
+                                {
+                                    editor.handle_key(key.clone(), layout_cx, font_cx, *modifiers);
+                                }
+                                let edit_text =
+                                    app.editor.as_ref().map(|e| e.editor.text().to_string());
+
+                                if let Some(ref on_edit) = on_edit
+                                    && let Some(edit_text) = edit_text
+                                    && app.editor.as_ref().map(|e| e.id) == Some(root_id)
+                                {
+                                    on_edit(state, app, EditInteraction::Update(edit_text));
+                                }
+                            }
+                        })
+                        .on_click_outside({
                             let binding = binding.clone();
                             let on_edit = on_edit.clone();
-                            move |state, app, edit| {
-                                if let Some(ref on_edit) = on_edit {
-                                    on_edit(state, app, edit.clone());
-                                }
-                                binding.update(state, move |s| match edit.clone() {
-                                    EditInteraction::Update(text) => {
-                                        s.text = text.clone();
+                            move |state: &mut State, app, _, _| {
+                                if let AppState {
+                                    editor: Some(EditState { id, .. }),
+                                    ..
+                                } = app
+                                    && *id == root_id
+                                {
+                                    app.end_editing();
+                                    binding.update(state, |s| s.editing = false);
+                                    if let Some(ref on_edit) = on_edit {
+                                        (on_edit)(state, app, EditInteraction::End);
                                     }
-                                    EditInteraction::End => s.editing = false,
-                                });
+                                }
                             }
                         })
                         .on_click({
@@ -396,10 +454,13 @@ impl<State> TextField<State> {
                                             blink_period: Default::default(),
                                         };
 
-                                        let AppState {
-                                            font_cx, layout_cx, ..
-                                        } = app;
-                                        if let Some(pos) = app.cursor_position {
+                                        if let AppState {
+                                            cursor_position: Some(pos),
+                                            font_cx,
+                                            layout_cx,
+                                            ..
+                                        } = app
+                                        {
                                             editor.mouse_moved(
                                                 Point::new(
                                                     pos.x - area.x as f64,
@@ -408,13 +469,6 @@ impl<State> TextField<State> {
                                                 layout_cx,
                                                 font_cx,
                                             );
-                                            editor.mouse_pressed(layout_cx, font_cx);
-                                            if !matches!(
-                                                app.gesture_state,
-                                                GestureState::Dragging { .. }
-                                            ) {
-                                                editor.mouse_released();
-                                            }
                                         }
                                         app.editor = Some(EditState {
                                             id: root_id,
