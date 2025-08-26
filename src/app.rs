@@ -11,8 +11,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
-use tokio_util::sync::CancellationToken;
 use tokio::sync::mpsc::Sender;
+use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
 use vello_svg::vello::peniko::{Brush, Color};
 use vello_svg::vello::util::{RenderContext, RenderSurface};
@@ -330,7 +330,6 @@ impl<State: 'static> App<'_, State> {
                 cursor_position: None,
                 gesture_state: GestureState::None,
                 gesture_handlers: Vec::new(),
-                runtime: Runtime::new().expect("Failed to create runtime"),
                 runtime,
                 cancellation_token: CancellationToken::new(),
                 task_tracker: TaskTracker::new(),
