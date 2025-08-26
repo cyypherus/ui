@@ -86,6 +86,8 @@ impl<State: 'static> AppBuilder<State> {
         self
     }
 
+    /// Does nothing on macOS
+    /// 32x32 is a reasonable size
     pub fn icon(mut self, icon: &[u8]) -> Self {
         let img = image::load_from_memory(icon).expect("Invalid icon bytes");
         let rgba_img = img.to_rgba8();
