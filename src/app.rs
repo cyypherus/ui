@@ -468,7 +468,8 @@ impl<State: 'static> ApplicationHandler<AppEvent> for App<'_, State> {
             let mut attributes = Window::default_attributes()
                 .with_inner_size(LogicalSize::new(inner_size.0, inner_size.1))
                 .with_resizable(resizable)
-                .with_decorations(true);
+                .with_decorations(true)
+                .with_visible(false);
 
             if let Some(ref title) = self.window_title {
                 attributes = attributes.with_title(title.clone());
@@ -503,6 +504,15 @@ impl<State: 'static> ApplicationHandler<AppEvent> for App<'_, State> {
         };
         self.render_state = render_state;
 
+        #[cfg(not(target_os = "macos"))]
+        if let Self {
+            render_state: Some(RenderState { window, .. }),
+            ..
+        } = self
+        {
+            // Windows flashes white on startup so we delay display until the renderer is configured
+            window.set_visible(true);
+        }
         self.request_redraw();
     }
 
