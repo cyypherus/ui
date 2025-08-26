@@ -9,9 +9,11 @@ use parley::fontique::FontInfoOverride;
 use parley::{FontContext, LayoutContext};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc::Sender;
+use tokio_util::sync::CancellationToken;
+use tokio_util::task::TaskTracker;
 use vello_svg::vello::peniko::{Brush, Color};
 use vello_svg::vello::util::{RenderContext, RenderSurface};
 use vello_svg::vello::{Renderer, RendererOptions, Scene};
@@ -34,6 +36,7 @@ pub struct AppBuilder<State> {
     view: fn() -> Node<'static, State, AppState<State>>,
     on_frame: fn(&mut State, &mut AppState<State>) -> (),
     on_start: fn(&mut State, &mut AppState<State>) -> (),
+    on_exit: fn(&mut State, &mut AppState<State>) -> (),
     inner_size: Option<(u32, u32)>,
     resizable: Option<bool>,
     title: Option<String>,
@@ -48,6 +51,7 @@ impl<State: 'static> AppBuilder<State> {
             view,
             on_frame: |_, _| {},
             on_start: |_, _| {},
+            on_exit: |_, _| {},
             inner_size: None,
             resizable: None,
             title: None,
@@ -78,6 +82,11 @@ impl<State: 'static> AppBuilder<State> {
 
     pub fn on_start(mut self, on_start: fn(&mut State, &mut AppState<State>) -> ()) -> Self {
         self.on_start = on_start;
+        self
+    }
+
+    pub fn on_exit(mut self, on_exit: fn(&mut State, &mut AppState<State>) -> ()) -> Self {
+        self.on_exit = on_exit;
         self
     }
 
@@ -113,6 +122,7 @@ impl<State: 'static> AppBuilder<State> {
                 self.view,
                 self.on_frame,
                 self.on_start,
+                self.on_exit,
                 self.inner_size,
                 self.resizable,
                 self.title,
@@ -137,6 +147,7 @@ pub struct App<'s, State> {
     pub(crate) view: fn() -> Node<'static, State, AppState<State>>,
     pub(crate) on_frame: fn(&mut State, &mut AppState<State>) -> (),
     pub(crate) on_start: fn(&mut State, &mut AppState<State>) -> (),
+    pub(crate) on_exit: fn(&mut State, &mut AppState<State>) -> (),
     pub(crate) started: bool,
     pub(crate) last_window_size: Option<winit::dpi::PhysicalSize<u32>>,
 }
@@ -155,6 +166,8 @@ pub struct AppState<State> {
     pub gesture_handlers: Vec<(u64, Area, GestureHandler<State, Self>)>,
     // pub(crate) background_scheduler: BackgroundScheduler<State>,
     pub(crate) runtime: Runtime,
+    pub(crate) cancellation_token: CancellationToken,
+    pub(crate) task_tracker: TaskTracker,
     pub(crate) scale_factor: f64,
     pub(crate) editor: Option<EditState<State>>,
     pub(crate) animation_bank: AnimationBank,
@@ -212,7 +225,7 @@ impl<State> AppState<State> {
     }
 
     pub fn spawn(&self, task: impl std::future::Future<Output = ()> + Send + 'static) {
-        self.runtime.spawn(task);
+        self.task_tracker.spawn_on(task, self.runtime.handle());
     }
 
     pub fn redraw_trigger(&self) -> RedrawTrigger {
@@ -260,6 +273,7 @@ impl<State: 'static> App<'_, State> {
         view: fn() -> Node<'static, State, AppState<State>>,
         on_frame: fn(&mut State, &mut AppState<State>) -> (),
         on_start: fn(&mut State, &mut AppState<State>) -> (),
+        on_exit: fn(&mut State, &mut AppState<State>) -> (),
         inner_size: Option<(u32, u32)>,
         resizable: Option<bool>,
         title: Option<String>,
@@ -311,11 +325,14 @@ impl<State: 'static> App<'_, State> {
             window_icon: icon,
             state,
             view,
+
             app_state: AppState {
                 cursor_position: None,
                 gesture_state: GestureState::None,
                 gesture_handlers: Vec::new(),
                 runtime,
+                cancellation_token: CancellationToken::new(),
+                task_tracker: TaskTracker::new(),
                 scale_factor: 1.,
                 editor: None,
                 view_state: HashMap::new(),
@@ -334,10 +351,21 @@ impl<State: 'static> App<'_, State> {
             },
             on_frame,
             on_start,
+            on_exit,
             started: false,
             last_window_size: None,
         };
+
         event_loop.run_app(&mut app).expect("run to completion");
+        (app.on_exit)(&mut app.state, &mut app.app_state);
+
+        app.app_state.cancellation_token.cancel();
+
+        app.app_state.task_tracker.close();
+
+        app.app_state
+            .runtime
+            .shutdown_timeout(Duration::from_secs(5));
     }
 
     fn redraw(&mut self) {
