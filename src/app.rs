@@ -315,11 +315,6 @@ impl<State: 'static> App<'_, State> {
 
         app.app_state.task_tracker.close();
 
-        let tracker = app.app_state.task_tracker.clone();
-        app.app_state.runtime.block_on(async {
-            tracker.wait().await;
-        });
-
         app.app_state
             .runtime
             .shutdown_timeout(Duration::from_secs(5));
