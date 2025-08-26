@@ -45,8 +45,6 @@ impl State {
                     *state = DownloadState::Downloading;
                 }
 
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-
                 let result = reqwest::get(&input).await;
 
                 match result {
