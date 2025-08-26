@@ -17,11 +17,15 @@ use vello_svg::vello::util::{RenderContext, RenderSurface};
 use vello_svg::vello::{Renderer, RendererOptions, Scene};
 use winit::event::{Modifiers, MouseScrollDelta};
 use winit::event_loop::ActiveEventLoop;
+use winit::window::Icon;
 use winit::{application::ApplicationHandler, event_loop::EventLoop, window::Window};
 use winit::{dpi::LogicalSize, event::MouseButton};
 
 #[cfg(target_os = "macos")]
 use winit::platform::macos::WindowAttributesExtMacOS;
+
+#[cfg(target_os = "windows")]
+use winit::platform::windows::WindowAttributesExtWindows;
 
 type FontEntry = (Arc<Vec<u8>>, Option<String>);
 
@@ -33,6 +37,7 @@ pub struct AppBuilder<State> {
     inner_size: Option<(u32, u32)>,
     resizable: Option<bool>,
     title: Option<String>,
+    icon: Option<Icon>,
     custom_fonts: Vec<FontEntry>,
 }
 
@@ -46,6 +51,7 @@ impl<State: 'static> AppBuilder<State> {
             inner_size: None,
             resizable: None,
             title: None,
+            icon: None,
             custom_fonts: Vec::new(),
         }
     }
@@ -80,6 +86,16 @@ impl<State: 'static> AppBuilder<State> {
         self
     }
 
+    pub fn icon(mut self, icon: &[u8]) -> Self {
+        let img = image::load_from_memory(icon).expect("Invalid icon bytes");
+        let rgba_img = img.to_rgba8();
+        let (width, height) = rgba_img.dimensions();
+        self.icon = Some(
+            Icon::from_rgba(rgba_img.into_raw(), width, height).expect("Failed to create icon"),
+        );
+        self
+    }
+
     pub fn start(self) {
         let event_loop: EventLoop<AppEvent> = EventLoop::with_user_event()
             .build()
@@ -98,6 +114,7 @@ impl<State: 'static> AppBuilder<State> {
                 self.inner_size,
                 self.resizable,
                 self.title,
+                self.icon,
                 self.custom_fonts,
             );
         }
@@ -112,6 +129,7 @@ pub struct App<'s, State> {
     pub(crate) window_inner_size: Option<(u32, u32)>,
     pub(crate) window_resizable: Option<bool>,
     pub(crate) window_title: Option<String>,
+    pub(crate) window_icon: Option<Icon>,
     pub(crate) app_state: AppState<State>,
     pub state: State,
     pub(crate) view: fn() -> Node<'static, State, AppState<State>>,
@@ -243,6 +261,7 @@ impl<State: 'static> App<'_, State> {
         inner_size: Option<(u32, u32)>,
         resizable: Option<bool>,
         title: Option<String>,
+        icon: Option<Icon>,
         custom_fonts: Vec<FontEntry>,
     ) {
         #[allow(unused_mut)]
@@ -287,6 +306,7 @@ impl<State: 'static> App<'_, State> {
             window_inner_size: inner_size,
             window_resizable: resizable,
             window_title: title,
+            window_icon: icon,
             state,
             view,
             app_state: AppState {
@@ -462,14 +482,17 @@ impl<State: 'static> ApplicationHandler<AppEvent> for App<'_, State> {
                 .with_titlebar_hidden(false)
                 .with_titlebar_transparent(true)
                 .with_title_hidden(true)
-                .with_fullsize_content_view(true);
+                .with_fullsize_content_view(true)
+                .with_window_icon(self.window_icon.clone());
 
-            #[cfg(not(target_os = "macos"))]
+            #[cfg(target_os = "windows")]
             let mut attributes = Window::default_attributes()
                 .with_inner_size(LogicalSize::new(inner_size.0, inner_size.1))
                 .with_resizable(resizable)
                 .with_decorations(true)
-                .with_visible(false);
+                .with_visible(false)
+                .with_window_icon(self.window_icon.clone())
+                .with_taskbar_icon(self.window_icon.clone());
 
             if let Some(ref title) = self.window_title {
                 attributes = attributes.with_title(title.clone());
@@ -504,7 +527,7 @@ impl<State: 'static> ApplicationHandler<AppEvent> for App<'_, State> {
         };
         self.render_state = render_state;
 
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(target_os = "windows")]
         if let Self {
             render_state: Some(RenderState { window, .. }),
             ..
