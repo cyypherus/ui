@@ -7,6 +7,7 @@ struct State {
     toggle: ToggleState,
     slider: SliderState,
     button: ButtonState,
+    dropdown: DropdownState,
 }
 
 fn main() {
