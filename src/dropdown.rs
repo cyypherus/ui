@@ -83,7 +83,9 @@ impl<'n, State> DropDown<State> {
             let expanded = binding.get(state).expanded;
             let hovered = binding.get(state).hovered;
             let selected = binding.get(state).selected;
-            let option_views = options
+            let option_views = self
+                .options
+                .clone()
                 .into_iter()
                 .enumerate()
                 .map(move |(index, option)| {
