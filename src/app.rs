@@ -1,6 +1,7 @@
+use crate::draw_layout::draw_layout;
 use crate::gestures::{ClickLocation, Interaction, ScrollDelta};
 use crate::ui::AnimationBank;
-use crate::view::AnimatedView;
+use crate::view::{AnimatedView, View, ViewType};
 use crate::{Area, GestureState, RUBIK_FONT, TextState, area_contains_padded, event};
 use crate::{Binding, ClickState, DragState, Editor, GestureHandler, Point, area_contains};
 use backer::{Layout, Node};
@@ -183,6 +184,15 @@ pub struct AppState<State> {
     pub(crate) appeared_views: std::collections::HashSet<u64>,
     pub(crate) resizing: bool,
     pub(crate) redraw: Sender<()>,
+    pub(crate) draw_list: Vec<DrawItem<State>>,
+}
+
+pub(crate) struct DrawItem<State> {
+    pub(crate) view: View<State>,
+    pub(crate) area: Area,
+    pub(crate) visible: bool,
+    pub(crate) opacity: f32,
+    pub(crate) z_index: usize,
 }
 
 pub(crate) struct EditState<State> {
@@ -348,6 +358,7 @@ impl<State: 'static> App<'_, State> {
                 appeared_views: std::collections::HashSet::new(),
                 resizing: false,
                 redraw: redraw_sender,
+                draw_list: Vec::new(),
             },
             on_frame,
             on_start,
@@ -410,6 +421,54 @@ impl<State: 'static> App<'_, State> {
                 &mut self.state,
                 &mut self.app_state,
             );
+            self.app_state
+                .draw_list
+                .sort_by(|a, b| a.z_index.cmp(&b.z_index));
+
+            let mut list = std::mem::take(&mut self.app_state.draw_list);
+            for mut item in list.drain(..) {
+                match &mut item.view.view_type {
+                    ViewType::Text(view) => view.draw(
+                        item.area,
+                        item.area,
+                        &mut self.state,
+                        &mut self.app_state,
+                        item.visible,
+                        item.opacity,
+                    ),
+                    ViewType::Layout(layout, transform) => {
+                        draw_layout(None, *transform, layout, &mut self.app_state.scene)
+                    }
+                    ViewType::Rect(view) => view.draw(
+                        item.area,
+                        &mut self.state,
+                        &mut self.app_state,
+                        item.visible,
+                        item.opacity,
+                    ),
+                    ViewType::Svg(view) => view.draw(
+                        item.area,
+                        &mut self.state,
+                        &mut self.app_state,
+                        item.visible,
+                        item.opacity,
+                    ),
+                    ViewType::Circle(view) => view.draw(
+                        item.area,
+                        &mut self.state,
+                        &mut self.app_state,
+                        item.visible,
+                        item.opacity,
+                    ),
+                    ViewType::Image(view) => view.draw(
+                        item.area,
+                        &mut self.state,
+                        &mut self.app_state,
+                        item.visible,
+                        item.opacity,
+                    ),
+                }
+            }
         }
         (self.on_frame)(&mut self.state, &mut self.app_state);
         let Self {

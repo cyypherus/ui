@@ -90,12 +90,12 @@ impl<'n, State> DropDown<State> {
                 .enumerate()
                 .map(move |(index, option)| {
                     let binding = binding.clone();
-                    if index == 0 {
-                        row_spaced(
-                            8.,
-                            vec![
+                    row_spaced(
+                        8.,
+                        vec![
+                            if (index == selected && !expanded) || (index == 0 && expanded) {
                                 svg(
-                                    crate::id!(index as u64, self.id),
+                                    crate::id!(self.id),
                                     if expanded {
                                         include_str!("../assets/arrow-down.svg")
                                     } else {
@@ -103,27 +103,33 @@ impl<'n, State> DropDown<State> {
                                     },
                                 )
                                 .fill(self.text_fill.unwrap_or(DEFAULT_FG_COLOR))
+                                .view()
+                                .z_index(1)
                                 .finish()
                                 .width(12.)
-                                .height(12.),
-                                option
+                                .height(12.)
+                            } else {
+                                empty()
+                            },
+                            {
+                                let option = option
                                     .fill(if index == selected || expanded {
                                         self.text_fill.unwrap_or(DEFAULT_FG_COLOR)
                                     } else {
                                         TRANSPARENT
                                     })
-                                    .finish(),
-                            ],
-                        )
-                    } else {
-                        option
-                            .fill(if index == selected || expanded {
-                                self.text_fill.unwrap_or(DEFAULT_FG_COLOR)
-                            } else {
-                                TRANSPARENT
-                            })
-                            .finish()
-                    }
+                                    .view()
+                                    .z_index(1)
+                                    .finish();
+                                if index == selected || expanded {
+                                    option
+                                } else {
+                                    option.width(0.)
+                                }
+                            },
+                        ],
+                    )
+                    .expand_x()
                     .pad(5.)
                     .attach_over(
                         rect(crate::id!(index as u64, self.id))
@@ -164,6 +170,7 @@ impl<'n, State> DropDown<State> {
                                 self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING),
                             )
                             .view()
+                            .z_index(1)
                             .transition_duration(0.)
                             .on_hover({
                                 let binding = binding.clone();
@@ -175,25 +182,24 @@ impl<'n, State> DropDown<State> {
                                     }
                                 }
                             })
-                            .finish()
-                            .expand_x(),
+                            .finish(), // .width(area.width),
                     )
                 })
                 .collect();
 
             if expanded {
                 column(option_views)
-                    .align_contents(Align::Top)
+                    .align_contents(Align::TopLeading)
                     .align(Align::Top)
             } else {
                 stack(option_views)
-                    .align_contents(Align::Top)
-                    .align(Align::Top)
             }
             .attach_under(
                 rect(crate::id!(self.id))
                     .fill(DEFAULT_DARK_GRAY)
                     .corner_rounding(self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
+                    .view()
+                    .z_index(1)
                     .finish(),
             )
         })

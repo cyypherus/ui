@@ -1,19 +1,22 @@
 use std::fmt::Debug;
 use std::rc::Rc;
 
-use crate::app::{AppState, EditState};
-use crate::draw_layout::draw_layout;
+use crate::app::{AppState, DrawItem, EditState};
+use crate::rect::Rect;
+use crate::shape::{Shape, ShapeType};
+use crate::view::{View, ViewType};
 use crate::{
     Binding, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE,
     DEFAULT_PADDING, DEFAULT_PURP, EditInteraction, Editor, Key, Text, rect,
 };
 use backer::Node;
+use backer::models::Area;
 use backer::nodes::*;
 use lilt::Easing;
-use parley::{Alignment, FontWeight, LineHeight, PlainEditor, Rect, StyleProperty};
-use vello_svg::vello::kurbo::{Affine, Point, RoundedRect};
+use parley::{Alignment, FontWeight, LineHeight, PlainEditor, StyleProperty};
+use vello_svg::vello::kurbo::{Affine, Point};
 use vello_svg::vello::peniko::color::palette::css::TRANSPARENT;
-use vello_svg::vello::peniko::{Brush, Color, Fill};
+use vello_svg::vello::peniko::{Brush, Color};
 
 #[derive(Debug, Clone, Default)]
 pub struct TextState {
@@ -269,17 +272,38 @@ impl<State> TextField<State> {
                     let transform = Affine::translate((area.x as f64, area.y as f64))
                         .then_scale(app.scale_factor);
                     for rect in selection_rects.clone() {
-                        app.scene.fill(
-                            Fill::NonZero,
-                            transform,
-                            highlight_fill,
-                            None,
-                            &RoundedRect::from_rect(rect, 2.),
-                        );
+                        app.draw_list.push(DrawItem {
+                            view: View {
+                                view_type: ViewType::Rect(Rect {
+                                    id,
+                                    shape: Shape {
+                                        shape: ShapeType::Rect {
+                                            corner_rounding: (2., 2., 2., 2.),
+                                        },
+                                        fill: Some(highlight_fill),
+                                        stroke: None,
+                                        easing: None,
+                                        duration: None,
+                                        delay: 0.,
+                                    },
+                                }),
+                                z_index: 0,
+                                gesture_handlers: Vec::new(),
+                            },
+                            area: Area {
+                                x: area.x + rect.x0 as f32,
+                                y: area.y + rect.y0 as f32,
+                                width: rect.width() as f32,
+                                height: rect.height() as f32,
+                            },
+                            visible: true,
+                            opacity: 1.,
+                            z_index: 0,
+                        });
                     }
 
                     if let Some(cursor) = if is_empty {
-                        Some(Rect::new(
+                        Some(vello_svg::vello::kurbo::Rect::new(
                             (area.x) as f64 - half_cursor_width,
                             (area.y) as f64,
                             (area.x) as f64 - half_cursor_width,
@@ -288,23 +312,54 @@ impl<State> TextField<State> {
                     } else {
                         cursor
                     } {
-                        app.scene.fill(
-                            Fill::NonZero,
-                            if is_empty {
-                                Affine::IDENTITY.then_scale(app.scale_factor)
-                            } else {
-                                transform
+                        let rounding = (cursor_width * 0.5) as f32;
+                        app.draw_list.push(DrawItem {
+                            view: View {
+                                view_type: ViewType::Rect(Rect {
+                                    id,
+                                    shape: Shape {
+                                        shape: ShapeType::Rect {
+                                            corner_rounding: (
+                                                rounding, rounding, rounding, rounding,
+                                            ),
+                                        },
+                                        fill: Some(cursor_fill),
+                                        stroke: None,
+                                        easing: None,
+                                        duration: None,
+                                        delay: 0.,
+                                    },
+                                }),
+                                z_index: 0,
+                                gesture_handlers: Vec::new(),
                             },
-                            cursor_fill,
-                            None,
-                            &RoundedRect::from_origin_size(
-                                Point::new(cursor.x0, cursor.y0),
-                                vello_svg::vello::kurbo::Size::new(cursor_width, cursor.height()),
-                                cursor_width * 0.5,
-                            ),
-                        );
+                            area: Area {
+                                x: area.x + cursor.x0 as f32,
+                                y: area.y + cursor.y0 as f32,
+                                width: cursor.width() as f32,
+                                height: cursor.height() as f32,
+                            },
+                            visible: true,
+                            opacity: 1.,
+                            z_index: 0,
+                        });
                     }
-                    draw_layout(None, transform, &layout, &mut app.scene);
+                    app.draw_list.push(DrawItem {
+                        view: View {
+                            view_type: ViewType::Layout(layout.clone(), transform),
+                            z_index: 0,
+                            gesture_handlers: Vec::new(),
+                        },
+                        area: Area {
+                            x: area.x,
+                            y: area.y,
+                            width: area.width,
+                            height: area.height,
+                        },
+                        visible: true,
+                        opacity: 1.,
+                        z_index: 0,
+                    });
                 })
                 .height(height);
                 if wrap { base } else { base.width(width) }
@@ -377,11 +432,19 @@ impl<State> TextField<State> {
                                 let edit_text =
                                     app.editor.as_ref().map(|e| e.editor.text().to_string());
 
-                                if let Some(ref on_edit) = on_edit
-                                    && let Some(edit_text) = edit_text
+                                if let Some(edit_text) = edit_text
                                     && app.editor.as_ref().map(|e| e.id) == Some(root_id)
                                 {
-                                    on_edit(state, app, EditInteraction::Update(edit_text));
+                                    if let Some(ref on_edit) = on_edit {
+                                        on_edit(
+                                            state,
+                                            app,
+                                            EditInteraction::Update(edit_text.clone()),
+                                        );
+                                    }
+                                    binding.update(state, |s| {
+                                        s.text = edit_text.clone();
+                                    });
                                 }
                             }
                         })

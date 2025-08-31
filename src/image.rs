@@ -87,6 +87,7 @@ impl Image {
     pub fn view<State>(self) -> View<State> {
         View {
             view_type: ViewType::Image(self),
+            z_index: 0,
             gesture_handlers: Vec::new(),
         }
     }

@@ -39,13 +39,15 @@ fn main() {
                         text_field(id!(), binding!(State, text)).wrap().finish(),
                         toggle(id!(), binding!(State, toggle)).finish().height(50.),
                         slider(id!(), binding!(State, slider)).finish().height(50.),
-                        button(id!(), binding!(State, button)).finish().height(50.),
                         dropdown(id!(), binding!(State, dropdown), vec![
                             text(id!(), "Luminescent Moss"),
                             text(id!(), "Crystal Mycelium"),
                             text(id!(), "Quantum Algae"),
-                            text(id!(), "Floating Gardens")
-                        ]).finish(),
+                            text(id!(), "Floating Gardens"),
+                            text(id!(), "Cerebral Forests"),
+                            text(id!(), "Glass Marrow"),
+                        ]).finish().height(50.),
+                        button(id!(), binding!(State, button)).finish().height(50.),
                     ],
                 )
                 .pad(20.)

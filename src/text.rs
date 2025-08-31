@@ -118,6 +118,7 @@ impl Text {
     {
         View {
             view_type: ViewType::Text(self),
+            z_index: 0,
             gesture_handlers: Vec::new(),
         }
     }
