@@ -1,7 +1,5 @@
 use crate::{Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_PURP, app::AppState, rect};
-use crate::{
-    ButtonState, Color, DEFAULT_DARK_GRAY, DEFAULT_FG_COLOR, TRANSPARENT, Text, button, svg,
-};
+use crate::{ButtonState, Color, DEFAULT_DARK_GRAY, DEFAULT_FG_COLOR, TRANSPARENT, Text, svg};
 use backer::models::Align;
 use backer::{Node, nodes::*};
 
@@ -82,8 +80,6 @@ impl<'n, State> DropDown<State> {
     {
         dynamic(move |state, _app| {
             let binding = self.state.clone();
-            let mut options = self.options.clone();
-            let options_2 = self.options.clone();
             let expanded = binding.get(state).expanded;
             let hovered = binding.get(state).hovered;
             let selected = binding.get(state).selected;
