@@ -40,7 +40,12 @@ fn main() {
                         toggle(id!(), binding!(State, toggle)).finish().height(50.),
                         slider(id!(), binding!(State, slider)).finish().height(50.),
                         button(id!(), binding!(State, button)).finish().height(50.),
-                        dropdown(id!(), binding!(State, dropdown), vec!["Luminescent Moss".to_string(), "Crystal Mycelium".to_string(), "Quantum Algae".to_string(), "Floating Gardens".to_string()]).finish(),
+                        dropdown(id!(), binding!(State, dropdown), vec![
+                            text(id!(), "Luminescent Moss"),
+                            text(id!(), "Crystal Mycelium"),
+                            text(id!(), "Quantum Algae"),
+                            text(id!(), "Floating Gardens")
+                        ]).finish(),
                     ],
                 )
                 .pad(20.)

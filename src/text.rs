@@ -148,6 +148,10 @@ impl AnimatedText {
             .fill
             .b
             .transition(AnimatedU8(from.fill.to_rgba8().b), now);
+        existing
+            .fill
+            .a
+            .transition(AnimatedU8(from.fill.to_rgba8().a), now);
     }
     pub(crate) fn new_from(from: &Text) -> Self {
         AnimatedText {

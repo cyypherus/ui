@@ -1,7 +1,7 @@
+use crate::{Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_PURP, app::AppState, rect};
 use crate::{
-    Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_PURP, app::AppState, rect, text,
+    ButtonState, Color, DEFAULT_DARK_GRAY, DEFAULT_FG_COLOR, TRANSPARENT, Text, button, svg,
 };
-use crate::{ButtonState, Color, DEFAULT_DARK_GRAY, DEFAULT_FG_COLOR, TRANSPARENT, button, svg};
 use backer::models::Align;
 use backer::{Node, nodes::*};
 
@@ -35,13 +35,14 @@ pub struct DropDown<State> {
     state: Binding<State, DropdownState>,
     fill: Option<Color>,
     text_fill: Option<Color>,
-    options: Vec<String>,
+    highlight_fill: Option<Color>,
+    options: Vec<Text>,
 }
 
 pub fn dropdown<State>(
     id: u64,
     binding: Binding<State, DropdownState>,
-    options: Vec<String>,
+    options: Vec<Text>,
 ) -> DropDown<State> {
     DropDown {
         id,
@@ -49,6 +50,7 @@ pub fn dropdown<State>(
         state: binding,
         fill: None,
         text_fill: None,
+        highlight_fill: None,
         options,
     }
 }
@@ -69,155 +71,133 @@ impl<'n, State> DropDown<State> {
         self
     }
 
+    pub fn highlight_fill(mut self, color: Color) -> Self {
+        self.highlight_fill = Some(color);
+        self
+    }
+
     pub fn finish(self) -> Node<'n, State, AppState<State>>
     where
         State: 'static,
     {
         dynamic(move |state, _app| {
             let binding = self.state.clone();
-            row_spaced(
-                10.,
-                vec![
-                    svg(
-                        crate::id!(self.id),
-                        include_str!("../assets/arrow-right.svg"),
-                    )
-                    .fill(self.text_fill.unwrap_or(DEFAULT_FG_COLOR))
-                    .finish()
-                    .width(10.)
-                    .height(10.),
-                    text(
-                        crate::id!(self.id),
-                        self.options
-                            .get(binding.get(state).selected)
-                            .unwrap()
-                            .clone(),
-                    )
-                    .fill(self.text_fill.unwrap_or(DEFAULT_FG_COLOR))
-                    .finish(),
-                ],
-            )
-            .pad(5.)
-            .attach_under(row(vec![
-                rect(crate::id!(self.id))
-                    .fill(DEFAULT_PURP)
-                    .corner_rounding_individual(
-                        self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING),
-                        0.,
-                        0.,
-                        self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING),
-                    )
-                    .finish()
-                    .width(19.),
-                space(),
-            ]))
-            .attach_under(
-                button(
-                    crate::id!(self.id),
-                    Binding::new(
-                        {
-                            let state = self.state.clone();
-                            move |s| state.get(s).button
-                        },
-                        {
-                            let state = self.state.clone();
-                            move |s, n| state.update(s, |state| state.button = n)
-                        },
-                    ),
-                )
-                .on_click({
-                    let state = self.state.clone();
-                    move |s, _app| state.update(s, |state| state.expanded = true)
-                })
-                .fill(DEFAULT_DARK_GRAY)
-                .finish(),
-            )
-            .attach_over(if self.state.get(state).expanded {
-                column(
-                    self.options
-                        .clone()
-                        .into_iter()
-                        .enumerate()
-                        .map(move |(index, option)| {
-                            let binding = binding.clone();
-                            if index == 0 {
-                                row_spaced(
-                                    8.,
-                                    vec![
-                                        svg(
-                                            crate::id!(self.id),
-                                            include_str!("../assets/arrow-down.svg"),
-                                        )
-                                        .fill(self.text_fill.unwrap_or(DEFAULT_FG_COLOR))
-                                        .finish()
-                                        .width(12.),
-                                        text(crate::id!(index as u64, self.id), option)
-                                            .fill(self.text_fill.unwrap_or(DEFAULT_FG_COLOR))
-                                            .view()
-                                            .finish(),
-                                    ],
+            let mut options = self.options.clone();
+            let options_2 = self.options.clone();
+            let expanded = binding.get(state).expanded;
+            let hovered = binding.get(state).hovered;
+            let selected = binding.get(state).selected;
+            let option_views = options
+                .into_iter()
+                .enumerate()
+                .map(move |(index, option)| {
+                    let binding = binding.clone();
+                    if index == 0 {
+                        row_spaced(
+                            8.,
+                            vec![
+                                svg(
+                                    crate::id!(index as u64, self.id),
+                                    if expanded {
+                                        include_str!("../assets/arrow-down.svg")
+                                    } else {
+                                        include_str!("../assets/arrow-right.svg")
+                                    },
                                 )
+                                .fill(self.text_fill.unwrap_or(DEFAULT_FG_COLOR))
+                                .finish()
+                                .width(12.)
+                                .height(12.),
+                                option
+                                    .fill(if index == selected || expanded {
+                                        self.text_fill.unwrap_or(DEFAULT_FG_COLOR)
+                                    } else {
+                                        TRANSPARENT
+                                    })
+                                    .finish(),
+                            ],
+                        )
+                    } else {
+                        option
+                            .fill(if index == selected || expanded {
+                                self.text_fill.unwrap_or(DEFAULT_FG_COLOR)
                             } else {
-                                text(crate::id!(index as u64, self.id), option)
-                                    .fill(self.text_fill.unwrap_or(DEFAULT_FG_COLOR))
-                                    .view()
-                                    .finish()
-                            }
-                            .pad(5.)
-                            .attach_under(
-                                rect(crate::id!(index as u64, self.id))
-                                    .fill(
-                                        if let Some(hovered) = binding.get(state).hovered
-                                            && hovered == index
-                                        {
-                                            DEFAULT_PURP
+                                TRANSPARENT
+                            })
+                            .finish()
+                    }
+                    .pad(5.)
+                    .attach_over(
+                        rect(crate::id!(index as u64, self.id))
+                            .fill(TRANSPARENT)
+                            .view()
+                            .on_click({
+                                let binding = binding.clone();
+                                move |state, _app, click, _pos| {
+                                    if matches!(click, ClickState::Completed) {
+                                        if expanded {
+                                            binding.update(state, move |state| {
+                                                state.selected = index;
+                                                state.expanded = false;
+                                            });
                                         } else {
-                                            TRANSPARENT
-                                        },
-                                    )
-                                    .corner_rounding(
-                                        self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING),
-                                    )
-                                    .view()
-                                    .transition_duration(0.)
-                                    .on_hover({
-                                        let binding = binding.clone();
-                                        move |state, _app, hovered| {
-                                            if hovered {
-                                                binding.update(state, move |state| {
-                                                    state.hovered = Some(index);
-                                                });
-                                            }
+                                            binding.update(state, move |state| {
+                                                state.expanded = true;
+                                            });
                                         }
-                                    })
-                                    .on_click({
-                                        let binding = binding.clone();
-                                        move |state, _app, click, _pos| {
-                                            if matches!(click, ClickState::Completed) {
-                                                binding.update(state, move |state| {
-                                                    state.selected = index;
-                                                    state.expanded = false;
-                                                });
-                                            }
-                                        }
-                                    })
-                                    .finish()
-                                    .expand_x(),
+                                    }
+                                }
+                            })
+                            .finish(),
+                    )
+                    .attach_under(
+                        rect(crate::id!(index as u64, self.id))
+                            .fill(
+                                if let Some(hovered) = hovered
+                                    && hovered == index
+                                    && expanded
+                                {
+                                    self.highlight_fill.unwrap_or(DEFAULT_PURP)
+                                } else {
+                                    TRANSPARENT
+                                },
                             )
-                        })
-                        .collect(),
-                )
-                .align_contents(Align::Top)
-                .align(Align::Top)
-                .attach_under(
-                    rect(crate::id!(self.id))
-                        .fill(DEFAULT_DARK_GRAY)
-                        .corner_rounding(self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
-                        .finish(),
-                )
+                            .corner_rounding(
+                                self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING),
+                            )
+                            .view()
+                            .transition_duration(0.)
+                            .on_hover({
+                                let binding = binding.clone();
+                                move |state, _app, hovered| {
+                                    if hovered && expanded {
+                                        binding.update(state, move |state| {
+                                            state.hovered = Some(index);
+                                        });
+                                    }
+                                }
+                            })
+                            .finish()
+                            .expand_x(),
+                    )
+                })
+                .collect();
+
+            if expanded {
+                column(option_views)
+                    .align_contents(Align::Top)
+                    .align(Align::Top)
             } else {
-                space()
-            })
+                stack(option_views)
+                    .align_contents(Align::Top)
+                    .align(Align::Top)
+            }
+            .attach_under(
+                rect(crate::id!(self.id))
+                    .fill(DEFAULT_DARK_GRAY)
+                    .corner_rounding(self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
+                    .finish(),
+            )
         })
     }
 }

@@ -107,7 +107,7 @@ impl<State> Toggle<State> {
                     .height(height)
                     .width(height)
                     .offset_x({
-                        let button_padding = height - (height * 0.4);
+                        let button_padding = height - (height * 0.5);
                         if self.state.get(state).on {
                             (width * 0.5) - button_padding
                         } else {
