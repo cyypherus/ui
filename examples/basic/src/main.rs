@@ -1,7 +1,7 @@
 use parley::FontWeight;
 use ui::*;
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 struct State {
     text: TextState,
     toggle: ToggleState,
@@ -21,6 +21,7 @@ fn main() {
             toggle: ToggleState::default(),
             slider: SliderState::default(),
             button: ButtonState::default(),
+            dropdown: DropdownState::default(),
         },
         || {
             dynamic(|_, _: &mut AppState<State>| {
@@ -39,6 +40,7 @@ fn main() {
                         toggle(id!(), binding!(State, toggle)).finish().height(50.),
                         slider(id!(), binding!(State, slider)).finish().height(50.),
                         button(id!(), binding!(State, button)).finish().height(50.),
+                        dropdown(id!(), binding!(State, dropdown), vec!["Luminescent Moss".to_string(), "Crystal Mycelium".to_string(), "Quantum Algae".to_string(), "Floating Gardens".to_string()]).finish(),
                     ],
                 )
                 .pad(20.)

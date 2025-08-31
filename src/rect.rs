@@ -34,7 +34,7 @@ pub fn rect(id: u64) -> Rect {
         id,
         shape: Shape {
             shape: ShapeType::Rect {
-                corner_rounding: 0.,
+                corner_rounding: (0., 0., 0., 0.),
             },
             fill: None,
             stroke: None,
@@ -53,7 +53,19 @@ impl Rect {
     }
     pub fn corner_rounding(mut self, radius: f32) -> Self {
         self.shape.shape = ShapeType::Rect {
-            corner_rounding: radius,
+            corner_rounding: (radius, radius, radius, radius),
+        };
+        self
+    }
+    pub fn corner_rounding_individual(
+        mut self,
+        top_left: f32,
+        top_right: f32,
+        bottom_right: f32,
+        bottom_left: f32,
+    ) -> Self {
+        self.shape.shape = ShapeType::Rect {
+            corner_rounding: (top_left, top_right, bottom_right, bottom_left),
         };
         self
     }
