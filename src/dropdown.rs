@@ -91,7 +91,7 @@ impl<'n, State> DropDown<State> {
                 .map(move |(index, option)| {
                     let binding = binding.clone();
                     row_spaced(
-                        8.,
+                        5.,
                         vec![
                             if (index == selected && !expanded) || (index == 0 && expanded) {
                                 svg(
@@ -107,7 +107,11 @@ impl<'n, State> DropDown<State> {
                                 .z_index(1)
                                 .finish()
                                 .width(12.)
-                                .height(12.)
+                                .height(if expanded {
+                                    12.
+                                } else {
+                                    10.
+                                })
                             } else {
                                 empty()
                             },
@@ -116,7 +120,7 @@ impl<'n, State> DropDown<State> {
                                     .fill(if index == selected || expanded {
                                         self.text_fill.unwrap_or(DEFAULT_FG_COLOR)
                                     } else {
-                                        TRANSPARENT
+                                        DEFAULT_PURP
                                     })
                                     .view()
                                     .z_index(1)
@@ -124,12 +128,11 @@ impl<'n, State> DropDown<State> {
                                 if index == selected || expanded {
                                     option
                                 } else {
-                                    option.width(0.)
+                                    option.width(0.).height(0.)
                                 }
                             },
                         ],
                     )
-                    .expand_x()
                     .pad(5.)
                     .attach_over(
                         rect(crate::id!(index as u64, self.id))
@@ -182,7 +185,7 @@ impl<'n, State> DropDown<State> {
                                     }
                                 }
                             })
-                            .finish(), // .width(area.width),
+                            .finish(),
                     )
                 })
                 .collect();
@@ -193,6 +196,8 @@ impl<'n, State> DropDown<State> {
                     .align(Align::Top)
             } else {
                 stack(option_views)
+                    .align_contents(Align::TopLeading)
+                    .align(Align::Top)
             }
             .attach_under(
                 rect(crate::id!(self.id))

@@ -416,13 +416,15 @@ impl<State> Drawable<State, AppState<State>> for View<State> {
                     .drain(..)
                     .map(|handler| (id, animated_area, handler)),
             );
-            app.draw_list.push(DrawItem {
-                view: self.clone(),
-                area: animated_area,
-                visible,
-                opacity: visibility,
-                z_index: self.z_index,
-            });
+            app.draw_list
+                .entry(self.z_index)
+                .or_default()
+                .push(DrawItem {
+                    view: self.clone(),
+                    area: animated_area,
+                    visible,
+                    opacity: visibility,
+                });
         }
         app.animation_bank.animations.insert(self.id(), anim);
     }

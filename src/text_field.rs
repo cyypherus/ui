@@ -272,7 +272,7 @@ impl<State> TextField<State> {
                     let transform = Affine::translate((area.x as f64, area.y as f64))
                         .then_scale(app.scale_factor);
                     for rect in selection_rects.clone() {
-                        app.draw_list.push(DrawItem {
+                        app.draw_list.entry(0).or_default().push(DrawItem {
                             view: View {
                                 view_type: ViewType::Rect(Rect {
                                     id,
@@ -298,7 +298,6 @@ impl<State> TextField<State> {
                             },
                             visible: true,
                             opacity: 1.,
-                            z_index: 0,
                         });
                     }
 
@@ -313,7 +312,7 @@ impl<State> TextField<State> {
                         cursor
                     } {
                         let rounding = (cursor_width * 0.5) as f32;
-                        app.draw_list.push(DrawItem {
+                        app.draw_list.entry(0).or_default().push(DrawItem {
                             view: View {
                                 view_type: ViewType::Rect(Rect {
                                     id,
@@ -341,10 +340,9 @@ impl<State> TextField<State> {
                             },
                             visible: true,
                             opacity: 1.,
-                            z_index: 0,
                         });
                     }
-                    app.draw_list.push(DrawItem {
+                    app.draw_list.entry(0).or_default().push(DrawItem {
                         view: View {
                             view_type: ViewType::Layout(layout.clone(), transform),
                             z_index: 0,
@@ -358,7 +356,6 @@ impl<State> TextField<State> {
                         },
                         visible: true,
                         opacity: 1.,
-                        z_index: 0,
                     });
                 })
                 .height(height);
