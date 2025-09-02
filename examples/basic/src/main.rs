@@ -36,7 +36,7 @@ fn main() {
                         .font_size(30)
                         .wrap()
                         .finish(),
-                        text_field(id!(), binding!(State, text)).wrap().finish(),
+                        text_field(id!(), binding!(State, text)).wrap().highlight_fill(Color::from_rgb8(255, 0,0)).finish(),
                         toggle(id!(), binding!(State, toggle)).finish().height(50.),
                         slider(id!(), binding!(State, slider)).finish().height(50.),
                         dropdown(id!(), binding!(State, dropdown), vec![

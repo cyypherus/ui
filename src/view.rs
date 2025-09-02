@@ -421,7 +421,11 @@ impl<State> Drawable<State, AppState<State>> for View<State> {
                 .or_default()
                 .push(DrawItem {
                     view: self.clone(),
-                    area: animated_area,
+                    area: if matches!(self.view_type, ViewType::Text(_)) {
+                        Area::new(animated_area.x, animated_area.y, area.width, area.height)
+                    } else {
+                        animated_area
+                    },
                     visible,
                     opacity: visibility,
                 });
