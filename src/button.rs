@@ -7,6 +7,7 @@ use backer::{
     Node,
     nodes::{dynamic, stack},
 };
+use std::rc::Rc;
 use vello_svg::vello::peniko::color::palette::css::TRANSPARENT;
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -25,7 +26,7 @@ pub struct Button<'n, State> {
     label: Option<LabelFn<'n, State>>,
     text_label: Option<String>,
     corner_rounding: Option<f32>,
-    on_click: Option<fn(&mut State, &mut AppState<State>)>,
+    on_click: Option<Rc<dyn Fn(&mut State, &mut AppState<State>)>>,
     state: Binding<State, ButtonState>,
     fill: Option<Color>,
     text_fill: Option<Color>,
@@ -68,8 +69,11 @@ impl<'n, State> Button<'n, State> {
         self.corner_rounding = Some(corner_rounding);
         self
     }
-    pub fn on_click(mut self, on_click: fn(&mut State, &mut AppState<State>)) -> Self {
-        self.on_click = Some(on_click);
+    pub fn on_click(
+        mut self,
+        on_click: impl Fn(&mut State, &mut AppState<State>) + 'static,
+    ) -> Self {
+        self.on_click = Some(Rc::new(on_click));
         self
     }
     pub fn fill(mut self, color: Color) -> Self {
@@ -152,6 +156,7 @@ impl<'n, State> Button<'n, State> {
                     })
                     .on_click({
                         let binding = self.state.clone();
+                        let on_click = self.on_click.clone();
                         move |state: &mut State, app: &mut AppState<State>, click_state, _| {
                             match click_state {
                                 ClickState::Started => {
@@ -161,7 +166,7 @@ impl<'n, State> Button<'n, State> {
                                     binding.update(state, |s| s.depressed = false)
                                 }
                                 ClickState::Completed => {
-                                    if let Some(f) = self.on_click {
+                                    if let Some(f) = &on_click {
                                         f(state, app);
                                     }
                                     binding.update(state, |s| s.depressed = false)

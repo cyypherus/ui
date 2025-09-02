@@ -54,6 +54,7 @@ impl Circle {
     pub fn view<State>(self) -> View<State> {
         View {
             view_type: ViewType::Circle(self),
+            z_index: 0,
             gesture_handlers: Vec::new(),
         }
     }

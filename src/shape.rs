@@ -3,9 +3,9 @@ use crate::{DEFAULT_DURATION, DEFAULT_EASING};
 use backer::models::Area;
 use lilt::{Animated, Easing};
 use std::time::Instant;
+use vello_svg::vello::Scene;
 use vello_svg::vello::kurbo::{Point, RoundedRect, Shape as KurboShape, Stroke};
 use vello_svg::vello::peniko::{Brush, Fill};
-use vello_svg::vello::Scene;
 use vello_svg::vello::{kurbo::Affine, peniko::Color};
 
 #[derive(Debug, Clone, Copy)]
@@ -21,7 +21,9 @@ pub struct Shape {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum ShapeType {
     Circle,
-    Rect { corner_rounding: f32 },
+    Rect {
+        corner_rounding: (f32, f32, f32, f32),
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -31,11 +33,17 @@ pub(crate) struct AnimatedShape {
     pub(crate) stroke: Option<(AnimatedColor, Animated<f32, Instant>)>,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub(crate) enum AnimatedShapeType {
     Circle,
     Rect {
-        corner_rounding: Animated<f32, Instant>,
+        corner_rounding: (
+            Animated<f32, Instant>,
+            Animated<f32, Instant>,
+            Animated<f32, Instant>,
+            Animated<f32, Instant>,
+        ),
     },
 }
 
@@ -65,12 +73,23 @@ impl AnimatedShape {
             (AnimatedShapeType::Circle, ShapeType::Circle) => (),
             (
                 AnimatedShapeType::Rect {
-                    corner_rounding: existing,
+                    corner_rounding:
+                        (
+                            existing_top_left,
+                            existing_top_right,
+                            existing_bottom_left,
+                            existing_bottom_right,
+                        ),
                 },
                 ShapeType::Rect {
-                    corner_rounding: new,
+                    corner_rounding: (top_left, top_right, bottom_left, bottom_right),
                 },
-            ) => existing.transition(new, now),
+            ) => {
+                existing_top_left.transition(top_left, now);
+                existing_top_right.transition(top_right, now);
+                existing_bottom_left.transition(bottom_left, now);
+                existing_bottom_right.transition(bottom_right, now);
+            }
             _ => debug_assert!(false, "Mismatched shape types"),
         }
     }
@@ -122,11 +141,27 @@ impl AnimatedShape {
             }),
             shape: match from.shape {
                 ShapeType::Circle => AnimatedShapeType::Circle,
-                ShapeType::Rect { corner_rounding } => AnimatedShapeType::Rect {
-                    corner_rounding: Animated::new(corner_rounding)
-                        .easing(from.easing.unwrap_or(DEFAULT_EASING))
-                        .duration(from.duration.unwrap_or(DEFAULT_DURATION))
-                        .delay(from.delay),
+                ShapeType::Rect {
+                    corner_rounding: (top_left, top_right, bottom_left, bottom_right),
+                } => AnimatedShapeType::Rect {
+                    corner_rounding: (
+                        Animated::new(top_left)
+                            .easing(from.easing.unwrap_or(DEFAULT_EASING))
+                            .duration(from.duration.unwrap_or(DEFAULT_DURATION))
+                            .delay(from.delay),
+                        Animated::new(top_right)
+                            .easing(from.easing.unwrap_or(DEFAULT_EASING))
+                            .duration(from.duration.unwrap_or(DEFAULT_DURATION))
+                            .delay(from.delay),
+                        Animated::new(bottom_left)
+                            .easing(from.easing.unwrap_or(DEFAULT_EASING))
+                            .duration(from.duration.unwrap_or(DEFAULT_DURATION))
+                            .delay(from.delay),
+                        Animated::new(bottom_right)
+                            .easing(from.easing.unwrap_or(DEFAULT_EASING))
+                            .duration(from.duration.unwrap_or(DEFAULT_DURATION))
+                            .delay(from.delay),
+                    ),
                 },
             },
         }
@@ -154,7 +189,9 @@ impl AnimatedShape {
                 )
                 .to_path(0.01)
             }
-            AnimatedShapeType::Rect { corner_rounding } => RoundedRect::from_rect(
+            AnimatedShapeType::Rect {
+                corner_rounding: (top_left, top_right, bottom_left, bottom_right),
+            } => RoundedRect::from_rect(
                 vello_svg::vello::kurbo::Rect::from_origin_size(
                     vello_svg::vello::kurbo::Point::new(
                         area.x as f64 * scale_factor,
@@ -165,7 +202,12 @@ impl AnimatedShape {
                         area.height as f64 * scale_factor,
                     ),
                 ),
-                corner_rounding.animate_wrapped(now) as f64 * scale_factor,
+                (
+                    top_left.animate_wrapped(now) as f64 * scale_factor,
+                    top_right.animate_wrapped(now) as f64 * scale_factor,
+                    bottom_left.animate_wrapped(now) as f64 * scale_factor,
+                    bottom_right.animate_wrapped(now) as f64 * scale_factor,
+                ),
             )
             .to_path(0.01),
         };

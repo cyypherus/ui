@@ -118,6 +118,7 @@ impl Text {
     {
         View {
             view_type: ViewType::Text(self),
+            z_index: 0,
             gesture_handlers: Vec::new(),
         }
     }
@@ -148,6 +149,10 @@ impl AnimatedText {
             .fill
             .b
             .transition(AnimatedU8(from.fill.to_rgba8().b), now);
+        existing
+            .fill
+            .a
+            .transition(AnimatedU8(from.fill.to_rgba8().a), now);
     }
     pub(crate) fn new_from(from: &Text) -> Self {
         AnimatedText {

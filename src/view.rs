@@ -1,4 +1,4 @@
-use crate::app::AppState;
+use crate::app::{AppState, DrawItem};
 use crate::circle::{AnimatedCircle, Circle};
 use crate::gestures::{ClickLocation, Interaction, InteractionType, ScrollDelta};
 use crate::image::Image;
@@ -11,9 +11,10 @@ use backer::nodes::{draw_object, dynamic, intermediate};
 use backer::traits::Drawable;
 use backer::{Node, models::Area};
 use lilt::{Animated, Easing};
+use parley::Layout;
 use std::rc::Rc;
 use vello_svg::vello::kurbo::{Affine, BezPath};
-use vello_svg::vello::peniko::Mix;
+use vello_svg::vello::peniko::{Brush, Mix};
 
 // A simple const FNV-1a hash for our purposes
 const FNV_OFFSET: u64 = 1469598103934665603;
@@ -82,6 +83,7 @@ pub fn clipping<'a, State: 'a>(
 
 pub struct View<State> {
     pub(crate) view_type: ViewType,
+    pub(crate) z_index: usize,
     pub(crate) gesture_handlers: Vec<GestureHandler<State, AppState<State>>>,
 }
 
@@ -89,14 +91,15 @@ impl<State> Clone for View<State> {
     fn clone(&self) -> Self {
         Self {
             view_type: self.view_type.clone(),
+            z_index: self.z_index,
             gesture_handlers: self.gesture_handlers.clone(),
         }
     }
 }
 
-#[derive(Debug)]
 pub(crate) enum ViewType {
     Text(Text),
+    Layout(Layout<Brush>, Affine),
     Rect(Rect),
     Circle(Circle),
     Svg(Svg),
@@ -107,6 +110,7 @@ impl Clone for ViewType {
     fn clone(&self) -> Self {
         match self {
             ViewType::Text(text) => ViewType::Text(text.clone()),
+            ViewType::Layout(layout, affine) => ViewType::Layout(layout.clone(), *affine),
             ViewType::Rect(rect) => ViewType::Rect(*rect),
             ViewType::Circle(circle) => ViewType::Circle(circle.clone()),
             ViewType::Svg(svg) => ViewType::Svg(svg.clone()),
@@ -246,7 +250,7 @@ impl<State> View<State> {
     pub fn easing(mut self, easing: lilt::Easing) -> Self {
         match self.view_type {
             ViewType::Text(ref mut view) => view.easing = Some(easing),
-
+            ViewType::Layout(_, _) => (),
             ViewType::Rect(ref mut view) => view.shape.easing = Some(easing),
             ViewType::Svg(ref mut view) => view.easing = Some(easing),
             ViewType::Circle(ref mut view) => view.shape.easing = Some(easing),
@@ -257,7 +261,7 @@ impl<State> View<State> {
     pub fn transition_duration(mut self, duration_ms: f32) -> Self {
         match self.view_type {
             ViewType::Text(ref mut view) => view.duration = Some(duration_ms),
-
+            ViewType::Layout(_, _) => (),
             ViewType::Rect(ref mut view) => view.shape.duration = Some(duration_ms),
             ViewType::Svg(ref mut view) => view.duration = Some(duration_ms),
             ViewType::Circle(ref mut view) => view.shape.duration = Some(duration_ms),
@@ -268,6 +272,7 @@ impl<State> View<State> {
     pub fn transition_delay(mut self, delay_ms: f32) -> Self {
         match self.view_type {
             ViewType::Text(ref mut view) => view.delay = delay_ms,
+            ViewType::Layout(_, _) => (),
             ViewType::Rect(ref mut view) => view.shape.delay = delay_ms,
             ViewType::Svg(ref mut view) => view.delay = delay_ms,
             ViewType::Circle(ref mut view) => view.shape.delay = delay_ms,
@@ -275,9 +280,14 @@ impl<State> View<State> {
         }
         self
     }
+    pub(crate) fn z_index(mut self, z_index: usize) -> Self {
+        self.z_index = z_index;
+        self
+    }
     pub(crate) fn id(&self) -> u64 {
         match &self.view_type {
             ViewType::Text(view) => view.id,
+            ViewType::Layout(_, _) => 0,
             ViewType::Rect(view) => view.id,
             ViewType::Svg(view) => view.id,
             ViewType::Circle(view) => view.id,
@@ -287,6 +297,7 @@ impl<State> View<State> {
     fn get_easing(&self) -> Easing {
         match &self.view_type {
             ViewType::Text(view) => view.easing,
+            ViewType::Layout(_, _) => Easing::EaseOut.into(),
             ViewType::Rect(view) => view.shape.easing,
             ViewType::Svg(view) => view.easing,
             ViewType::Circle(view) => view.shape.easing,
@@ -297,6 +308,7 @@ impl<State> View<State> {
     fn get_duration(&self) -> f32 {
         match &self.view_type {
             ViewType::Text(view) => view.duration,
+            ViewType::Layout(_, _) => None,
             ViewType::Rect(view) => view.shape.duration,
             ViewType::Svg(view) => view.duration,
             ViewType::Circle(view) => view.shape.duration,
@@ -307,6 +319,7 @@ impl<State> View<State> {
     fn get_delay(&self) -> f32 {
         match &self.view_type {
             ViewType::Text(view) => view.delay,
+            ViewType::Layout(_, _) => 0.,
             ViewType::Rect(view) => view.shape.delay,
             ViewType::Svg(view) => view.delay,
             ViewType::Circle(view) => view.shape.delay,
@@ -403,15 +416,19 @@ impl<State> Drawable<State, AppState<State>> for View<State> {
                     .drain(..)
                     .map(|handler| (id, animated_area, handler)),
             );
-            match &mut self.view_type {
-                ViewType::Text(view) => {
-                    view.draw(animated_area, area, state, app, visible, visibility)
-                }
-                ViewType::Rect(view) => view.draw(animated_area, state, app, visible, visibility),
-                ViewType::Svg(view) => view.draw(animated_area, state, app, visible, visibility),
-                ViewType::Circle(view) => view.draw(animated_area, state, app, visible, visibility),
-                ViewType::Image(view) => view.draw(animated_area, state, app, visible, visibility),
-            }
+            app.draw_list
+                .entry(self.z_index)
+                .or_default()
+                .push(DrawItem {
+                    view: self.clone(),
+                    area: if matches!(self.view_type, ViewType::Text(_)) {
+                        Area::new(animated_area.x, animated_area.y, area.width, area.height)
+                    } else {
+                        animated_area
+                    },
+                    visible,
+                    opacity: visibility,
+                });
         }
         app.animation_bank.animations.insert(self.id(), anim);
     }
