@@ -195,7 +195,7 @@ impl<'n, State> DropDown<State> {
                                                 });
                                             } else {
                                                 binding.update(state, move |state| {
-                                                    state.selected = 0;
+                                                    state.hovered = Some(0);
                                                     state.expanded = true;
                                                 });
                                             }
