@@ -109,7 +109,6 @@ impl<'n, State> DropDown<State> {
                                 .fill(
                                     if let Some(hovered) = hovered
                                         && hovered == index
-                                        && expanded
                                     {
                                         self.highlight_fill.unwrap_or(DEFAULT_PURP)
                                     } else {

@@ -83,7 +83,7 @@ pub fn clipping<'a, State: 'a>(
 
 pub struct View<State> {
     pub(crate) view_type: ViewType,
-    pub(crate) z_index: usize,
+    pub(crate) z_index: i32,
     pub(crate) gesture_handlers: Vec<GestureHandler<State, AppState<State>>>,
 }
 
@@ -280,7 +280,7 @@ impl<State> View<State> {
         }
         self
     }
-    pub(crate) fn z_index(mut self, z_index: usize) -> Self {
+    pub(crate) fn z_index(mut self, z_index: i32) -> Self {
         self.z_index = z_index;
         self
     }
@@ -411,11 +411,14 @@ impl<State> Drawable<State, AppState<State>> for View<State> {
                 }
             }
 
-            app.gesture_handlers.extend(
-                self.gesture_handlers
-                    .drain(..)
-                    .map(|handler| (id, animated_area, handler)),
-            );
+            app.gesture_handlers
+                .entry(self.z_index)
+                .or_default()
+                .extend(
+                    self.gesture_handlers
+                        .drain(..)
+                        .map(|handler| (id, animated_area, handler)),
+                );
             app.draw_list
                 .entry(self.z_index)
                 .or_default()

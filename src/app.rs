@@ -164,7 +164,7 @@ type TextLayoutCache = HashMap<u64, Vec<(String, f32, parley::Layout<Brush>)>>;
 pub struct AppState<State> {
     pub(crate) cursor_position: Option<Point>,
     pub(crate) gesture_state: GestureState,
-    pub gesture_handlers: Vec<(u64, Area, GestureHandler<State, Self>)>,
+    pub gesture_handlers: HashMap<i32, Vec<(u64, Area, GestureHandler<State, Self>)>>,
     // pub(crate) background_scheduler: BackgroundScheduler<State>,
     pub(crate) runtime: Runtime,
     pub(crate) cancellation_token: CancellationToken,
@@ -184,7 +184,7 @@ pub struct AppState<State> {
     pub(crate) appeared_views: std::collections::HashSet<u64>,
     pub(crate) resizing: bool,
     pub(crate) redraw: Sender<()>,
-    pub(crate) draw_list: HashMap<usize, Vec<DrawItem<State>>>,
+    pub(crate) draw_list: HashMap<i32, Vec<DrawItem<State>>>,
 }
 
 pub(crate) struct DrawItem<State> {
@@ -258,12 +258,6 @@ impl RedrawTrigger {
 }
 
 impl<State: 'static> App<'_, State> {
-    fn request_redraw(&self) {
-        let Some(RenderState { window, .. }) = &self.render_state else {
-            return;
-        };
-        window.request_redraw();
-    }
     pub fn start(state: State, view: fn() -> Node<'static, State, AppState<State>>) {
         AppBuilder::new(state, view).start();
     }
@@ -274,6 +268,24 @@ impl<State: 'static> App<'_, State> {
     ) -> AppBuilder<State> {
         AppBuilder::new(state, view)
     }
+
+    fn request_redraw(&self) {
+        let Some(RenderState { window, .. }) = &self.render_state else {
+            return;
+        };
+        window.request_redraw();
+    }
+
+    fn gesture_handlers(&self) -> Vec<(u64, Area, GestureHandler<State, AppState<State>>)> {
+        let mut keys: Vec<_> = self.app_state.gesture_handlers.keys().collect();
+        let mut handlers = self.app_state.gesture_handlers.clone();
+        keys.sort();
+        keys.into_iter()
+            .filter_map(move |key| handlers.remove(key))
+            .flat_map(|vec| vec.into_iter())
+            .collect()
+    }
+
     fn run(
         state: State,
         event_loop: EventLoop<AppEvent>,
@@ -338,7 +350,7 @@ impl<State: 'static> App<'_, State> {
             app_state: AppState {
                 cursor_position: None,
                 gesture_state: GestureState::None,
-                gesture_handlers: Vec::new(),
+                gesture_handlers: HashMap::new(),
                 runtime,
                 cancellation_token: CancellationToken::new(),
                 task_tracker: TaskTracker::new(),
@@ -657,7 +669,7 @@ impl<State: 'static> ApplicationHandler<AppEvent> for App<'_, State> {
                         return;
                     };
                     let mut needs_redraw = false;
-                    for (_id, _area, handler) in self.app_state.gesture_handlers.clone().iter() {
+                    for (_id, _area, handler) in self.gesture_handlers() {
                         if let Some(ref interaction_handler) = handler.interaction_handler
                             && handler.interaction_type.key
                         {
@@ -734,22 +746,18 @@ impl<State: 'static> App<'_, State> {
                 font_cx,
             );
         }
-        self.app_state
-            .gesture_handlers
-            .clone()
-            .iter()
-            .for_each(|(_, area, gh)| {
-                if gh.interaction_type.hover
-                    && let Some(ref on_hover) = gh.interaction_handler
-                {
-                    needs_redraw = true;
-                    (on_hover)(
-                        &mut self.state,
-                        &mut self.app_state,
-                        Interaction::Hover(area_contains(area, pos)),
-                    );
-                }
-            });
+        self.gesture_handlers().iter().for_each(|(_, area, gh)| {
+            if gh.interaction_type.hover
+                && let Some(ref on_hover) = gh.interaction_handler
+            {
+                needs_redraw = true;
+                (on_hover)(
+                    &mut self.state,
+                    &mut self.app_state,
+                    Interaction::Hover(area_contains(area, pos)),
+                );
+            }
+        });
         if let GestureState::Dragging {
             start,
             last_position,
@@ -761,9 +769,7 @@ impl<State: 'static> App<'_, State> {
                 x: pos.x - last_position.x,
                 y: pos.y - last_position.y,
             };
-            self.app_state
-                .gesture_handlers
-                .clone()
+            self.gesture_handlers()
                 .iter()
                 .filter(|(id, _, gh)| *id == capturer && gh.interaction_type.drag)
                 .for_each(|(_, area, gh)| {
@@ -804,9 +810,7 @@ impl<State: 'static> App<'_, State> {
         let mut needs_redraw = false;
         if let Some(point) = self.app_state.cursor_position {
             for (_, area, handler) in
-                self.app_state
-                    .gesture_handlers
-                    .clone()
+                self.gesture_handlers()
                     .iter()
                     .rev()
                     .filter(|(_, area, handler)| {
@@ -827,17 +831,18 @@ impl<State: 'static> App<'_, State> {
                 }
             }
             if let Some((capturer, area, handler)) = self
-                .app_state
-                .gesture_handlers
-                .clone()
+                .gesture_handlers()
                 .iter()
                 .rev()
                 .find(|(_, area, handler)| {
                     area_contains(area, point)
                         && (handler.interaction_type.click || handler.interaction_type.drag)
                 })
-                .or(self.app_state.gesture_handlers.clone().iter().rev().find(
-                    |(_, area, handler)| {
+                .or(self
+                    .gesture_handlers()
+                    .iter()
+                    .rev()
+                    .find(|(_, area, handler)| {
                         area_contains(
                             &Area {
                                 x: area.x - 10.,
@@ -847,8 +852,7 @@ impl<State: 'static> App<'_, State> {
                             },
                             point,
                         ) && (handler.interaction_type.click || handler.interaction_type.drag)
-                    },
-                ))
+                    }))
             {
                 needs_redraw = true;
                 if handler.interaction_type.click
@@ -940,9 +944,7 @@ impl<State: 'static> App<'_, State> {
                     x: current.x - last_position.x,
                     y: current.y - last_position.y,
                 };
-                self.app_state
-                    .gesture_handlers
-                    .clone()
+                self.gesture_handlers()
                     .iter()
                     .filter(|(id, _, _)| *id == capturer)
                     .for_each(|(_, area, gh)| {
@@ -1004,15 +1006,13 @@ impl<State: 'static> App<'_, State> {
     pub(crate) fn scrolled(&mut self, delta: MouseScrollDelta) {
         let mut needs_redraw = false;
         if let Some(current) = self.app_state.cursor_position
-            && let Some((_, _, handler)) = self
-                .app_state
-                .gesture_handlers
-                .clone()
-                .iter()
-                .rev()
-                .find(|(_, area, handler)| {
-                    area_contains(area, current) && (handler.interaction_type.scroll)
-                })
+            && let Some((_, _, handler)) =
+                self.gesture_handlers()
+                    .iter()
+                    .rev()
+                    .find(|(_, area, handler)| {
+                        area_contains(area, current) && (handler.interaction_type.scroll)
+                    })
             && let Some(ref on_scroll) = handler.interaction_handler
         {
             needs_redraw = true;
