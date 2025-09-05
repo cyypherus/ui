@@ -280,7 +280,7 @@ impl<State> View<State> {
         }
         self
     }
-    pub(crate) fn z_index(mut self, z_index: i32) -> Self {
+    pub fn z_index(mut self, z_index: i32) -> Self {
         self.z_index = z_index;
         self
     }
