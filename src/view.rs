@@ -344,7 +344,6 @@ impl<State> View<State> {
                 )
             } else {
                 draw(move |area, app, state| moved.draw(area, app, state, true))
-                // draw_object(moved)
             }
         })
     }

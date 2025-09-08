@@ -2,12 +2,15 @@ use crate::draw_layout::draw_layout;
 use crate::gestures::{ClickLocation, Interaction, ScrollDelta};
 use crate::ui::AnimationBank;
 use crate::view::{AnimatedView, View, ViewType};
-use crate::{Area, GestureState, RUBIK_FONT, TextState, area_contains_padded, event};
-use crate::{Binding, ClickState, DragState, Editor, GestureHandler, Point, area_contains};
+use crate::{Area, GestureState, RUBIK_FONT, area_contains_padded, event};
+use crate::{ClickState, DragState, Editor, GestureHandler, Point, area_contains};
 use backer::{Layout, Node};
 use parley::fontique::Blob;
 use parley::fontique::FontInfoOverride;
-use parley::{FontContext, LayoutContext};
+use parley::{
+    Alignment, FontContext, FontWeight, LayoutContext, LineHeight, OverflowWrap, PlainEditor,
+    StyleProperty,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -165,12 +168,13 @@ pub struct AppState<State> {
     pub(crate) cursor_position: Option<Point>,
     pub(crate) gesture_state: GestureState,
     pub gesture_handlers: HashMap<i32, Vec<(u64, Area, GestureHandler<State, Self>)>>,
-    // pub(crate) background_scheduler: BackgroundScheduler<State>,
     pub(crate) runtime: Runtime,
     pub(crate) cancellation_token: CancellationToken,
     pub(crate) task_tracker: TaskTracker,
     pub(crate) scale_factor: f64,
-    pub(crate) editor: Option<EditState<State>>,
+    pub(crate) editor_setup: Option<EditorSetup>,
+    pub(crate) editor: Option<EditState>,
+    pub(crate) editor_areas: HashMap<u64, Area>,
     pub(crate) animation_bank: AnimationBank,
     pub(crate) scene: Scene,
     pub(crate) font_cx: FontContext,
@@ -194,24 +198,39 @@ pub(crate) struct DrawItem<State> {
     pub(crate) opacity: f32,
 }
 
-pub(crate) struct EditState<State> {
+pub(crate) struct EditorSetup {
+    pub(crate) id: u64,
+    pub(crate) text: String,
+    pub(crate) fill: Color,
+    pub(crate) font_family: String,
+    pub(crate) font_weight: FontWeight,
+    pub(crate) line_height: f32,
+    pub(crate) font_size: f32,
+    pub(crate) overflow_wrap: OverflowWrap,
+    pub(crate) alignment: Alignment,
+    pub(crate) cursor_fill: Color,
+    pub(crate) highlight_fill: Color,
+    pub(crate) wrap: bool,
+}
+
+pub(crate) struct EditState {
     pub(crate) id: u64,
     pub(crate) area: Area,
     pub(crate) editor: Editor,
     pub(crate) editing: bool,
-    pub(crate) binding: Binding<State, TextState>,
+    // pub(crate) binding: Binding<State, TextState>,
     pub(crate) cursor_color: Color,
     pub(crate) highlight_color: Color,
 }
 
-impl<State> Clone for EditState<State> {
+impl Clone for EditState {
     fn clone(&self) -> Self {
         EditState {
             id: self.id,
             area: self.area,
             editor: self.editor.clone(),
             editing: self.editing,
-            binding: self.binding.clone(),
+            // binding: self.binding.clone(),
             cursor_color: self.cursor_color,
             highlight_color: self.highlight_color,
         }
@@ -223,6 +242,81 @@ impl<State> AppState<State> {
         if self.editor.is_some() {
             self.editor = None;
         }
+    }
+
+    pub(crate) fn begin_editing_if_needed(&mut self) {
+        if let Some(EditorSetup {
+            id,
+            text,
+            fill,
+            font_family,
+            font_weight,
+            line_height,
+            font_size,
+            overflow_wrap,
+            alignment,
+            cursor_fill,
+            highlight_fill,
+            wrap,
+        }) = &self.editor_setup
+            && self.editor.is_none()
+        {
+            let Some(area) = self.editor_areas.get(id) else {
+                return;
+            };
+            let mut editor = PlainEditor::new(*font_size);
+            editor.set_text(text);
+            let styles = editor.edit_styles();
+
+            styles.insert(parley::StyleProperty::Brush(Brush::Solid(*fill)));
+            styles.insert(parley::FontFamily::Named(font_family.clone().into()).into());
+            styles.insert(StyleProperty::FontWeight(*font_weight));
+            styles.insert(StyleProperty::LineHeight(LineHeight::FontSizeRelative(
+                *line_height,
+            )));
+            styles.insert(StyleProperty::FontSize(*font_size));
+            styles.insert(StyleProperty::OverflowWrap(*overflow_wrap));
+
+            editor.set_alignment(*alignment);
+            if *wrap {
+                editor.set_width(Some(area.width));
+            }
+            let mut editor = Editor {
+                editor,
+                last_click_time: Default::default(),
+                click_count: Default::default(),
+                pointer_down: Default::default(),
+                cursor_pos: Default::default(),
+                cursor_visible: Default::default(),
+                modifiers: Default::default(),
+                start_time: Default::default(),
+                blink_period: Default::default(),
+            };
+
+            if let AppState {
+                cursor_position: Some(pos),
+                font_cx,
+                layout_cx,
+                ..
+            } = self
+            {
+                editor.mouse_moved(
+                    Point::new(pos.x - area.x as f64, pos.y - area.y as f64),
+                    layout_cx,
+                    font_cx,
+                );
+                editor.mouse_pressed(layout_cx, font_cx);
+            }
+            self.editor = Some(EditState {
+                id: *id,
+                area: *area,
+                editor,
+                editing: true,
+                cursor_color: *cursor_fill,
+                highlight_color: *highlight_fill,
+            });
+            self.editor_setup = None;
+        };
     }
 
     pub(crate) fn animations_in_progress(&self, now: Instant) -> bool {
@@ -353,6 +447,8 @@ impl<State: 'static> App<'_, State> {
                 task_tracker: TaskTracker::new(),
                 scale_factor: 1.,
                 editor: None,
+                editor_setup: None,
+                editor_areas: HashMap::new(),
                 view_state: HashMap::new(),
                 animation_bank: AnimationBank::new(),
                 scene: Scene::new(),
@@ -417,6 +513,8 @@ impl<State: 'static> App<'_, State> {
             if surface.config.width != width || surface.config.height != height {
                 context.resize_surface(surface, width, height);
             }
+
+            self.app_state.begin_editing_if_needed();
 
             let view = self.view;
             let mut layout = Layout::new(view());
@@ -738,6 +836,7 @@ impl<State: 'static> App<'_, State> {
         } = self;
         if let Some(EditState { editor, area, .. }) = editor.as_mut() {
             needs_redraw = true;
+
             editor.mouse_moved(
                 Point::new(pos.x - area.x as f64, pos.y - area.y as f64),
                 layout_cx,

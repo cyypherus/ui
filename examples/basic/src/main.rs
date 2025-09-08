@@ -2,7 +2,8 @@ use ui::*;
 
 #[derive(Debug, Clone, Default)]
 struct State {
-    text: TextState,
+    text_a: TextState,
+    text_b: TextState,
     toggle: ToggleState,
     slider: SliderState,
     button: ButtonState,
@@ -12,8 +13,13 @@ struct State {
 fn main() {
     App::builder(
         State {
-            text: TextState {
+            text_a: TextState {
                 text: "Bio-luminescenct moss carpets power floating gardens while crystal-infused mycelium networks whisper data through the canopy above"
+                    .to_string(),
+                editing: false,
+            },
+            text_b: TextState {
+                text: "With reverent whispers the fauna lift their gaze to the shafts of light piercing the deep green"
                     .to_string(),
                 editing: false,
             },
@@ -23,7 +29,7 @@ fn main() {
             dropdown: DropdownState::default(),
         },
         || {
-            // dynamic(|_, _: &mut AppState<State>| {
+            dynamic(|_, _: &mut AppState<State>| {
                 column_spaced(
                     20.,
                     vec![
@@ -35,10 +41,10 @@ fn main() {
                         .font_size(30)
                         .wrap()
                         .finish(),
-                        text_field(id!(), binding!(State, text)).wrap().finish(),
+                        text_field(id!(), binding!(State, text_a)).wrap().finish(),
+                        text_field(id!(), binding!(State, text_b)).wrap().finish(),
                         toggle(id!(), binding!(State, toggle)).finish().height(50.),
                         slider(id!(), binding!(State, slider)).finish().height(50.),
-                        space().height(20.),
                         dropdown(id!(), binding!(State, dropdown), vec![
                             text(id!(), "Luminescent Moss"),
                             text(id!(), "Crystal Mycelium"),
@@ -46,14 +52,12 @@ fn main() {
                             text(id!(), "Floating Gardens"),
                             text(id!(), "Cerebral Forests"),
                             text(id!(), "Glass Marrow"),
-                        ]).on_select(|_, _, _| {
-                            dbg!()
-                        }).finish().height(20.),
+                        ]).finish().height(20.),
                         button(id!(), binding!(State, button)).finish().height(50.),
                     ],
                 )
                 .pad(20.)
-            // })
+            })
         },
     )
     .inner_size(800, 600)

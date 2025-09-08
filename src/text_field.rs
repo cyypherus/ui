@@ -1,22 +1,22 @@
 use std::fmt::Debug;
 use std::rc::Rc;
 
-use crate::app::{AppState, DrawItem, EditState};
+use crate::app::{AppState, DrawItem, EditState, EditorSetup};
 use crate::rect::Rect;
 use crate::shape::{Shape, ShapeType};
 use crate::view::{View, ViewType};
 use crate::{
     Binding, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE,
-    DEFAULT_PADDING, DEFAULT_PURP, EditInteraction, Editor, Key, Text, rect,
+    DEFAULT_PADDING, DEFAULT_PURP, EditInteraction, Key, Text, rect,
 };
 use backer::Node;
 use backer::models::Area;
 use backer::nodes::*;
 use lilt::Easing;
-use parley::{Alignment, FontWeight, LineHeight, PlainEditor, StyleProperty};
-use vello_svg::vello::kurbo::{Affine, Point};
+use parley::{Alignment, FontWeight};
+use vello_svg::vello::kurbo::Affine;
+use vello_svg::vello::peniko::Color;
 use vello_svg::vello::peniko::color::palette::css::TRANSPARENT;
-use vello_svg::vello::peniko::{Brush, Color};
 
 #[derive(Debug, Clone, Default)]
 pub struct TextState {
@@ -380,360 +380,116 @@ impl<State> TextField<State> {
                     wrap,
                 }
                 .view()
+                .transition_duration(0.)
                 .finish()
             }
-            .attach_under(
-                // {
-                //     let binding = binding.clone();
-                //     let font_family = self.font_family.clone();
-                //     let on_edit = self.on_edit.clone();
-                //     stack(vec![
-                //         draw(|area, state: &mut State, app: &mut AppState<State>| {
-                //             if let Some(EditState {
-                //                 id,
-                //                 area: edit_area,
-                //                 ..
-                //             }) = &mut app.editor
-                //                 && *id == root_id
-                //             {
-                //                 *edit_area = area;
-                //             }
-                //         }),
-                //         rect(root_id)
-                //             .fill(TRANSPARENT)
-                //             .view()
-                //             .on_key({
-                //                 let on_edit = on_edit.clone();
-                //                 let binding = binding.clone();
-                //                 move |state, app, key| {
-                //                     if (self.enter_end_editing
-                //                         && key == Key::Named(winit::keyboard::NamedKey::Enter))
-                //                         || (self.esc_end_editing
-                //                             && key == Key::Named(winit::keyboard::NamedKey::Escape))
-                //                     {
-                //                         app.end_editing();
-                //                         binding.update(state, |s| s.editing = false);
-                //                         if let Some(ref on_edit) = on_edit {
-                //                             (on_edit)(state, app, EditInteraction::End);
-                //                         }
-                //                         return;
-                //                     };
-                //                     if let AppState {
-                //                         editor: Some(EditState { editor, id, .. }),
-                //                         layout_cx,
-                //                         font_cx,
-                //                         modifiers,
-                //                         ..
-                //                     } = app
-                //                         && *id == root_id
-                //                     {
-                //                         editor.handle_key(
-                //                             key.clone(),
-                //                             layout_cx,
-                //                             font_cx,
-                //                             *modifiers,
-                //                         );
-                //                     }
-                //                     let edit_text =
-                //                         app.editor.as_ref().map(|e| e.editor.text().to_string());
+            .attach_under({
+                let binding = binding.clone();
+                let font_family = self.font_family.clone();
+                let on_edit = self.on_edit.clone();
+                stack(vec![
+                    draw(move |area, _state: &mut State, app: &mut AppState<State>| {
+                        app.editor_areas.insert(root_id, area);
+                    }),
+                    rect(root_id)
+                        .fill(TRANSPARENT)
+                        .view()
+                        .on_key({
+                            let on_edit = on_edit.clone();
+                            let binding = binding.clone();
+                            move |state, app, key| {
+                                if (self.enter_end_editing
+                                    && key == Key::Named(winit::keyboard::NamedKey::Enter))
+                                    || (self.esc_end_editing
+                                        && key == Key::Named(winit::keyboard::NamedKey::Escape))
+                                {
+                                    app.end_editing();
+                                    binding.update(state, |s| s.editing = false);
+                                    if let Some(ref on_edit) = on_edit {
+                                        (on_edit)(state, app, EditInteraction::End);
+                                    }
+                                    return;
+                                };
+                                if let AppState {
+                                    editor: Some(EditState { editor, id, .. }),
+                                    layout_cx,
+                                    font_cx,
+                                    modifiers,
+                                    ..
+                                } = app
+                                    && *id == root_id
+                                {
+                                    editor.handle_key(key.clone(), layout_cx, font_cx, *modifiers);
+                                }
+                                let edit_text =
+                                    app.editor.as_ref().map(|e| e.editor.text().to_string());
 
-                //                     if let Some(edit_text) = edit_text
-                //                         && app.editor.as_ref().map(|e| e.id) == Some(root_id)
-                //                     {
-                //                         if let Some(ref on_edit) = on_edit {
-                //                             on_edit(
-                //                                 state,
-                //                                 app,
-                //                                 EditInteraction::Update(edit_text.clone()),
-                //                             );
-                //                         }
-                //                         binding.update(state, |s| {
-                //                             s.text = edit_text.clone();
-                //                         });
-                //                     }
-                //                 }
-                //             })
-                //             .on_click_outside({
-                //                 let binding = binding.clone();
-                //                 let on_edit = on_edit.clone();
-                //                 move |state: &mut State, app, _, _| {
-                //                     if let AppState {
-                //                         editor: Some(EditState { id, .. }),
-                //                         ..
-                //                     } = app
-                //                         && *id == root_id
-                //                     {
-                //                         app.end_editing();
-                //                         binding.update(state, |s| s.editing = false);
-                //                         if let Some(ref on_edit) = on_edit {
-                //                             (on_edit)(state, app, EditInteraction::End);
-                //                         }
-                //                     }
-                //                 }
-                //             })
-                //             .on_click({
-                //                 let binding = binding.clone();
-                //                 let font_family = font_family.clone();
-                //                 move |state: &mut State, app, _, _| {
-                //                     let editing = binding.get(state).editing;
-                //                     if !editing && app.editor.is_none() {
-                //                         app.animation_bank.animations.remove(&text_id);
-                //                         binding.update(state, |s| s.editing = true);
-                //                         let editing = binding.get(state).editing;
-                //                         if editing && app.editor.is_none() {
-                //                             let mut editor =
-                //                                 PlainEditor::new(self.font_size as f32);
-                //                             editor.set_text(&binding.get(state).text);
-                //                             let styles = editor.edit_styles();
-
-                //                             styles.insert(StyleProperty::Brush(Brush::Solid(
-                //                                 self.fill,
-                //                             )));
-                //                             styles.insert(
-                //                                 parley::FontFamily::Named(
-                //                                     font_family
-                //                                         .clone()
-                //                                         .unwrap_or(DEFAULT_FONT_FAMILY.to_string())
-                //                                         .into(),
-                //                                 )
-                //                                 .into(),
-                //                             );
-                //                             styles.insert(StyleProperty::FontWeight(
-                //                                 self.font_weight,
-                //                             ));
-                //                             styles.insert(StyleProperty::LineHeight(
-                //                                 LineHeight::FontSizeRelative(self.line_height),
-                //                             ));
-                //                             styles.insert(StyleProperty::FontSize(
-                //                                 self.font_size as f32,
-                //                             ));
-                //                             styles.insert(StyleProperty::OverflowWrap(
-                //                                 parley::OverflowWrap::Anywhere,
-                //                             ));
-
-                //                             editor.set_alignment(alignment);
-                //                             if wrap {
-                //                                 editor.set_width(Some(area.width));
-                //                             }
-                //                             let mut editor = Editor {
-                //                                 editor,
-                //                                 last_click_time: Default::default(),
-                //                                 click_count: Default::default(),
-                //                                 pointer_down: Default::default(),
-                //                                 cursor_pos: Default::default(),
-                //                                 cursor_visible: Default::default(),
-                //                                 modifiers: Default::default(),
-                //                                 start_time: Default::default(),
-                //                                 blink_period: Default::default(),
-                //                             };
-
-                //                             if let AppState {
-                //                                 cursor_position: Some(pos),
-                //                                 font_cx,
-                //                                 layout_cx,
-                //                                 ..
-                //                             } = app
-                //                             {
-                //                                 editor.mouse_moved(
-                //                                     Point::new(
-                //                                         pos.x - area.x as f64,
-                //                                         pos.y - area.y as f64,
-                //                                     ),
-                //                                     layout_cx,
-                //                                     font_cx,
-                //                                 );
-                //                             }
-                //                             app.editor = Some(EditState {
-                //                                 id: root_id,
-                //                                 area,
-                //                                 editor,
-                //                                 editing: true,
-                //                                 binding: binding.clone(),
-                //                                 cursor_color: self.cursor_fill,
-                //                                 highlight_color: self.highlight_fill,
-                //                             });
-                //                         }
-                //                     }
-                //                 }
-                //             })
-                //             .finish(),
-                //     ])
-                // },
-                area_reader({
-                    let binding = binding.clone();
-                    let font_family = self.font_family.clone();
-                    let on_edit = self.on_edit.clone();
-                    move |area, _state, app: &mut AppState<State>| {
-                        if let Some(EditState {
-                            id,
-                            area: edit_area,
-                            ..
-                        }) = &mut app.editor
-                            && *id == root_id
-                        {
-                            *edit_area = area;
-                        }
-                        rect(root_id)
-                            .fill(TRANSPARENT)
-                            .view()
-                            .on_key({
-                                let on_edit = on_edit.clone();
-                                let binding = binding.clone();
-                                move |state, app, key| {
-                                    if (self.enter_end_editing
-                                        && key == Key::Named(winit::keyboard::NamedKey::Enter))
-                                        || (self.esc_end_editing
-                                            && key == Key::Named(winit::keyboard::NamedKey::Escape))
-                                    {
-                                        app.end_editing();
-                                        binding.update(state, |s| s.editing = false);
-                                        if let Some(ref on_edit) = on_edit {
-                                            (on_edit)(state, app, EditInteraction::End);
-                                        }
-                                        return;
-                                    };
-                                    if let AppState {
-                                        editor: Some(EditState { editor, id, .. }),
-                                        layout_cx,
-                                        font_cx,
-                                        modifiers,
-                                        ..
-                                    } = app
-                                        && *id == root_id
-                                    {
-                                        editor.handle_key(
-                                            key.clone(),
-                                            layout_cx,
-                                            font_cx,
-                                            *modifiers,
+                                if let Some(edit_text) = edit_text
+                                    && app.editor.as_ref().map(|e| e.id) == Some(root_id)
+                                {
+                                    if let Some(ref on_edit) = on_edit {
+                                        on_edit(
+                                            state,
+                                            app,
+                                            EditInteraction::Update(edit_text.clone()),
                                         );
                                     }
-                                    let edit_text =
-                                        app.editor.as_ref().map(|e| e.editor.text().to_string());
-
-                                    if let Some(edit_text) = edit_text
-                                        && app.editor.as_ref().map(|e| e.id) == Some(root_id)
-                                    {
-                                        if let Some(ref on_edit) = on_edit {
-                                            on_edit(
-                                                state,
-                                                app,
-                                                EditInteraction::Update(edit_text.clone()),
-                                            );
-                                        }
-                                        binding.update(state, |s| {
-                                            s.text = edit_text.clone();
-                                        });
+                                    binding.update(state, |s| {
+                                        s.text = edit_text.clone();
+                                    });
+                                }
+                            }
+                        })
+                        .on_click_outside({
+                            let binding = binding.clone();
+                            let on_edit = on_edit.clone();
+                            move |state: &mut State, app, _, _| {
+                                if let AppState {
+                                    editor: Some(EditState { id, .. }),
+                                    ..
+                                } = app
+                                    && *id == root_id
+                                {
+                                    app.end_editing();
+                                    binding.update(state, |s| s.editing = false);
+                                    if let Some(ref on_edit) = on_edit {
+                                        (on_edit)(state, app, EditInteraction::End);
                                     }
                                 }
-                            })
-                            .on_click_outside({
-                                let binding = binding.clone();
-                                let on_edit = on_edit.clone();
-                                move |state: &mut State, app, _, _| {
-                                    if let AppState {
-                                        editor: Some(EditState { id, .. }),
-                                        ..
-                                    } = app
-                                        && *id == root_id
-                                    {
-                                        app.end_editing();
-                                        binding.update(state, |s| s.editing = false);
-                                        if let Some(ref on_edit) = on_edit {
-                                            (on_edit)(state, app, EditInteraction::End);
-                                        }
-                                    }
-                                }
-                            })
-                            .on_click({
-                                let binding = binding.clone();
-                                let font_family = font_family.clone();
-                                move |state: &mut State, app, _, _| {
-                                    let editing = binding.get(state).editing;
-                                    if !editing && app.editor.is_none() {
-                                        app.animation_bank.animations.remove(&text_id);
+                            }
+                        })
+                        .on_click({
+                            let binding = binding.clone();
+                            let font_family = font_family.clone();
+                            move |state: &mut State, app, _, _| {
+                                let editing = binding.get(state).editing;
+                                if !editing && app.editor.is_none() {
+                                    app.animation_bank.animations.remove(&text_id);
+                                    if app.editor_setup.is_none() {
                                         binding.update(state, |s| s.editing = true);
-                                        let editing = binding.get(state).editing;
-                                        if editing && app.editor.is_none() {
-                                            let mut editor =
-                                                PlainEditor::new(self.font_size as f32);
-                                            editor.set_text(&binding.get(state).text);
-                                            let styles = editor.edit_styles();
-
-                                            styles.insert(StyleProperty::Brush(Brush::Solid(
-                                                self.fill,
-                                            )));
-                                            styles.insert(
-                                                parley::FontFamily::Named(
-                                                    font_family
-                                                        .clone()
-                                                        .unwrap_or(DEFAULT_FONT_FAMILY.to_string())
-                                                        .into(),
-                                                )
-                                                .into(),
-                                            );
-                                            styles.insert(StyleProperty::FontWeight(
-                                                self.font_weight,
-                                            ));
-                                            styles.insert(StyleProperty::LineHeight(
-                                                LineHeight::FontSizeRelative(self.line_height),
-                                            ));
-                                            styles.insert(StyleProperty::FontSize(
-                                                self.font_size as f32,
-                                            ));
-                                            styles.insert(StyleProperty::OverflowWrap(
-                                                parley::OverflowWrap::Anywhere,
-                                            ));
-
-                                            editor.set_alignment(alignment);
-                                            if wrap {
-                                                editor.set_width(Some(area.width));
-                                            }
-                                            let mut editor = Editor {
-                                                editor,
-                                                last_click_time: Default::default(),
-                                                click_count: Default::default(),
-                                                pointer_down: Default::default(),
-                                                cursor_pos: Default::default(),
-                                                cursor_visible: Default::default(),
-                                                modifiers: Default::default(),
-                                                start_time: Default::default(),
-                                                blink_period: Default::default(),
-                                            };
-
-                                            if let AppState {
-                                                cursor_position: Some(pos),
-                                                font_cx,
-                                                layout_cx,
-                                                ..
-                                            } = app
-                                            {
-                                                editor.mouse_moved(
-                                                    Point::new(
-                                                        pos.x - area.x as f64,
-                                                        pos.y - area.y as f64,
-                                                    ),
-                                                    layout_cx,
-                                                    font_cx,
-                                                );
-                                            }
-                                            app.editor = Some(EditState {
-                                                id: root_id,
-                                                area,
-                                                editor,
-                                                editing: true,
-                                                binding: binding.clone(),
-                                                cursor_color: self.cursor_fill,
-                                                highlight_color: self.highlight_fill,
-                                            });
-                                        }
+                                        app.editor_setup = Some(EditorSetup {
+                                            id: root_id,
+                                            text: binding.get(state).text,
+                                            fill: self.fill,
+                                            font_family: font_family
+                                                .clone()
+                                                .unwrap_or(DEFAULT_FONT_FAMILY.to_string()),
+                                            font_weight: self.font_weight,
+                                            line_height: self.line_height,
+                                            font_size: self.font_size as f32,
+                                            overflow_wrap: parley::OverflowWrap::Anywhere,
+                                            alignment: self.alignment,
+                                            cursor_fill: self.cursor_fill,
+                                            highlight_fill: self.highlight_fill,
+                                            wrap: self.wrap,
+                                        })
                                     }
                                 }
-                            })
-                            .finish()
-                    }
-                }),
-            )
+                            }
+                        })
+                        .finish(),
+                ])
+            })
             .pad(if editable { bg_padding } else { 0. })
             .attach_under(if bg_fill.is_some() || bg_stroke.is_some() {
                 dynamic({
