@@ -16,14 +16,13 @@ pub struct ButtonState {
     pub depressed: bool,
 }
 
-type BodyFn<'n, State> = fn(&mut State, ButtonState) -> Node<'n, State, AppState<State>>;
-type LabelFn<'n, State> =
-    Box<dyn Fn(&mut State, ButtonState) -> Node<'n, State, AppState<State>> + 'n>;
+type BodyFn<State> = fn(&mut State, ButtonState) -> Node<State, AppState<State>>;
+type LabelFn<State> = Box<dyn Fn(&mut State, ButtonState) -> Node<State, AppState<State>>>;
 
-pub struct Button<'n, State> {
+pub struct Button<State> {
     id: u64,
-    body: Option<BodyFn<'n, State>>,
-    label: Option<LabelFn<'n, State>>,
+    body: Option<BodyFn<State>>,
+    label: Option<LabelFn<State>>,
     text_label: Option<String>,
     corner_rounding: Option<f32>,
     on_click: Option<Rc<dyn Fn(&mut State, &mut AppState<State>)>>,
@@ -32,7 +31,7 @@ pub struct Button<'n, State> {
     text_fill: Option<Color>,
 }
 
-pub fn button<'n, State>(id: u64, binding: Binding<State, ButtonState>) -> Button<'n, State> {
+pub fn button<State>(id: u64, binding: Binding<State, ButtonState>) -> Button<State> {
     Button {
         id,
         body: None,
@@ -46,17 +45,17 @@ pub fn button<'n, State>(id: u64, binding: Binding<State, ButtonState>) -> Butto
     }
 }
 
-impl<'n, State> Button<'n, State> {
+impl<State> Button<State> {
     pub fn surface(
         mut self,
-        body: fn(&mut State, ButtonState) -> Node<'n, State, AppState<State>>,
+        body: fn(&mut State, ButtonState) -> Node<State, AppState<State>>,
     ) -> Self {
         self.body = Some(body);
         self
     }
     pub fn label(
         mut self,
-        label: impl Fn(&mut State, ButtonState) -> Node<'n, State, AppState<State>> + 'n,
+        label: impl Fn(&mut State, ButtonState) -> Node<State, AppState<State>> + 'static,
     ) -> Self {
         self.label = Some(Box::new(label));
         self
@@ -84,7 +83,7 @@ impl<'n, State> Button<'n, State> {
         self.text_fill = Some(color);
         self
     }
-    pub fn finish(self) -> Node<'n, State, AppState<State>>
+    pub fn finish(self) -> Node<State, AppState<State>>
     where
         State: 'static,
     {
@@ -111,7 +110,6 @@ impl<'n, State> Button<'n, State> {
                         )
                         .corner_rounding(self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
                         .view()
-                        // .transition_duration(0.)
                         .finish()
                 },
                 if let Some(label) = &self.label {

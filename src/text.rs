@@ -122,7 +122,7 @@ impl Text {
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<'n, State>(self) -> Node<'n, State, AppState<State>>
+    pub fn finish<State>(self) -> Node<State, AppState<State>>
     where
         State: 'static,
     {
@@ -217,7 +217,7 @@ impl Text {
     }
 }
 
-impl<'s> Text {
+impl Text {
     pub(crate) fn current_layout<State>(
         &self,
         current_fill: Color,
@@ -288,8 +288,8 @@ impl<'s> Text {
         self,
         state: &mut State,
         app: &mut AppState<State>,
-        node: Node<'s, State, AppState<State>>,
-    ) -> Node<'s, State, AppState<State>>
+        node: Node<State, AppState<State>>,
+    ) -> Node<State, AppState<State>>
     where
         State: 'static,
     {

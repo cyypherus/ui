@@ -147,7 +147,7 @@ where
         self
     }
 
-    pub fn finish<'n>(self) -> Node<'n, State, AppState<State>>
+    pub fn finish(self) -> Node<State, AppState<State>>
     where
         State: 'static,
         T: 'static,

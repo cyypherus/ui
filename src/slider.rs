@@ -72,7 +72,7 @@ impl<State> Slider<State> {
         self
     }
 
-    pub fn finish<'n>(self) -> Node<'n, State, AppState<State>>
+    pub fn finish(self) -> Node<State, AppState<State>>
     where
         State: 'static,
     {
@@ -103,7 +103,7 @@ impl<State> Slider<State> {
                     .pad(height * 0.2)
                     .height(height)
                     .width(slider_width)
-                    .offset_x((-width * 0.5) + (slider_width * 0.5)),
+                    .offset((-width * 0.5) + (slider_width * 0.5), 0.),
                 rect(id!(self.id))
                     .fill(
                         match (
@@ -124,7 +124,7 @@ impl<State> Slider<State> {
                         height
                     })
                     .width(height)
-                    .offset_x((-width * 0.5) + slider_width - (height * 0.5)),
+                    .offset((-width * 0.5) + slider_width - (height * 0.5), 0.),
                 rect(id!(self.id))
                     .fill(TRANSPARENT)
                     .view()

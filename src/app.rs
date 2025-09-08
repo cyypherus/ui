@@ -34,7 +34,7 @@ type FontEntry = (Arc<Vec<u8>>, Option<String>);
 
 pub struct AppBuilder<State> {
     state: State,
-    view: fn() -> Node<'static, State, AppState<State>>,
+    view: fn() -> Node<State, AppState<State>>,
     on_frame: fn(&mut State, &mut AppState<State>) -> (),
     on_start: fn(&mut State, &mut AppState<State>) -> (),
     on_exit: fn(&mut State, &mut AppState<State>) -> (),
@@ -46,7 +46,7 @@ pub struct AppBuilder<State> {
 }
 
 impl<State: 'static> AppBuilder<State> {
-    pub fn new(state: State, view: fn() -> Node<'static, State, AppState<State>>) -> Self {
+    pub fn new(state: State, view: fn() -> Node<State, AppState<State>>) -> Self {
         Self {
             state,
             view,
@@ -145,7 +145,7 @@ pub struct App<'s, State> {
     pub(crate) window_icon: Option<Icon>,
     pub(crate) app_state: AppState<State>,
     pub state: State,
-    pub(crate) view: fn() -> Node<'static, State, AppState<State>>,
+    pub(crate) view: fn() -> Node<State, AppState<State>>,
     pub(crate) on_frame: fn(&mut State, &mut AppState<State>) -> (),
     pub(crate) on_start: fn(&mut State, &mut AppState<State>) -> (),
     pub(crate) on_exit: fn(&mut State, &mut AppState<State>) -> (),
@@ -258,14 +258,11 @@ impl RedrawTrigger {
 }
 
 impl<State: 'static> App<'_, State> {
-    pub fn start(state: State, view: fn() -> Node<'static, State, AppState<State>>) {
+    pub fn start(state: State, view: fn() -> Node<State, AppState<State>>) {
         AppBuilder::new(state, view).start();
     }
 
-    pub fn builder(
-        state: State,
-        view: fn() -> Node<'static, State, AppState<State>>,
-    ) -> AppBuilder<State> {
+    pub fn builder(state: State, view: fn() -> Node<State, AppState<State>>) -> AppBuilder<State> {
         AppBuilder::new(state, view)
     }
 
@@ -282,7 +279,7 @@ impl<State: 'static> App<'_, State> {
         keys.sort();
         keys.into_iter()
             .filter_map(move |key| handlers.remove(key))
-            .flat_map(|vec| vec.into_iter())
+            .flat_map(|vec| vec.into_iter().rev())
             .collect()
     }
 
@@ -291,7 +288,7 @@ impl<State: 'static> App<'_, State> {
         event_loop: EventLoop<AppEvent>,
         render_cx: RenderContext,
         #[cfg(target_arch = "wasm32")] render_state: RenderState,
-        view: fn() -> Node<'static, State, AppState<State>>,
+        view: fn() -> Node<State, AppState<State>>,
         on_frame: fn(&mut State, &mut AppState<State>) -> (),
         on_start: fn(&mut State, &mut AppState<State>) -> (),
         on_exit: fn(&mut State, &mut AppState<State>) -> (),
@@ -422,7 +419,8 @@ impl<State: 'static> App<'_, State> {
             }
 
             let view = self.view;
-            Layout::new(view()).draw(
+            let mut layout = Layout::new(view());
+            layout.draw(
                 Area {
                     x: 0.,
                     y: 0.,

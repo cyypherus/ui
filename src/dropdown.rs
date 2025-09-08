@@ -57,7 +57,7 @@ pub fn dropdown<State>(
     }
 }
 
-impl<'n, State> DropDown<State> {
+impl<State> DropDown<State> {
     pub fn corner_rounding(mut self, corner_rounding: f32) -> Self {
         self.corner_rounding = Some(corner_rounding);
         self
@@ -86,7 +86,7 @@ impl<'n, State> DropDown<State> {
         self
     }
 
-    pub fn finish(self) -> Node<'n, State, AppState<State>>
+    pub fn finish(self) -> Node<State, AppState<State>>
     where
         State: 'static,
     {
@@ -104,77 +104,81 @@ impl<'n, State> DropDown<State> {
                 .map({
                     let binding = binding.clone();
                     move |(index, option)| {
-                        stack(vec![
-                            rect(crate::id!(index as u64, self.id))
-                                .fill(
-                                    if let Some(hovered) = hovered
-                                        && hovered == index
-                                    {
-                                        self.highlight_fill.unwrap_or(DEFAULT_PURP)
-                                    } else {
-                                        TRANSPARENT
-                                    },
-                                )
-                                .corner_rounding(
-                                    self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING),
-                                )
-                                .view()
-                                .z_index(1)
-                                .transition_duration(0.)
-                                .on_hover({
-                                    let binding = binding.clone();
-                                    move |state, _app, hovered| {
-                                        if hovered && expanded {
-                                            binding.update(state, move |state| {
-                                                state.hovered = Some(index);
-                                            });
+                        stack_aligned(
+                            Align::Leading,
+                            vec![
+                                rect(crate::id!(index as u64, self.id))
+                                    .fill(
+                                        if let Some(hovered) = hovered
+                                            && hovered == index
+                                            && expanded
+                                        {
+                                            self.highlight_fill.unwrap_or(DEFAULT_PURP)
+                                        } else {
+                                            TRANSPARENT
+                                        },
+                                    )
+                                    .corner_rounding(
+                                        self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING),
+                                    )
+                                    .view()
+                                    .z_index(1)
+                                    .transition_duration(0.)
+                                    .on_hover({
+                                        let binding = binding.clone();
+                                        move |state, _app, hovered| {
+                                            if hovered && expanded {
+                                                binding.update(state, move |state| {
+                                                    state.hovered = Some(index);
+                                                });
+                                            }
                                         }
-                                    }
-                                })
-                                .finish(),
-                            row_spaced(
-                                5.,
-                                vec![
-                                    if (index == selected && !expanded) || (index == 0 && expanded)
-                                    {
-                                        svg(
-                                            crate::id!(self.id),
-                                            if expanded {
-                                                include_str!("../assets/arrow-down.svg")
-                                            } else {
-                                                include_str!("../assets/arrow-right.svg")
-                                            },
-                                        )
-                                        .fill(self.text_fill.unwrap_or(DEFAULT_FG_COLOR))
-                                        .view()
-                                        .z_index(1)
-                                        .finish()
-                                        .width(12.)
-                                        .height(if expanded { 12. } else { 10. })
-                                    } else {
-                                        empty()
-                                    },
-                                    {
-                                        let option = option
-                                            .fill(if index == selected || expanded {
-                                                self.text_fill.unwrap_or(DEFAULT_FG_COLOR)
-                                            } else {
-                                                TRANSPARENT
-                                            })
+                                    })
+                                    .finish(),
+                                row_spaced(
+                                    5.,
+                                    vec![
+                                        if (index == selected && !expanded)
+                                            || (index == 0 && expanded)
+                                        {
+                                            svg(
+                                                crate::id!(self.id),
+                                                if expanded {
+                                                    include_str!("../assets/arrow-down.svg")
+                                                } else {
+                                                    include_str!("../assets/arrow-right.svg")
+                                                },
+                                            )
+                                            .fill(self.text_fill.unwrap_or(DEFAULT_FG_COLOR))
                                             .view()
                                             .z_index(1)
-                                            .finish();
-                                        if index == selected || expanded {
-                                            option
+                                            .finish()
+                                            .width(12.)
+                                            .height(if expanded { 12. } else { 10. })
                                         } else {
-                                            option.width(0.).height(0.)
-                                        }
-                                    },
-                                ],
-                            )
-                            .pad(5.),
-                        ])
-                        .align_contents(Align::Leading)
+                                            empty()
+                                        },
+                                        {
+                                            let option = option
+                                                .fill(if index == selected || expanded {
+                                                    self.text_fill.unwrap_or(DEFAULT_FG_COLOR)
+                                                } else {
+                                                    TRANSPARENT
+                                                })
+                                                .view()
+                                                .z_index(1)
+                                                .finish();
+                                            if index == selected || expanded {
+                                                option
+                                            } else {
+                                                option.width(0.).height(0.)
+                                            }
+                                        },
+                                    ],
+                                )
+                                .pad(5.),
+                            ],
+                        )
                         .attach_over(
                             rect(crate::id!(index as u64, self.id))
                                 .fill(TRANSPARENT)
@@ -208,13 +212,9 @@ impl<'n, State> DropDown<State> {
                 .collect();
 
             if expanded {
-                column(option_views)
-                    .align_contents(Align::TopLeading)
-                    .align(Align::Top)
+                column(option_views).align(Align::Top)
             } else {
-                stack(option_views)
-                    .align_contents(Align::TopLeading)
-                    .align(Align::Top)
+                stack(option_views).align(Align::Top)
             }
             .attach_under(
                 rect(crate::id!(self.id))

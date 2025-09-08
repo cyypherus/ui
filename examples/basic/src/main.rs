@@ -1,4 +1,3 @@
-use parley::FontWeight;
 use ui::*;
 
 #[derive(Debug, Clone, Default)]
@@ -24,7 +23,7 @@ fn main() {
             dropdown: DropdownState::default(),
         },
         || {
-            dynamic(|_, _: &mut AppState<State>| {
+            // dynamic(|_, _: &mut AppState<State>| {
                 column_spaced(
                     20.,
                     vec![
@@ -39,6 +38,7 @@ fn main() {
                         text_field(id!(), binding!(State, text)).wrap().finish(),
                         toggle(id!(), binding!(State, toggle)).finish().height(50.),
                         slider(id!(), binding!(State, slider)).finish().height(50.),
+                        space().height(20.),
                         dropdown(id!(), binding!(State, dropdown), vec![
                             text(id!(), "Luminescent Moss"),
                             text(id!(), "Crystal Mycelium"),
@@ -46,12 +46,14 @@ fn main() {
                             text(id!(), "Floating Gardens"),
                             text(id!(), "Cerebral Forests"),
                             text(id!(), "Glass Marrow"),
-                        ]).finish().height(50.),
+                        ]).on_select(|_, _, _| {
+                            dbg!()
+                        }).finish().height(20.),
                         button(id!(), binding!(State, button)).finish().height(50.),
                     ],
                 )
                 .pad(20.)
-            })
+            // })
         },
     )
     .inner_size(800, 600)

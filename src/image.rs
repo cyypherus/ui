@@ -92,7 +92,7 @@ impl Image {
         }
     }
 
-    pub fn finish<'n, State: 'static>(self) -> Node<'n, State, AppState<State>> {
+    pub fn finish<State: 'static>(self) -> Node<State, AppState<State>> {
         self.view().finish()
     }
 }

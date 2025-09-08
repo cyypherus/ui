@@ -21,7 +21,8 @@ name = "image"
 path = "examples/image/src/main.rs"
 
 [dependencies]
-backer = { git = "https://github.com/cyypherus/backer", branch = "tu" }
+# backer = { git = "https://github.com/cyypherus/backer", branch = "mvp" }
+backer = { path = "../backer" }
 clipboard-rs = "0.3.0"
 image = { version = "0.25", default-features = false, features = [
     "png",

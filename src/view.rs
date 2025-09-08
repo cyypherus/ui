@@ -7,14 +7,15 @@ use crate::svg::Svg;
 use crate::text::{AnimatedText, Text};
 use crate::ui::AnimArea;
 use crate::{ClickState, DragState, GestureHandler, Key};
-use backer::nodes::{draw_object, dynamic, intermediate};
-use backer::traits::Drawable;
+use backer::nodes::{draw, dynamic};
+// use backer::nodes::{draw_object, dynamic, intermediate};
+// use backer::traits::Drawable;
 use backer::{Node, models::Area};
 use lilt::{Animated, Easing};
 use parley::Layout;
 use std::rc::Rc;
-use vello_svg::vello::kurbo::{Affine, BezPath};
-use vello_svg::vello::peniko::{Brush, Mix};
+use vello_svg::vello::kurbo::Affine;
+use vello_svg::vello::peniko::Brush;
 
 // A simple const FNV-1a hash for our purposes
 const FNV_OFFSET: u64 = 1469598103934665603;
@@ -65,21 +66,21 @@ macro_rules! binding {
     };
 }
 
-pub fn clipping<'a, State: 'a>(
-    path: fn(Area) -> BezPath,
-    node: Node<'a, State, AppState<State>>,
-) -> Node<'a, State, AppState<State>> {
-    intermediate(
-        move |available_area: Area, _state: &mut State, app: &mut AppState<State>| {
-            app.scene
-                .push_layer(Mix::Normal, 1., Affine::IDENTITY, &(path)(available_area));
-        },
-        move |_state: &mut State, app: &mut AppState<State>| {
-            app.scene.pop_layer();
-        },
-        node,
-    )
-}
+// pub fn clipping<'a, State: 'a>(
+//     path: fn(Area) -> BezPath,
+//     node: Node<State, AppState<State>>,
+// ) -> Node<'a, State, AppState<State>> {
+//     intermediate(
+//         move |available_area: Area, _state: &mut State, app: &mut AppState<State>| {
+//             app.scene
+//                 .push_layer(Mix::Normal, 1., Affine::IDENTITY, &(path)(available_area));
+//         },
+//         move |_state: &mut State, app: &mut AppState<State>| {
+//             app.scene.pop_layer();
+//         },
+//         node,
+//     )
+// }
 
 pub struct View<State> {
     pub(crate) view_type: ViewType,
@@ -280,7 +281,7 @@ impl<State> View<State> {
         }
         self
     }
-    pub(crate) fn z_index(mut self, z_index: i32) -> Self {
+    pub fn z_index(mut self, z_index: i32) -> Self {
         self.z_index = z_index;
         self
     }
@@ -329,23 +330,29 @@ impl<State> View<State> {
 }
 
 impl<State> View<State> {
-    pub fn finish<'a>(self) -> Node<'a, State, AppState<State>>
+    pub fn finish(self) -> Node<State, AppState<State>>
     where
         State: 'static,
     {
         dynamic(move |state: &mut State, app: &mut AppState<State>| {
             let moved = self.clone();
             if let ViewType::Text(view) = self.view_type.clone() {
-                view.create_node(state, app, draw_object(moved))
+                view.create_node(
+                    state,
+                    app,
+                    draw(move |area, app, state| moved.draw(area, app, state, true)),
+                )
             } else {
-                draw_object(moved)
+                draw(move |area, app, state| moved.draw(area, app, state, true))
+                // draw_object(moved)
             }
         })
     }
 }
 
-impl<State> Drawable<State, AppState<State>> for View<State> {
-    fn draw(&mut self, area: Area, state: &mut State, app: &mut AppState<State>, visible: bool) {
+// impl<State> Drawable<State, AppState<State>> for View<State> {
+impl<State> View<State> {
+    fn draw(&self, area: Area, state: &mut State, app: &mut AppState<State>, visible: bool) {
         let mut anim = app
             .animation_bank
             .animations
@@ -416,6 +423,7 @@ impl<State> Drawable<State, AppState<State>> for View<State> {
                 .or_default()
                 .extend(
                     self.gesture_handlers
+                        .clone()
                         .drain(..)
                         .map(|handler| (id, animated_area, handler)),
                 );

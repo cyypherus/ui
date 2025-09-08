@@ -70,7 +70,7 @@ impl<State> Toggle<State> {
         self.knob_fill = fill;
         self
     }
-    pub fn finish<'n>(self) -> Node<'n, State, AppState<State>>
+    pub fn finish(self) -> Node<State, AppState<State>>
     where
         State: 'static,
     {
@@ -106,14 +106,17 @@ impl<State> Toggle<State> {
                     .pad(height * 0.2)
                     .height(height)
                     .width(height)
-                    .offset_x({
-                        let button_padding = height - (height * 0.5);
-                        if self.state.get(state).on {
-                            (width * 0.5) - button_padding
-                        } else {
-                            (-width * 0.5) + button_padding
-                        }
-                    }),
+                    .offset(
+                        {
+                            let button_padding = height - (height * 0.5);
+                            if self.state.get(state).on {
+                                (width * 0.5) - button_padding
+                            } else {
+                                (-width * 0.5) + button_padding
+                            }
+                        },
+                        0.,
+                    ),
                 rect(crate::id!(self.id))
                     .fill(TRANSPARENT)
                     .view()
