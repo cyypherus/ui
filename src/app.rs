@@ -215,10 +215,8 @@ pub(crate) struct EditorSetup {
 
 pub(crate) struct EditState {
     pub(crate) id: u64,
-    pub(crate) area: Area,
     pub(crate) editor: Editor,
     pub(crate) editing: bool,
-    // pub(crate) binding: Binding<State, TextState>,
     pub(crate) cursor_color: Color,
     pub(crate) highlight_color: Color,
 }
@@ -227,10 +225,8 @@ impl Clone for EditState {
     fn clone(&self) -> Self {
         EditState {
             id: self.id,
-            area: self.area,
             editor: self.editor.clone(),
             editing: self.editing,
-            // binding: self.binding.clone(),
             cursor_color: self.cursor_color,
             highlight_color: self.highlight_color,
         }
@@ -309,7 +305,6 @@ impl<State> AppState<State> {
             }
             self.editor = Some(EditState {
                 id: *id,
-                area: *area,
                 editor,
                 editing: true,
                 cursor_color: *cursor_fill,
@@ -834,7 +829,9 @@ impl<State: 'static> App<'_, State> {
                 },
             ..
         } = self;
-        if let Some(EditState { editor, area, .. }) = editor.as_mut() {
+        if let Some(EditState { id, editor, .. }) = editor.as_mut()
+            && let Some(area) = self.app_state.editor_areas.get(id)
+        {
             needs_redraw = true;
 
             editor.mouse_moved(
@@ -983,12 +980,14 @@ impl<State: 'static> App<'_, State> {
             }
             // Once all click handlers are run, text fields will have set up an editor if they have been clicked, so we can send the mouse press to the editor
             if let AppState {
-                editor: Some(EditState { editor, area, .. }),
+                editor: Some(EditState { id, editor, .. }),
                 font_cx,
                 layout_cx,
+                editor_areas,
                 ..
             } = &mut self.app_state
-                && area_contains_padded(area, point, 10.)
+                && let Some(area) = editor_areas.get(id).cloned()
+                && area_contains_padded(&area, point, 10.)
             {
                 editor.mouse_pressed(layout_cx, font_cx);
             }
@@ -1000,23 +999,9 @@ impl<State: 'static> App<'_, State> {
     }
     pub(crate) fn mouse_released(&mut self) {
         let mut needs_redraw = false;
-        // if end_editing {
-        //     self.editor = None;
-        //     for handler in self.gesture_handlers.clone().unwrap().iter() {
-        //         if let Some(ref interaction_handler) = handler.2.interaction_handler {
-        //             if handler.2.interaction_type.edit {
-        //                 needs_redraw = true;
-        //                 self.with_ui(|ui| {
-        //                     (interaction_handler)(ui, Interaction::Edit(EditInteraction::End));
-        //                 });
-        //             }
-        //         }
-        //     }
-        // }
         if let Some(current) = self.app_state.cursor_position {
-            if let Some(EditState {
-                id, editor, area, ..
-            }) = self.app_state.editor.as_mut()
+            if let Some(EditState { id, editor, .. }) = self.app_state.editor.as_mut()
+                && let Some(area) = self.app_state.editor_areas.get(id)
             {
                 editor.mouse_released();
                 needs_redraw = true;

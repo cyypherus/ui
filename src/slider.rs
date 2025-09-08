@@ -1,6 +1,6 @@
 use crate::{
     Binding, Color, DEFAULT_DARK_GRAY, DEFAULT_FG, DEFAULT_GRAY, DEFAULT_PURP, TRANSPARENT,
-    app::AppState, id, rect,
+    app::AppState, circle, id, rect,
 };
 use backer::{
     Node,
@@ -104,7 +104,7 @@ impl<State> Slider<State> {
                     .height(height)
                     .width(slider_width)
                     .offset((-width * 0.5) + (slider_width * 0.5), 0.),
-                rect(id!(self.id))
+                circle(id!(self.id))
                     .fill(
                         match (
                             self.state.get(state).dragging,
@@ -115,9 +115,8 @@ impl<State> Slider<State> {
                             (false, false) => self.knob_fill,
                         },
                     )
-                    .corner_rounding(height)
                     .finish()
-                    .pad(height * 0.2)
+                    .pad(height * 0.1)
                     .height(if self.state.get(state).dragging {
                         height * 1.1
                     } else {

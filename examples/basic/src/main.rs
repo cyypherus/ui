@@ -42,9 +42,9 @@ fn main() {
                         .wrap()
                         .finish(),
                         text_field(id!(), binding!(State, text_a)).wrap().finish(),
-                        text_field(id!(), binding!(State, text_b)).wrap().finish(),
-                        toggle(id!(), binding!(State, toggle)).finish().height(50.),
-                        slider(id!(), binding!(State, slider)).finish().height(50.),
+                        text_field(id!(), binding!(State, text_b)).font_size(14).align(parley::Alignment::Left).wrap().finish(),
+                        toggle(id!(), binding!(State, toggle)).finish().height(40.),
+                        slider(id!(), binding!(State, slider)).finish().height(40.),
                         dropdown(id!(), binding!(State, dropdown), vec![
                             text(id!(), "Luminescent Moss"),
                             text(id!(), "Crystal Mycelium"),
@@ -53,7 +53,7 @@ fn main() {
                             text(id!(), "Cerebral Forests"),
                             text(id!(), "Glass Marrow"),
                         ]).finish().height(20.),
-                        button(id!(), binding!(State, button)).finish().height(50.),
+                        button(id!(), binding!(State, button)).text_label("Engage thrusters").finish().height(50.),
                     ],
                 )
                 .pad(20.)

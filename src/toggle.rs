@@ -1,5 +1,5 @@
 use crate::{Binding, ClickState, app::AppState, id, rect};
-use crate::{Color, DEFAULT_FG, DEFAULT_GRAY, DEFAULT_LIGHT_GRAY, TRANSPARENT};
+use crate::{Color, DEFAULT_FG, DEFAULT_GRAY, DEFAULT_LIGHT_GRAY, TRANSPARENT, circle};
 use backer::{
     Node,
     nodes::{area_reader, stack},
@@ -89,7 +89,8 @@ impl<State> Toggle<State> {
                     .finish()
                     .height(height)
                     .width(width),
-                rect(id!(self.id))
+                circle(id!(self.id))
+                    // rect(id!(self.id))
                     .fill(
                         match (
                             self.state.get(state).depressed,
@@ -100,10 +101,8 @@ impl<State> Toggle<State> {
                             (false, false) => self.knob_fill,
                         },
                     )
-                    .corner_rounding(height)
-                    // .box_shadow(Color::from_rgba8(0, 0, 0, 100), 5.)
                     .finish()
-                    .pad(height * 0.2)
+                    .pad(height * 0.1)
                     .height(height)
                     .width(height)
                     .offset(
