@@ -1,6 +1,3 @@
-use std::fmt::Debug;
-use std::rc::Rc;
-
 use crate::app::{AppState, DrawItem, EditState, EditorSetup};
 use crate::rect::Rect;
 use crate::shape::{Shape, ShapeType};
@@ -14,6 +11,8 @@ use backer::models::Area;
 use backer::nodes::*;
 use lilt::Easing;
 use parley::{Alignment, FontWeight};
+use std::fmt::Debug;
+use std::rc::Rc;
 use vello_svg::vello::kurbo::Affine;
 use vello_svg::vello::peniko::Color;
 use vello_svg::vello::peniko::color::palette::css::TRANSPARENT;
@@ -303,10 +302,10 @@ impl<State> TextField<State> {
 
                     if let Some(cursor) = if is_empty {
                         Some(vello_svg::vello::kurbo::Rect::new(
-                            (area.x) as f64 - half_cursor_width,
-                            (area.y) as f64,
-                            (area.x) as f64 - half_cursor_width,
-                            (area.y + area.height) as f64,
+                            -half_cursor_width,
+                            0.,
+                            half_cursor_width,
+                            area.height as f64,
                         ))
                     } else {
                         cursor
