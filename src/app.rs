@@ -368,7 +368,7 @@ impl<State: 'static> App<'_, State> {
         keys.sort();
         keys.into_iter()
             .filter_map(move |key| handlers.remove(key))
-            .flat_map(|vec| vec.into_iter().rev())
+            .flat_map(|vec| vec.into_iter())
             .collect()
     }
 

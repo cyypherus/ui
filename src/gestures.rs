@@ -1,7 +1,10 @@
 use backer::models::Area;
 
 use crate::{Key, Point};
-use std::rc::Rc;
+use std::{
+    fmt::{self, Debug, Formatter},
+    rc::Rc,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub enum GestureState {
@@ -100,6 +103,14 @@ pub(crate) type InteractionHandler<T, U> = Rc<dyn Fn(&mut T, &mut U, Interaction
 pub struct GestureHandler<T, U> {
     pub(crate) interaction_type: InteractionType,
     pub(crate) interaction_handler: Option<InteractionHandler<T, U>>,
+}
+
+impl<T, U> Debug for GestureHandler<T, U> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GestureHandler")
+            .field("interaction_type", &self.interaction_type)
+            .finish()
+    }
 }
 
 impl<T, U> Default for GestureHandler<T, U> {

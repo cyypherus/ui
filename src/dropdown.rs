@@ -183,6 +183,7 @@ impl<State> DropDown<State> {
                             rect(crate::id!(index as u64, self.id))
                                 .fill(TRANSPARENT)
                                 .view()
+                                .z_index(1)
                                 .on_click({
                                     let binding = binding.clone();
                                     let on_select = on_select.clone();
