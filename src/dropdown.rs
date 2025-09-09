@@ -34,6 +34,7 @@ pub struct DropDown<State> {
     corner_rounding: Option<f32>,
     state: Binding<State, DropdownState>,
     fill: Option<Color>,
+    stroke: Option<(Color, f32)>,
     text_fill: Option<Color>,
     highlight_fill: Option<Color>,
     options: Vec<Text>,
@@ -50,6 +51,7 @@ pub fn dropdown<State>(
         corner_rounding: None,
         state: binding,
         fill: None,
+        stroke: None,
         text_fill: None,
         highlight_fill: None,
         options,
@@ -65,6 +67,11 @@ impl<State> DropDown<State> {
 
     pub fn fill(mut self, color: Color) -> Self {
         self.fill = Some(color);
+        self
+    }
+
+    pub fn stroke(mut self, color: Color, line_width: f32) -> Self {
+        self.stroke = Some((color, line_width));
         self
     }
 
@@ -220,6 +227,10 @@ impl<State> DropDown<State> {
             .attach_under(
                 rect(crate::id!(self.id))
                     .fill(self.fill.unwrap_or(DEFAULT_DARK_GRAY))
+                    .stroke(
+                        self.stroke.map(|s| s.0).unwrap_or(TRANSPARENT),
+                        self.stroke.map(|s| s.1).unwrap_or(0.),
+                    )
                     .corner_rounding(self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
                     .view()
                     .z_index(1)

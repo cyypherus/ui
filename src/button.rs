@@ -28,6 +28,7 @@ pub struct Button<State> {
     on_click: Option<Rc<dyn Fn(&mut State, &mut AppState<State>)>>,
     state: Binding<State, ButtonState>,
     fill: Option<Color>,
+    stroke: Option<(Color, f32)>,
     text_fill: Option<Color>,
 }
 
@@ -41,6 +42,7 @@ pub fn button<State>(id: u64, binding: Binding<State, ButtonState>) -> Button<St
         on_click: None,
         state: binding,
         fill: None,
+        stroke: None,
         text_fill: None,
     }
 }
@@ -79,6 +81,10 @@ impl<State> Button<State> {
         self.fill = Some(color);
         self
     }
+    pub fn stroke(mut self, color: Color, line_width: f32) -> Self {
+        self.stroke = Some((color, line_width));
+        self
+    }
     pub fn idle_text_fill(mut self, color: Color) -> Self {
         self.text_fill = Some(color);
         self
@@ -107,6 +113,10 @@ impl<State> Button<State> {
                                 }
                                 (false, false) => self.fill.unwrap_or(DEFAULT_PURP),
                             },
+                        )
+                        .stroke(
+                            self.stroke.map(|s| s.0).unwrap_or(TRANSPARENT),
+                            self.stroke.map(|s| s.1).unwrap_or(0.),
                         )
                         .corner_rounding(self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
                         .view()
