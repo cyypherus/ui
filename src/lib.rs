@@ -30,7 +30,7 @@ pub use circle::circle;
 pub use dropdown::*;
 pub use editor::*;
 pub use gestures::{ClickState, DragState, EditInteraction, GestureHandler, GestureState};
-pub use image::{image, image_from_bytes, image_from_path};
+pub use image::{ImageSource, image, image_from_bytes, image_from_path};
 pub use parley::{Alignment, FontWeight};
 pub use rect::rect;
 pub use scroller::*;

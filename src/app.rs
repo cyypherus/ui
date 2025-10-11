@@ -23,7 +23,7 @@ use vello_svg::vello::util::{RenderContext, RenderSurface};
 use vello_svg::vello::{Renderer, RendererOptions, Scene};
 use winit::event::{Modifiers, MouseScrollDelta};
 use winit::event_loop::ActiveEventLoop;
-use winit::window::Icon;
+use winit::window::{Fullscreen, Icon};
 use winit::{application::ApplicationHandler, event_loop::EventLoop, window::Window};
 use winit::{dpi::LogicalSize, event::MouseButton};
 
@@ -165,7 +165,7 @@ pub(crate) struct RenderState<'surface> {
 
 type TextLayoutCache = HashMap<u64, Vec<(String, f32, parley::Layout<Brush>)>>;
 pub struct AppState<State> {
-    pub(crate) cursor_position: Option<Point>,
+    pub cursor_position: Option<Point>,
     pub(crate) gesture_state: GestureState,
     pub gesture_handlers: HashMap<i32, Vec<(u64, Area, GestureHandler<State, Self>)>>,
     pub(crate) runtime: Runtime,
@@ -187,8 +187,9 @@ pub struct AppState<State> {
     pub(crate) now: Instant,
     pub(crate) appeared_views: std::collections::HashSet<u64>,
     pub(crate) resizing: bool,
-    pub(crate) redraw: Sender<()>,
     pub(crate) draw_list: HashMap<i32, Vec<DrawItem<State>>>,
+    pub(crate) redraw: Sender<()>,
+    pub(crate) fullscreen_requested: bool,
 }
 
 pub(crate) struct DrawItem<State> {
@@ -238,6 +239,14 @@ impl<State> AppState<State> {
         if self.editor.is_some() {
             self.editor = None;
         }
+    }
+
+    pub fn set_fullscreen(&mut self) {
+        self.fullscreen_requested = true;
+    }
+
+    pub fn exit_fullscreen(&mut self) {
+        self.fullscreen_requested = false;
     }
 
     pub(crate) fn begin_editing_if_needed(&mut self) {
@@ -456,8 +465,9 @@ impl<State: 'static> App<'_, State> {
                 now: Instant::now(),
                 appeared_views: std::collections::HashSet::new(),
                 resizing: false,
-                redraw: redraw_sender,
                 draw_list: HashMap::new(),
+                redraw: redraw_sender,
+                fullscreen_requested: false,
             },
             on_frame,
             on_start,
@@ -659,6 +669,7 @@ impl<State: 'static> ApplicationHandler<AppEvent> for App<'_, State> {
             }
         }
     }
+
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         let Option::None = self.render_state else {
             return;
@@ -1084,7 +1095,21 @@ impl<State: 'static> App<'_, State> {
         if needs_redraw {
             self.request_redraw();
         }
+
+        if self.app_state.fullscreen_requested
+            && let Some(render_state) = &self.render_state
+            && render_state.window.fullscreen() != Some(Fullscreen::Borderless(None))
+        {
+            render_state
+                .window
+                .set_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
+        } else if let Some(render_state) = &self.render_state
+            && render_state.window.fullscreen().is_some()
+        {
+            render_state.window.set_fullscreen(None);
+        }
     }
+
     pub(crate) fn scrolled(&mut self, delta: MouseScrollDelta) {
         let mut needs_redraw = false;
         if let Some(current) = self.app_state.cursor_position

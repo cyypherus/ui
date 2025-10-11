@@ -20,6 +20,10 @@ path = "examples/scroller/src/main.rs"
 name = "image"
 path = "examples/image/src/main.rs"
 
+[[example]]
+name = "cursor_test"
+path = "examples/cursor_test/src/main.rs"
+
 [dependencies]
 backer = { git = "https://github.com/cyypherus/backer", branch = "mvp" }
 # backer = { path = "../backer" }
@@ -33,6 +37,7 @@ image = { version = "0.25", default-features = false, features = [
 lilt = "0.8.1"
 parley = "0.5.0"
 pollster = "0.4.0"
+
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 vello_svg = { version = "0.7.1", features = ["wgpu"] }

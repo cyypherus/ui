@@ -3,6 +3,7 @@ use crate::app::AppState;
 use crate::view::{View, ViewType};
 use backer::Node;
 use backer::models::Area;
+use image::{DynamicImage, ImageBuffer, Rgba};
 use lilt::Easing;
 use std::sync::Arc;
 use vello_svg::vello::kurbo::{Affine, Point, RoundedRect, Size, Vec2};
@@ -25,6 +26,7 @@ pub struct Image {
 pub enum ImageSource {
     Path(String),
     Bytes(Arc<Vec<u8>>),
+    Buffer(u32, u32, Arc<Vec<u8>>),
 }
 
 pub fn image(id: u64, source: impl Into<ImageSource>) -> Image {
@@ -185,12 +187,39 @@ impl Image {
     }
 
     fn load_image(&self) -> Result<peniko::Image, Box<dyn std::error::Error>> {
-        let image_data = match &self.source {
-            ImageSource::Path(path) => std::fs::read(path)?,
-            ImageSource::Bytes(bytes) => bytes.as_ref().clone(),
+        #[derive(Debug)]
+        pub enum ImageError {
+            InvalidBuffer(String),
+        }
+
+        impl std::fmt::Display for ImageError {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match self {
+                    ImageError::InvalidBuffer(msg) => write!(f, "Invalid image buffer: {}", msg),
+                }
+            }
+        }
+
+        impl std::error::Error for ImageError {}
+
+        let img = match &self.source {
+            ImageSource::Path(path) => image::load_from_memory(&std::fs::read(path)?)?,
+            ImageSource::Bytes(bytes) => image::load_from_memory(&bytes.as_ref().clone())?,
+            ImageSource::Buffer(width, height, container) => DynamicImage::ImageRgba8(
+                ImageBuffer::<Rgba<u8>, Vec<u8>>::from_raw(
+                    *width,
+                    *height,
+                    container.as_ref().clone(),
+                )
+                .ok_or_else(|| {
+                    ImageError::InvalidBuffer(format!(
+                        "Buffer size mismatch for {}x{} image",
+                        width, height
+                    ))
+                })?,
+            ),
         };
 
-        let img = image::load_from_memory(&image_data)?;
         let rgba_img = img.to_rgba8();
         let (width, height) = rgba_img.dimensions();
 
