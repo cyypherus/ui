@@ -1,11 +1,12 @@
+use crate::app::DrawItem;
 use crate::{
     Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, DEFAULT_PURP, app::AppState,
     rect, text,
 };
 use crate::{Color, DEFAULT_FG};
 use backer::{
-    Node,
-    nodes::{column, dynamic, row, stack},
+    Layout,
+    nodes::{column, row, stack},
 };
 use vello_svg::vello::peniko::color::palette::css::TRANSPARENT;
 
@@ -147,7 +148,7 @@ where
         self
     }
 
-    pub fn finish(self) -> Node<State, AppState<State>>
+    pub fn finish(self) -> Layout<DrawItem<State>>
     where
         State: 'static,
         T: 'static,

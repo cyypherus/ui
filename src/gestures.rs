@@ -1,4 +1,4 @@
-use backer::models::Area;
+use backer::Area;
 
 use crate::{Key, Point};
 use std::{

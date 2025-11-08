@@ -1,8 +1,10 @@
 use crate::DEFAULT_CORNER_ROUNDING;
+use crate::app::DrawItem;
+
 use crate::app::AppState;
 use crate::view::{View, ViewType};
-use backer::Node;
-use backer::models::Area;
+
+use backer::{Layout, Area};
 use image::{DynamicImage, ImageBuffer, Rgba};
 use lilt::Easing;
 use std::sync::Arc;
@@ -94,7 +96,7 @@ impl Image {
         }
     }
 
-    pub fn finish<State: 'static>(self) -> Node<State, AppState<State>> {
+    pub fn finish<State: 'static>(self) -> Layout<DrawItem<State>> {
         self.view().finish()
     }
 }

@@ -1,9 +1,10 @@
 use crate::{
     Binding, Color, DEFAULT_DARK_GRAY, DEFAULT_FG, DEFAULT_GRAY, DEFAULT_PURP, TRANSPARENT,
-    app::AppState, circle, id, rect,
+    app::{AppState, DrawItem},
+    circle, id, rect,
 };
 use backer::{
-    Node,
+    Layout,
     nodes::{area_reader, stack},
 };
 
@@ -72,7 +73,7 @@ impl<State> Slider<State> {
         self
     }
 
-    pub fn finish(self) -> Node<State, AppState<State>>
+    pub fn finish(self) -> Layout<DrawItem<State>>
     where
         State: 'static,
     {

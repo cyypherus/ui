@@ -1,14 +1,16 @@
 use crate::animated_color::{AnimatedColor, AnimatedU8};
-use crate::app::AppState;
+use crate::app::{AppState, DrawItem};
 use crate::draw_layout::draw_layout;
 use crate::{
     DEFAULT_DURATION, DEFAULT_EASING,
     view::{AnimatedView, View, ViewType},
 };
 use crate::{DEFAULT_FG, DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE};
-use backer::{Node, models::*};
+use backer::{Area, Layout};
 use lilt::{Animated, Easing};
-use parley::{Alignment, AlignmentOptions, FontStack, FontWeight, Layout, LineHeight, TextStyle};
+use parley::{
+    Alignment, AlignmentOptions, FontStack, FontWeight, Layout as TextLayout, LineHeight, TextStyle,
+};
 use std::fmt::Debug;
 use std::time::Instant;
 use vello_svg::vello::peniko::Brush;
@@ -122,7 +124,7 @@ impl Text {
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<State>(self) -> Node<State, AppState<State>>
+    pub fn finish<State>(self) -> Layout<DrawItem<State>>
     where
         State: 'static,
     {
@@ -225,7 +227,7 @@ impl Text {
         cache: bool,
         _state: &mut State,
         app: &mut AppState<State>,
-    ) -> Layout<Brush> {
+    ) -> TextLayout<Brush> {
         let text = self.string.clone();
         let current_text = if text.is_empty() {
             " ".to_string()
@@ -288,8 +290,8 @@ impl Text {
         self,
         state: &mut State,
         app: &mut AppState<State>,
-        node: Node<State, AppState<State>>,
-    ) -> Node<State, AppState<State>>
+        node: Layout<DrawItem<State>>,
+    ) -> Layout<DrawItem<State>>
     where
         State: 'static,
     {

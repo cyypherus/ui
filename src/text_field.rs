@@ -6,9 +6,7 @@ use crate::{
     Binding, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE,
     DEFAULT_PADDING, DEFAULT_PURP, EditInteraction, Key, Text, rect,
 };
-use backer::Node;
-use backer::models::Area;
-use backer::nodes::*;
+use backer::{Area, Layout, nodes::*};
 use lilt::Easing;
 use parley::{Alignment, FontWeight};
 use std::fmt::Debug;
@@ -213,7 +211,7 @@ impl<State> TextField<State> {
 }
 
 impl<State> TextField<State> {
-    pub fn finish(self) -> Node<State, AppState<State>>
+    pub fn finish(self) -> Layout<DrawItem<State>>
     where
         State: 'static,
     {

@@ -1,9 +1,10 @@
 use crate::Color;
+use crate::app::DrawItem;
+
 use crate::app::AppState;
 use crate::shape::{AnimatedShape, Shape, ShapeType};
 use crate::view::{AnimatedView, View, ViewType};
-use backer::Node;
-use backer::models::Area;
+use backer::{Layout, Area};
 use std::time::Instant;
 
 #[derive(Debug, Clone, Copy)]
@@ -84,7 +85,7 @@ impl Rect {
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<State: 'static>(self) -> Node<State, AppState<State>> {
+    pub fn finish<State: 'static>(self) -> Layout<DrawItem<State>> {
         self.view().finish()
     }
 }

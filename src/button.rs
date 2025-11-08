@@ -1,12 +1,10 @@
 use crate::{
-    Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, DEFAULT_PURP, app::AppState,
+    Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, DEFAULT_PURP,
+    app::{AppState, DrawItem},
     rect,
 };
 use crate::{Color, DEFAULT_FG};
-use backer::{
-    Node,
-    nodes::{dynamic, stack},
-};
+use backer::{Layout, nodes::stack};
 use std::rc::Rc;
 use vello_svg::vello::peniko::color::palette::css::TRANSPARENT;
 
@@ -16,8 +14,8 @@ pub struct ButtonState {
     pub depressed: bool,
 }
 
-type BodyFn<State> = fn(&mut State, ButtonState) -> Node<State, AppState<State>>;
-type LabelFn<State> = Box<dyn Fn(&mut State, ButtonState) -> Node<State, AppState<State>>>;
+type BodyFn<State> = fn(&mut State, ButtonState) -> Layout<DrawItem<State>>;
+type LabelFn<State> = Box<dyn Fn(&mut State, ButtonState) -> Layout<DrawItem<State>>>;
 
 pub struct Button<State> {
     id: u64,
@@ -48,16 +46,13 @@ pub fn button<State>(id: u64, binding: Binding<State, ButtonState>) -> Button<St
 }
 
 impl<State> Button<State> {
-    pub fn surface(
-        mut self,
-        body: fn(&mut State, ButtonState) -> Node<State, AppState<State>>,
-    ) -> Self {
+    pub fn surface(mut self, body: fn(&mut State, ButtonState) -> Layout<DrawItem<State>>) -> Self {
         self.body = Some(body);
         self
     }
     pub fn label(
         mut self,
-        label: impl Fn(&mut State, ButtonState) -> Node<State, AppState<State>> + 'static,
+        label: impl Fn(&mut State, ButtonState) -> Layout<DrawItem<State>> + 'static,
     ) -> Self {
         self.label = Some(Box::new(label));
         self
@@ -89,7 +84,7 @@ impl<State> Button<State> {
         self.text_fill = Some(color);
         self
     }
-    pub fn finish(self) -> Node<State, AppState<State>>
+    pub fn finish(self) -> Layout<DrawItem<State>>
     where
         State: 'static,
     {

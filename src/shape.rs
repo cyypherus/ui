@@ -1,6 +1,6 @@
 use crate::animated_color::{AnimatedColor, AnimatedU8};
 use crate::{DEFAULT_DURATION, DEFAULT_EASING};
-use backer::models::Area;
+use backer::Area;
 use lilt::{Animated, Easing};
 use std::time::Instant;
 use vello_svg::vello::Scene;

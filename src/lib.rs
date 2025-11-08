@@ -24,7 +24,7 @@ mod ui;
 mod view;
 
 pub use app::{App, AppBuilder, AppState, RedrawTrigger};
-pub use backer::{Layout, Node, nodes::*};
+pub use backer::{Layout, Area, nodes::*};
 pub use button::*;
 pub use circle::circle;
 pub use dropdown::*;

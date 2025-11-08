@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
+use crate::app::DrawItem;
 use crate::{Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_PURP, app::AppState, rect};
 use crate::{ButtonState, Color, DEFAULT_DARK_GRAY, DEFAULT_FG_COLOR, TRANSPARENT, Text, svg};
-use backer::models::Align;
-use backer::{Node, nodes::*};
+use backer::{Align, Layout, nodes::*};
 
 #[derive(Debug, Clone, Default)]
 pub struct DropdownState {
@@ -93,7 +93,7 @@ impl<State> DropDown<State> {
         self
     }
 
-    pub fn finish(self) -> Node<State, AppState<State>>
+    pub fn finish(self) -> Layout<DrawItem<State>>
     where
         State: 'static,
     {

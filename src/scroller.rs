@@ -1,7 +1,10 @@
-use crate::{Binding, DEFAULT_CORNER_ROUNDING, app::AppState, rect};
+use crate::{
+    Binding, DEFAULT_CORNER_ROUNDING,
+    app::{AppState, DrawItem},
+    rect,
+};
 use backer::{
-    Node,
-    models::Area,
+    Area, Layout,
     nodes::{area_reader, column, empty, stack},
 };
 use vello_svg::vello::peniko::color::palette::css::TRANSPARENT;
@@ -142,17 +145,17 @@ impl ScrollerState {
 
 pub fn scroller<'n, State: 'static, CellFn>(
     id: u64,
-    backing: Option<Node<State, AppState<State>>>,
+    backing: Option<Layout<DrawItem<State>>>,
     scroller: Binding<State, ScrollerState>,
     cell: CellFn,
-) -> Node<State, AppState<State>>
+) -> Layout<DrawItem<State>>
 where
     CellFn: for<'x> Fn(
             &'x mut State,
             &'x mut AppState<State>,
             usize,
             u64,
-        ) -> Option<Node<State, AppState<State>>>
+        ) -> Option<Layout<DrawItem<State>>>
         + Copy
         + 'static,
 {

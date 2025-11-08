@@ -7,12 +7,9 @@ use crate::svg::Svg;
 use crate::text::{AnimatedText, Text};
 use crate::ui::AnimArea;
 use crate::{ClickState, DragState, GestureHandler, Key};
-use backer::nodes::{draw, dynamic, intermediate};
-// use backer::nodes::{draw_object, dynamic, intermediate};
-// use backer::traits::Drawable;
-use backer::{Node, models::Area};
+
+use backer::{Area, Layout, nodes};
 use lilt::{Animated, Easing};
-use parley::Layout;
 use std::rc::Rc;
 use vello_svg::vello::kurbo::{Affine, BezPath};
 use vello_svg::vello::peniko::Brush;
@@ -66,24 +63,15 @@ macro_rules! binding {
     };
 }
 
-pub fn clipping<'a, State: 'a>(
+pub fn clipping<State: 'static>(
     path: fn(Area) -> BezPath,
-    node: Node<State, AppState<State>>,
-) -> Node<State, AppState<State>> {
-    intermediate(
-        move |available_area: Area, _state: &mut State, app: &mut AppState<State>| {
-            app.draw_list
-                .entry(0)
-                .or_default()
-                .push(DrawItem::PushClip {
-                    path: path(available_area),
-                });
-        },
-        move |_state: &mut State, app: &mut AppState<State>| {
-            app.draw_list.entry(0).or_default().push(DrawItem::PopClip);
-        },
-        node,
-    )
+    content: Layout<DrawItem<State>>,
+) -> Layout<DrawItem<State>> {
+    nodes::stack(vec![
+        nodes::draw(move |area| DrawItem::PushClip { path: path(area) }),
+        content,
+        nodes::draw(|_area| DrawItem::PopClip),
+    ])
 }
 
 pub struct View<State> {
@@ -334,7 +322,7 @@ impl<State> View<State> {
 }
 
 impl<State> View<State> {
-    pub fn finish(self) -> Node<State, AppState<State>>
+    pub fn finish(self) -> Layout<DrawItem<State>>
     where
         State: 'static,
     {

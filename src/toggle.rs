@@ -1,7 +1,8 @@
+use crate::app::DrawItem;
 use crate::{Binding, ClickState, app::AppState, id, rect};
 use crate::{Color, DEFAULT_FG, DEFAULT_GRAY, DEFAULT_LIGHT_GRAY, TRANSPARENT, circle};
 use backer::{
-    Node,
+    Layout,
     nodes::{area_reader, stack},
 };
 
@@ -70,7 +71,7 @@ impl<State> Toggle<State> {
         self.knob_fill = fill;
         self
     }
-    pub fn finish(self) -> Node<State, AppState<State>>
+    pub fn finish(self) -> Layout<DrawItem<State>>
     where
         State: 'static,
     {
