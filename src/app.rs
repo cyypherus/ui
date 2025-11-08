@@ -18,7 +18,8 @@ use tokio::runtime::Runtime;
 use tokio::sync::mpsc::Sender;
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
-use vello_svg::vello::peniko::{Brush, Color};
+use vello_svg::vello::kurbo::{Affine, BezPath};
+use vello_svg::vello::peniko::{Brush, Color, Mix};
 use vello_svg::vello::util::{RenderContext, RenderSurface};
 use vello_svg::vello::{Renderer, RendererOptions, Scene};
 use winit::event::{Modifiers, MouseScrollDelta};
@@ -192,11 +193,17 @@ pub struct AppState<State> {
     pub(crate) fullscreen_requested: bool,
 }
 
-pub(crate) struct DrawItem<State> {
-    pub(crate) view: View<State>,
-    pub(crate) area: Area,
-    pub(crate) visible: bool,
-    pub(crate) opacity: f32,
+pub(crate) enum DrawItem<State> {
+    Draw {
+        view: Box<View<State>>,
+        area: Area,
+        visible: bool,
+        opacity: f32,
+    },
+    PushClip {
+        path: BezPath,
+    },
+    PopClip,
 }
 
 pub(crate) struct EditorSetup {
@@ -538,47 +545,49 @@ impl<State: 'static> App<'_, State> {
             layers.sort();
             for layer in layers {
                 let list = self.app_state.draw_list.get_mut(&layer).unwrap();
-                for mut item in std::mem::take(list) {
-                    match &mut item.view.view_type {
-                        ViewType::Text(view) => view.draw(
-                            item.area,
-                            item.area,
-                            &mut self.state,
-                            &mut self.app_state,
-                            item.visible,
-                            item.opacity,
-                        ),
-                        ViewType::Layout(layout, transform) => {
-                            draw_layout(None, *transform, layout, &mut self.app_state.scene)
+                for item in std::mem::take(list) {
+                    match item {
+                        DrawItem::PushClip { path } => {
+                            self.app_state.scene.push_layer(
+                                Mix::Normal,
+                                1.,
+                                Affine::IDENTITY,
+                                &path,
+                            );
                         }
-                        ViewType::Rect(view) => view.draw(
-                            item.area,
-                            &mut self.state,
-                            &mut self.app_state,
-                            item.visible,
-                            item.opacity,
-                        ),
-                        ViewType::Svg(view) => view.draw(
-                            item.area,
-                            &mut self.state,
-                            &mut self.app_state,
-                            item.visible,
-                            item.opacity,
-                        ),
-                        ViewType::Circle(view) => view.draw(
-                            item.area,
-                            &mut self.state,
-                            &mut self.app_state,
-                            item.visible,
-                            item.opacity,
-                        ),
-                        ViewType::Image(view) => view.draw(
-                            item.area,
-                            &mut self.state,
-                            &mut self.app_state,
-                            item.visible,
-                            item.opacity,
-                        ),
+                        DrawItem::PopClip => {
+                            self.app_state.scene.pop_layer();
+                        }
+                        DrawItem::Draw {
+                            mut view,
+                            area,
+                            visible,
+                            opacity,
+                        } => match &mut view.view_type {
+                            ViewType::Text(v) => v.draw(
+                                area,
+                                area,
+                                &mut self.state,
+                                &mut self.app_state,
+                                visible,
+                                opacity,
+                            ),
+                            ViewType::Layout(layout, transform) => {
+                                draw_layout(None, *transform, layout, &mut self.app_state.scene)
+                            }
+                            ViewType::Rect(v) => {
+                                v.draw(area, &mut self.state, &mut self.app_state, visible, opacity)
+                            }
+                            ViewType::Svg(v) => {
+                                v.draw(area, &mut self.state, &mut self.app_state, visible, opacity)
+                            }
+                            ViewType::Circle(v) => {
+                                v.draw(area, &mut self.state, &mut self.app_state, visible, opacity)
+                            }
+                            ViewType::Image(v) => {
+                                v.draw(area, &mut self.state, &mut self.app_state, visible, opacity)
+                            }
+                        },
                     }
                 }
             }

@@ -15,7 +15,7 @@ use lilt::{Animated, Easing};
 use parley::Layout;
 use std::rc::Rc;
 use vello_svg::vello::kurbo::{Affine, BezPath};
-use vello_svg::vello::peniko::{Brush, Mix};
+use vello_svg::vello::peniko::Brush;
 
 // A simple const FNV-1a hash for our purposes
 const FNV_OFFSET: u64 = 1469598103934665603;
@@ -72,11 +72,15 @@ pub fn clipping<'a, State: 'a>(
 ) -> Node<State, AppState<State>> {
     intermediate(
         move |available_area: Area, _state: &mut State, app: &mut AppState<State>| {
-            app.scene
-                .push_layer(Mix::Normal, 1., Affine::IDENTITY, &(path)(available_area));
+            app.draw_list
+                .entry(0)
+                .or_default()
+                .push(DrawItem::PushClip {
+                    path: path(available_area),
+                });
         },
         move |_state: &mut State, app: &mut AppState<State>| {
-            app.scene.pop_layer();
+            app.draw_list.entry(0).or_default().push(DrawItem::PopClip);
         },
         node,
     )
@@ -429,8 +433,8 @@ impl<State> View<State> {
             app.draw_list
                 .entry(self.z_index)
                 .or_default()
-                .push(DrawItem {
-                    view: self.clone(),
+                .push(DrawItem::Draw {
+                    view: Box::new(self.clone()),
                     area: if matches!(self.view_type, ViewType::Text(_)) {
                         Area::new(animated_area.x, animated_area.y, area.width, area.height)
                     } else {

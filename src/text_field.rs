@@ -271,8 +271,8 @@ impl<State> TextField<State> {
                     let transform = Affine::translate((area.x as f64, area.y as f64))
                         .then_scale(app.scale_factor);
                     for rect in selection_rects.clone() {
-                        app.draw_list.entry(0).or_default().push(DrawItem {
-                            view: View {
+                        app.draw_list.entry(0).or_default().push(DrawItem::Draw {
+                            view: Box::new(View {
                                 view_type: ViewType::Rect(Rect {
                                     id,
                                     shape: Shape {
@@ -288,7 +288,7 @@ impl<State> TextField<State> {
                                 }),
                                 z_index: 0,
                                 gesture_handlers: Vec::new(),
-                            },
+                            }),
                             area: Area {
                                 x: area.x + rect.x0 as f32,
                                 y: area.y + rect.y0 as f32,
@@ -311,8 +311,8 @@ impl<State> TextField<State> {
                         cursor
                     } {
                         let rounding = (cursor_width * 0.5) as f32;
-                        app.draw_list.entry(0).or_default().push(DrawItem {
-                            view: View {
+                        app.draw_list.entry(0).or_default().push(DrawItem::Draw {
+                            view: Box::new(View {
                                 view_type: ViewType::Rect(Rect {
                                     id,
                                     shape: Shape {
@@ -330,7 +330,7 @@ impl<State> TextField<State> {
                                 }),
                                 z_index: 0,
                                 gesture_handlers: Vec::new(),
-                            },
+                            }),
                             area: Area {
                                 x: area.x + cursor.x0 as f32,
                                 y: area.y + cursor.y0 as f32,
@@ -341,12 +341,12 @@ impl<State> TextField<State> {
                             opacity: 1.,
                         });
                     }
-                    app.draw_list.entry(0).or_default().push(DrawItem {
-                        view: View {
+                    app.draw_list.entry(0).or_default().push(DrawItem::Draw {
+                        view: Box::new(View {
                             view_type: ViewType::Layout(layout.clone(), transform),
                             z_index: 0,
                             gesture_handlers: Vec::new(),
-                        },
+                        }),
                         area: Area {
                             x: area.x,
                             y: area.y,
