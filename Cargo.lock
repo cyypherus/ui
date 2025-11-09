@@ -150,7 +150,6 @@ checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 [[package]]
 name = "backer"
 version = "0.11.1"
-source = "git+https://github.com/cyypherus/backer?branch=mvp#20bb360261a339f6e937b4c7b645b8fd0bbae124"
 
 [[package]]
 name = "backtrace"

@@ -1,5 +1,5 @@
 use crate::animated_color::{AnimatedColor, AnimatedU8};
-use crate::app::{AppState, DrawItem};
+use crate::app::{AppState, DrawItem, TextCacheState};
 use crate::draw_layout::draw_layout;
 use crate::{
     DEFAULT_DURATION, DEFAULT_EASING,
@@ -12,6 +12,7 @@ use parley::{
     Alignment, AlignmentOptions, FontStack, FontWeight, Layout as TextLayout, LineHeight, TextStyle,
 };
 use std::fmt::Debug;
+use std::rc::Rc;
 use std::time::Instant;
 use vello_svg::vello::peniko::Brush;
 use vello_svg::vello::{kurbo::Affine, peniko::Color};
@@ -124,11 +125,11 @@ impl Text {
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<State>(self) -> Layout<DrawItem<State>>
+    pub fn finish<State>(self, app: &mut AppState<State>) -> Layout<DrawItem<State>>
     where
         State: 'static,
     {
-        self.view().finish()
+        self.view().finish(app)
     }
 }
 
@@ -185,7 +186,6 @@ impl Text {
         &mut self,
         animated_area: Area,
         area: Area,
-        state: &mut State,
         app: &mut AppState<State>,
         visible: bool,
         visible_amount: f32,
@@ -210,7 +210,7 @@ impl Text {
         )
         .multiply_alpha(visible_amount);
 
-        let layout = self.current_layout(anim_fill, area.width, true, state, app);
+        let layout = self.current_layout(anim_fill, area.width, true, &app.text_cache);
 
         let transform = Affine::translate((animated_area.x as f64, animated_area.y as f64))
             .then_scale(app.scale_factor);
@@ -220,13 +220,12 @@ impl Text {
 }
 
 impl Text {
-    pub(crate) fn current_layout<State>(
+    pub(crate) fn current_layout(
         &self,
         current_fill: Color,
         available_width: f32,
         cache: bool,
-        _state: &mut State,
-        app: &mut AppState<State>,
+        text_cache: &Rc<TextCacheState>,
     ) -> TextLayout<Brush> {
         let text = self.string.clone();
         let current_text = if text.is_empty() {
@@ -234,17 +233,23 @@ impl Text {
         } else {
             text
         };
-        if !current_text.is_empty()
-            && let Some((_, _, layout)) = app.layout_cache.get(&self.id).and_then(|cached| {
-                cached
-                    .iter()
-                    .find(|(text, width, _)| *text == current_text && *width == available_width)
-            })
         {
-            layout.clone()
-        } else {
-            let mut builder = app.layout_cx.tree_builder(
-                &mut app.font_cx,
+            let layout_cache = text_cache.layout_cache.borrow();
+            if !current_text.is_empty()
+                && let Some((_, _, layout)) = layout_cache.get(&self.id).and_then(|cached| {
+                    cached
+                        .iter()
+                        .find(|(text, width, _)| *text == current_text && *width == available_width)
+                })
+            {
+                return layout.clone();
+            }
+        }
+        {
+            let mut font_cx = text_cache.font_cx.borrow_mut();
+            let mut layout_cx = text_cache.layout_cx.borrow_mut();
+            let mut builder = layout_cx.tree_builder(
+                &mut font_cx,
                 1.,
                 true,
                 &TextStyle {
@@ -273,7 +278,8 @@ impl Text {
                 },
             );
             if cache {
-                let entry = app.layout_cache.entry(self.id).or_insert(vec![(
+                let mut layout_cache = text_cache.layout_cache.borrow_mut();
+                let entry = layout_cache.entry(self.id).or_insert(vec![(
                     current_text.clone(),
                     available_width,
                     layout.clone(),
@@ -288,7 +294,6 @@ impl Text {
     }
     pub(crate) fn create_node<State>(
         self,
-        state: &mut State,
         app: &mut AppState<State>,
         node: Layout<DrawItem<State>>,
     ) -> Layout<DrawItem<State>>
@@ -296,12 +301,13 @@ impl Text {
         State: 'static,
     {
         if self.wrap {
-            node.dynamic_height(move |width, state, app| {
-                self.current_layout(DEFAULT_FG, width, false, state, app)
+            let text_cache = app.text_cache.clone();
+            node.dynamic_height(move |width| {
+                self.current_layout(DEFAULT_FG, width, false, &text_cache)
                     .height()
             })
         } else {
-            let layout = self.current_layout(DEFAULT_FG, 10000., false, state, app);
+            let layout = self.current_layout(DEFAULT_FG, 10000., false, &app.text_cache);
             node.height(layout.height()).width(layout.width().max(10.))
         }
     }

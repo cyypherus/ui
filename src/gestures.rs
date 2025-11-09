@@ -75,7 +75,6 @@ pub(crate) enum Interaction {
     Hover(bool),
     Key(Key),
     Scroll(ScrollDelta),
-    Appear,
 }
 
 #[derive(Debug, Clone)]
@@ -92,7 +91,6 @@ pub(crate) struct InteractionType {
     pub(crate) hover: bool,
     pub(crate) key: bool,
     pub(crate) scroll: bool,
-    pub(crate) appear: bool,
 }
 
 pub struct ScrollDelta {

@@ -3,7 +3,7 @@ use crate::app::DrawItem;
 
 use crate::view::{View, ViewType};
 
-use backer::{Layout, Area};
+use backer::{Area, Layout};
 use lilt::Easing;
 use vello_svg::vello::kurbo::{self, Affine, Vec2};
 use vello_svg::vello::peniko::{Color, Compose, Fill, Mix};
@@ -48,8 +48,8 @@ impl Svg {
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<State: 'static>(self) -> Layout<DrawItem<State>> {
-        self.view().finish()
+    pub fn finish<State: 'static>(self, app: &mut AppState<State>) -> Layout<DrawItem<State>> {
+        self.view().finish(app)
     }
 }
 

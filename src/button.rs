@@ -14,13 +14,10 @@ pub struct ButtonState {
     pub depressed: bool,
 }
 
-type BodyFn<State> = fn(&mut State, ButtonState) -> Layout<DrawItem<State>>;
-type LabelFn<State> = Box<dyn Fn(&mut State, ButtonState) -> Layout<DrawItem<State>>>;
-
 pub struct Button<State> {
     id: u64,
-    body: Option<BodyFn<State>>,
-    label: Option<LabelFn<State>>,
+    body: Option<Layout<DrawItem<State>>>,
+    label: Option<Layout<DrawItem<State>>>,
     text_label: Option<String>,
     corner_rounding: Option<f32>,
     on_click: Option<Rc<dyn Fn(&mut State, &mut AppState<State>)>>,
@@ -46,15 +43,12 @@ pub fn button<State>(id: u64, binding: Binding<State, ButtonState>) -> Button<St
 }
 
 impl<State> Button<State> {
-    pub fn surface(mut self, body: fn(&mut State, ButtonState) -> Layout<DrawItem<State>>) -> Self {
+    pub fn surface(mut self, body: Layout<DrawItem<State>>) -> Self {
         self.body = Some(body);
         self
     }
-    pub fn label(
-        mut self,
-        label: impl Fn(&mut State, ButtonState) -> Layout<DrawItem<State>> + 'static,
-    ) -> Self {
-        self.label = Some(Box::new(label));
+    pub fn label(mut self, label: Layout<DrawItem<State>>) -> Self {
+        self.label = Some(label);
         self
     }
     pub fn text_label(mut self, text_label: impl AsRef<str>) -> Self {
@@ -84,101 +78,82 @@ impl<State> Button<State> {
         self.text_fill = Some(color);
         self
     }
-    pub fn finish(self) -> Layout<DrawItem<State>>
+    pub fn finish(self, state: &State, app: &mut AppState<State>) -> Layout<DrawItem<State>>
     where
         State: 'static,
     {
-        dynamic(move |state: &mut State, _app: &mut AppState<State>| {
-            stack(vec![
-                if let Some(body) = self.body {
-                    let vs = self.state.get(state);
-                    body(state, vs)
-                } else {
-                    rect(crate::id!(self.id))
-                        .fill(
-                            match (
-                                self.state.get(state).depressed,
-                                self.state.get(state).hovered,
-                            ) {
-                                (true, _) => {
-                                    self.fill.unwrap_or(DEFAULT_PURP).map_lightness(|l| l - 0.1)
-                                }
-                                (false, true) => {
-                                    self.fill.unwrap_or(DEFAULT_PURP).map_lightness(|l| l + 0.1)
-                                }
-                                (false, false) => self.fill.unwrap_or(DEFAULT_PURP),
-                            },
-                        )
-                        .stroke(
-                            self.stroke.map(|s| s.0).unwrap_or(TRANSPARENT),
-                            self.stroke.map(|s| s.1).unwrap_or(0.),
-                        )
-                        .corner_rounding(self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
-                        .view()
-                        .finish()
-                },
-                if let Some(label) = &self.label {
-                    let vs = self.state.get(state);
-                    label(state, vs)
-                } else {
-                    crate::text(
-                        crate::id!(self.id),
-                        self.text_label.clone().unwrap_or_default(),
-                    )
-                    .fill(
-                        match (
-                            self.state.get(state).depressed,
-                            self.state.get(state).hovered,
-                        ) {
-                            (true, _) => self
-                                .text_fill
-                                .unwrap_or(DEFAULT_FG)
-                                .map_lightness(|l| l - 0.1),
-                            (false, true) => self
-                                .text_fill
-                                .unwrap_or(DEFAULT_FG)
-                                .map_lightness(|l| l + 0.1),
-                            (false, false) => self.text_fill.unwrap_or(DEFAULT_FG),
-                        },
-                    )
-                    .font_size(DEFAULT_FONT_SIZE)
-                    .view()
-                    // .transition_duration(0.)
-                    .finish()
-                },
-            ])
-            .attach_over(
+        let btn_state = self.state.get(state);
+        stack(vec![
+            if let Some(body) = self.body {
+                body
+            } else {
                 rect(crate::id!(self.id))
-                    .fill(TRANSPARENT)
-                    .view()
-                    .on_hover({
-                        let binding = self.state.clone();
-                        move |state, _app: &mut AppState<State>, h| {
-                            binding.update(state, |s| s.hovered = h)
+                    .fill(match (btn_state.depressed, btn_state.hovered) {
+                        (true, _) => self.fill.unwrap_or(DEFAULT_PURP).map_lightness(|l| l - 0.1),
+                        (false, true) => {
+                            self.fill.unwrap_or(DEFAULT_PURP).map_lightness(|l| l + 0.1)
                         }
+                        (false, false) => self.fill.unwrap_or(DEFAULT_PURP),
                     })
-                    .on_click({
-                        let binding = self.state.clone();
-                        let on_click = self.on_click.clone();
-                        move |state: &mut State, app: &mut AppState<State>, click_state, _| {
-                            match click_state {
-                                ClickState::Started => {
-                                    binding.update(state, |s| s.depressed = true)
+                    .stroke(
+                        self.stroke.map(|s| s.0).unwrap_or(TRANSPARENT),
+                        self.stroke.map(|s| s.1).unwrap_or(0.),
+                    )
+                    .corner_rounding(self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
+                    .view()
+                    .finish(app)
+            },
+            if let Some(label) = self.label {
+                label
+            } else {
+                crate::text(
+                    crate::id!(self.id),
+                    self.text_label.clone().unwrap_or_default(),
+                )
+                .fill(match (btn_state.depressed, btn_state.hovered) {
+                    (true, _) => self
+                        .text_fill
+                        .unwrap_or(DEFAULT_FG)
+                        .map_lightness(|l| l - 0.1),
+                    (false, true) => self
+                        .text_fill
+                        .unwrap_or(DEFAULT_FG)
+                        .map_lightness(|l| l + 0.1),
+                    (false, false) => self.text_fill.unwrap_or(DEFAULT_FG),
+                })
+                .font_size(DEFAULT_FONT_SIZE)
+                .view()
+                // .transition_duration(0.)
+                .finish(app)
+            },
+        ])
+        .attach_over(
+            rect(crate::id!(self.id))
+                .fill(TRANSPARENT)
+                .view()
+                .on_hover({
+                    let binding = self.state.clone();
+                    move |state, _app: &mut AppState<State>, h| {
+                        binding.update(state, |s| s.hovered = h)
+                    }
+                })
+                .on_click({
+                    let binding = self.state.clone();
+                    let on_click = self.on_click.clone();
+                    move |state: &mut State, app: &mut AppState<State>, click_state, _| {
+                        match click_state {
+                            ClickState::Started => binding.update(state, |s| s.depressed = true),
+                            ClickState::Cancelled => binding.update(state, |s| s.depressed = false),
+                            ClickState::Completed => {
+                                if let Some(f) = &on_click {
+                                    f(state, app);
                                 }
-                                ClickState::Cancelled => {
-                                    binding.update(state, |s| s.depressed = false)
-                                }
-                                ClickState::Completed => {
-                                    if let Some(f) = &on_click {
-                                        f(state, app);
-                                    }
-                                    binding.update(state, |s| s.depressed = false)
-                                }
+                                binding.update(state, |s| s.depressed = false)
                             }
                         }
-                    })
-                    .finish(),
-            )
-        })
+                    }
+                })
+                .finish(app),
+        )
     }
 }

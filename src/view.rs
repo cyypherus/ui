@@ -1,15 +1,15 @@
 use crate::app::{AppState, DrawItem};
 use crate::circle::{AnimatedCircle, Circle};
 use crate::gestures::{ClickLocation, Interaction, InteractionType, ScrollDelta};
-use crate::image::Image;
+// use crate::image::Image;
 use crate::rect::{AnimatedRect, Rect};
 use crate::svg::Svg;
 use crate::text::{AnimatedText, Text};
 use crate::ui::AnimArea;
 use crate::{ClickState, DragState, GestureHandler, Key};
-
-use backer::{Area, Layout, nodes};
+use backer::{Area, Layout, nodes::*};
 use lilt::{Animated, Easing};
+use parley::Layout as TextLayout;
 use std::rc::Rc;
 use vello_svg::vello::kurbo::{Affine, BezPath};
 use vello_svg::vello::peniko::Brush;
@@ -67,10 +67,10 @@ pub fn clipping<State: 'static>(
     path: fn(Area) -> BezPath,
     content: Layout<DrawItem<State>>,
 ) -> Layout<DrawItem<State>> {
-    nodes::stack(vec![
-        nodes::draw(move |area| DrawItem::PushClip { path: path(area) }),
+    stack(vec![
+        draw(move |area| DrawItem::PushClip { path: path(area) }),
         content,
-        nodes::draw(|_area| DrawItem::PopClip),
+        draw(|_area| DrawItem::PopClip),
     ])
 }
 
@@ -92,11 +92,11 @@ impl<State> Clone for View<State> {
 
 pub(crate) enum ViewType {
     Text(Text),
-    Layout(Layout<Brush>, Affine),
+    Layout(TextLayout<Brush>, Affine),
     Rect(Rect),
     Circle(Circle),
     Svg(Svg),
-    Image(Image),
+    // Image(Image),
 }
 
 impl Clone for ViewType {
@@ -107,7 +107,7 @@ impl Clone for ViewType {
             ViewType::Rect(rect) => ViewType::Rect(*rect),
             ViewType::Circle(circle) => ViewType::Circle(circle.clone()),
             ViewType::Svg(svg) => ViewType::Svg(svg.clone()),
-            ViewType::Image(image) => ViewType::Image(image.clone()),
+            // ViewType::Image(image) => ViewType::Image(image.clone()),
         }
     }
 }
@@ -225,21 +225,6 @@ impl<State> View<State> {
         });
         self
     }
-    pub fn on_appear(mut self, f: impl Fn(&mut State, &mut AppState<State>) + 'static) -> Self {
-        self.gesture_handlers.push(GestureHandler {
-            interaction_type: InteractionType {
-                appear: true,
-                ..Default::default()
-            },
-            interaction_handler: Some(Rc::new(move |state, app_state, interaction| {
-                let Interaction::Appear = interaction else {
-                    return;
-                };
-                (f)(state, app_state);
-            })),
-        });
-        self
-    }
     pub fn easing(mut self, easing: lilt::Easing) -> Self {
         match self.view_type {
             ViewType::Text(ref mut view) => view.easing = Some(easing),
@@ -247,7 +232,7 @@ impl<State> View<State> {
             ViewType::Rect(ref mut view) => view.shape.easing = Some(easing),
             ViewType::Svg(ref mut view) => view.easing = Some(easing),
             ViewType::Circle(ref mut view) => view.shape.easing = Some(easing),
-            ViewType::Image(ref mut view) => view.easing = Some(easing),
+            // ViewType::Image(ref mut view) => view.easing = Some(easing),
         }
         self
     }
@@ -258,7 +243,7 @@ impl<State> View<State> {
             ViewType::Rect(ref mut view) => view.shape.duration = Some(duration_ms),
             ViewType::Svg(ref mut view) => view.duration = Some(duration_ms),
             ViewType::Circle(ref mut view) => view.shape.duration = Some(duration_ms),
-            ViewType::Image(ref mut view) => view.duration = Some(duration_ms),
+            // ViewType::Image(ref mut view) => view.duration = Some(duration_ms),
         }
         self
     }
@@ -269,7 +254,7 @@ impl<State> View<State> {
             ViewType::Rect(ref mut view) => view.shape.delay = delay_ms,
             ViewType::Svg(ref mut view) => view.delay = delay_ms,
             ViewType::Circle(ref mut view) => view.shape.delay = delay_ms,
-            ViewType::Image(ref mut view) => view.delay = delay_ms,
+            // ViewType::Image(ref mut view) => view.delay = delay_ms,
         }
         self
     }
@@ -284,7 +269,7 @@ impl<State> View<State> {
             ViewType::Rect(view) => view.id,
             ViewType::Svg(view) => view.id,
             ViewType::Circle(view) => view.id,
-            ViewType::Image(view) => view.id,
+            // ViewType::Image(view) => view.id,
         }
     }
     fn get_easing(&self) -> Easing {
@@ -294,7 +279,7 @@ impl<State> View<State> {
             ViewType::Rect(view) => view.shape.easing,
             ViewType::Svg(view) => view.easing,
             ViewType::Circle(view) => view.shape.easing,
-            ViewType::Image(view) => view.easing,
+            // ViewType::Image(view) => view.easing,
         }
         .unwrap_or(Easing::EaseOut)
     }
@@ -305,7 +290,7 @@ impl<State> View<State> {
             ViewType::Rect(view) => view.shape.duration,
             ViewType::Svg(view) => view.duration,
             ViewType::Circle(view) => view.shape.duration,
-            ViewType::Image(view) => view.duration,
+            // ViewType::Image(view) => view.duration,
         }
         .unwrap_or(200.)
     }
@@ -316,122 +301,84 @@ impl<State> View<State> {
             ViewType::Rect(view) => view.shape.delay,
             ViewType::Svg(view) => view.delay,
             ViewType::Circle(view) => view.shape.delay,
-            ViewType::Image(view) => view.delay,
+            // ViewType::Image(view) => view.delay,
         }
     }
 }
 
 impl<State> View<State> {
-    pub fn finish(self) -> Layout<DrawItem<State>>
+    pub fn finish(self, app: &mut AppState<State>) -> Layout<DrawItem<State>>
     where
         State: 'static,
     {
-        dynamic(move |state: &mut State, app: &mut AppState<State>| {
-            let moved = self.clone();
-            if let ViewType::Text(view) = self.view_type.clone() {
-                view.create_node(
-                    state,
-                    app,
-                    draw(move |area, app, state| moved.draw(area, app, state, true)),
-                )
+        let animation_bank = app.animation_bank.clone();
+        let resizing = app.resizing;
+        let now = app.now;
+        let id = self.id();
+        let view_type = self.view_type.clone();
+
+        draw(move |area| {
+            let mut anim = animation_bank
+                .borrow_mut()
+                .animations
+                .remove(&id)
+                .unwrap_or(AnimArea {
+                    visible: Animated::new(true)
+                        .duration(self.get_duration())
+                        .easing(self.get_easing())
+                        .delay(self.get_delay()),
+                    x: Animated::new(area.x)
+                        .duration(self.get_duration())
+                        .easing(self.get_easing())
+                        .delay(self.get_delay()),
+                    y: Animated::new(area.y)
+                        .duration(self.get_duration())
+                        .easing(self.get_easing())
+                        .delay(self.get_delay()),
+                    width: Animated::new(area.width)
+                        .duration(self.get_duration())
+                        .easing(self.get_easing())
+                        .delay(self.get_delay()),
+                    height: Animated::new(area.height)
+                        .duration(self.get_duration())
+                        .easing(self.get_easing())
+                        .delay(self.get_delay()),
+                });
+
+            if resizing {
+                anim.visible.transition_instantaneous(true, now);
+                anim.x.transition_instantaneous(area.x, now);
+                anim.y.transition_instantaneous(area.y, now);
+                anim.width.transition_instantaneous(area.width, now);
+                anim.height.transition_instantaneous(area.height, now);
             } else {
-                draw(move |area, app, state| moved.draw(area, app, state, true))
+                anim.visible.transition(true, now);
+                anim.x.transition(area.x, now);
+                anim.y.transition(area.y, now);
+                anim.width.transition(area.width, now);
+                anim.height.transition(area.height, now);
+            }
+
+            let visibility = anim.visible.animate_bool(0., 1., now);
+            let animated_area = Area {
+                x: anim.x.animate_wrapped(now),
+                y: anim.y.animate_wrapped(now),
+                width: anim.width.animate_wrapped(now),
+                height: anim.height.animate_wrapped(now),
+            };
+
+            animation_bank.borrow_mut().animations.insert(id, anim);
+
+            DrawItem::Draw {
+                view: Box::new(self.clone()),
+                area: if matches!(view_type, ViewType::Text(_)) {
+                    Area::new(animated_area.x, animated_area.y, area.width, area.height)
+                } else {
+                    animated_area
+                },
+                visible: true,
+                opacity: visibility,
             }
         })
-    }
-}
-
-// impl<State> Drawable<State, AppState<State>> for View<State> {
-impl<State> View<State> {
-    fn draw(&self, area: Area, state: &mut State, app: &mut AppState<State>, visible: bool) {
-        let mut anim = app
-            .animation_bank
-            .animations
-            .remove(&self.id())
-            .unwrap_or(AnimArea {
-                visible: Animated::new(visible)
-                    .duration(self.get_duration())
-                    .easing(self.get_easing())
-                    .delay(self.get_delay()),
-                x: Animated::new(area.x)
-                    .duration(self.get_duration())
-                    .easing(self.get_easing())
-                    .delay(self.get_delay()),
-                y: Animated::new(area.y)
-                    .duration(self.get_duration())
-                    .easing(self.get_easing())
-                    .delay(self.get_delay()),
-                width: Animated::new(area.width)
-                    .duration(self.get_duration())
-                    .easing(self.get_easing())
-                    .delay(self.get_delay()),
-                height: Animated::new(area.height)
-                    .duration(self.get_duration())
-                    .easing(self.get_easing())
-                    .delay(self.get_delay()),
-            });
-        if app.resizing {
-            anim.visible.transition_instantaneous(visible, app.now);
-            anim.x.transition_instantaneous(area.x, app.now);
-            anim.y.transition_instantaneous(area.y, app.now);
-            anim.width.transition_instantaneous(area.width, app.now);
-            anim.height.transition_instantaneous(area.height, app.now);
-        } else {
-            anim.visible.transition(visible, app.now);
-            anim.x.transition(area.x, app.now);
-            anim.y.transition(area.y, app.now);
-            anim.width.transition(area.width, app.now);
-            anim.height.transition(area.height, app.now);
-        }
-        if visible || anim.visible.in_progress(app.now) {
-            let visibility = anim.visible.animate_bool(0., 1., app.now);
-            let animated_area = Area {
-                x: anim.x.animate_wrapped(app.now),
-                y: anim.y.animate_wrapped(app.now),
-                width: anim.width.animate_wrapped(app.now),
-                height: anim.height.animate_wrapped(app.now),
-            };
-            if !visible || visibility == 0. {
-                return;
-            }
-            let id = self.id();
-
-            // Check if this view is appearing for the first time
-            if !app.appeared_views.contains(&id) {
-                app.appeared_views.insert(id);
-                // Trigger appear handlers
-                for handler in &self.gesture_handlers {
-                    if handler.interaction_type.appear
-                        && let Some(ref interaction_handler) = handler.interaction_handler
-                    {
-                        interaction_handler(state, app, crate::gestures::Interaction::Appear);
-                    }
-                }
-            }
-
-            app.gesture_handlers
-                .entry(self.z_index)
-                .or_default()
-                .extend(
-                    self.gesture_handlers
-                        .clone()
-                        .drain(..)
-                        .map(|handler| (id, animated_area, handler)),
-                );
-            app.draw_list
-                .entry(self.z_index)
-                .or_default()
-                .push(DrawItem::Draw {
-                    view: Box::new(self.clone()),
-                    area: if matches!(self.view_type, ViewType::Text(_)) {
-                        Area::new(animated_area.x, animated_area.y, area.width, area.height)
-                    } else {
-                        animated_area
-                    },
-                    visible,
-                    opacity: visibility,
-                });
-        }
-        app.animation_bank.animations.insert(self.id(), anim);
     }
 }

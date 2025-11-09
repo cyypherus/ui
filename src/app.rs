@@ -11,7 +11,9 @@ use parley::{
     Alignment, FontContext, FontWeight, LayoutContext, LineHeight, OverflowWrap, PlainEditor,
     StyleProperty,
 };
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
@@ -38,7 +40,7 @@ type FontEntry = (Arc<Vec<u8>>, Option<String>);
 
 pub struct AppBuilder<State> {
     state: State,
-    view: fn() -> Layout<DrawItem<State>>,
+    view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>>,
     on_frame: fn(&mut State, &mut AppState<State>) -> (),
     on_start: fn(&mut State, &mut AppState<State>) -> (),
     on_exit: fn(&mut State, &mut AppState<State>) -> (),
@@ -50,7 +52,10 @@ pub struct AppBuilder<State> {
 }
 
 impl<State: 'static> AppBuilder<State> {
-    pub fn new(state: State, view: fn() -> Layout<DrawItem<State>>) -> Self {
+    pub fn new(
+        state: State,
+        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>>,
+    ) -> Self {
         Self {
             state,
             view,
@@ -149,7 +154,7 @@ pub struct App<'s, State> {
     pub(crate) window_icon: Option<Icon>,
     pub(crate) app_state: AppState<State>,
     pub state: State,
-    pub(crate) view: fn() -> Layout<DrawItem<State>>,
+    pub(crate) view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>>,
     pub(crate) on_frame: fn(&mut State, &mut AppState<State>) -> (),
     pub(crate) on_start: fn(&mut State, &mut AppState<State>) -> (),
     pub(crate) on_exit: fn(&mut State, &mut AppState<State>) -> (),
@@ -165,6 +170,13 @@ pub(crate) struct RenderState<'surface> {
 }
 
 type TextLayoutCache = HashMap<u64, Vec<(String, f32, parley::Layout<Brush>)>>;
+
+pub struct TextCacheState {
+    pub layout_cache: RefCell<TextLayoutCache>,
+    pub font_cx: RefCell<FontContext>,
+    pub layout_cx: RefCell<LayoutContext<Brush>>,
+}
+
 pub struct AppState<State> {
     pub cursor_position: Option<Point>,
     pub(crate) gesture_state: GestureState,
@@ -176,24 +188,20 @@ pub struct AppState<State> {
     pub(crate) editor_setup: Option<EditorSetup>,
     pub(crate) editor: Option<EditState>,
     pub(crate) editor_areas: HashMap<u64, Area>,
-    pub(crate) animation_bank: AnimationBank,
+    pub(crate) animation_bank: Rc<RefCell<AnimationBank>>,
     pub(crate) scene: Scene,
-    pub(crate) font_cx: FontContext,
-    pub(crate) layout_cx: LayoutContext<Brush>,
+    pub(crate) text_cache: Rc<TextCacheState>,
     pub(crate) view_state: HashMap<u64, AnimatedView>,
-    pub(crate) layout_cache: TextLayoutCache,
     pub(crate) svg_scenes: HashMap<String, (Scene, f32, f32)>,
     pub(crate) image_scenes: HashMap<u64, (Scene, f32, f32)>,
     pub(crate) modifiers: Option<Modifiers>,
     pub(crate) now: Instant,
-    pub(crate) appeared_views: std::collections::HashSet<u64>,
     pub(crate) resizing: bool,
-    pub(crate) draw_list: HashMap<i32, Vec<DrawItem<State>>>,
     pub(crate) redraw: Sender<()>,
     pub(crate) fullscreen_requested: bool,
 }
 
-pub(crate) enum DrawItem<State> {
+pub enum DrawItem<State> {
     Draw {
         view: Box<View<State>>,
         area: Area,
@@ -305,19 +313,16 @@ impl<State> AppState<State> {
                 blink_period: Default::default(),
             };
 
-            if let AppState {
-                cursor_position: Some(pos),
-                font_cx,
-                layout_cx,
-                ..
-            } = self
-            {
+            if self.cursor_position.is_some() {
+                let pos = self.cursor_position.unwrap();
+                let mut font_cx = self.text_cache.font_cx.borrow_mut();
+                let mut layout_cx = self.text_cache.layout_cx.borrow_mut();
                 editor.mouse_moved(
                     Point::new(pos.x - area.x as f64, pos.y - area.y as f64),
-                    layout_cx,
-                    font_cx,
+                    &mut layout_cx,
+                    &mut font_cx,
                 );
-                editor.mouse_pressed(layout_cx, font_cx);
+                editor.mouse_pressed(&mut layout_cx, &mut font_cx);
             }
             self.editor = Some(EditState {
                 id: *id,
@@ -363,11 +368,17 @@ impl RedrawTrigger {
 }
 
 impl<State: 'static> App<'_, State> {
-    pub fn start(state: State, view: fn() -> Layout<DrawItem<State>>) {
+    pub fn start(
+        state: State,
+        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>>,
+    ) {
         AppBuilder::new(state, view).start();
     }
 
-    pub fn builder(state: State, view: fn() -> Layout<DrawItem<State>>) -> AppBuilder<State> {
+    pub fn builder(
+        state: State,
+        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>>,
+    ) -> AppBuilder<State> {
         AppBuilder::new(state, view)
     }
 
@@ -393,7 +404,7 @@ impl<State: 'static> App<'_, State> {
         event_loop: EventLoop<AppEvent>,
         render_cx: RenderContext,
         #[cfg(target_arch = "wasm32")] render_state: RenderState,
-        view: fn() -> Layout<DrawItem<State>>,
+        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>>,
         on_frame: fn(&mut State, &mut AppState<State>) -> (),
         on_start: fn(&mut State, &mut AppState<State>) -> (),
         on_exit: fn(&mut State, &mut AppState<State>) -> (),
@@ -461,18 +472,18 @@ impl<State: 'static> App<'_, State> {
                 editor_setup: None,
                 editor_areas: HashMap::new(),
                 view_state: HashMap::new(),
-                animation_bank: AnimationBank::new(),
+                animation_bank: Rc::new(RefCell::new(AnimationBank::new())),
                 scene: Scene::new(),
-                layout_cx: LayoutContext::new(),
-                font_cx,
-                layout_cache: HashMap::new(),
+                text_cache: Rc::new(TextCacheState {
+                    layout_cx: RefCell::new(LayoutContext::new()),
+                    font_cx: RefCell::new(font_cx),
+                    layout_cache: RefCell::new(HashMap::new()),
+                }),
                 image_scenes: HashMap::new(),
                 svg_scenes: HashMap::new(),
                 modifiers: None,
                 now: Instant::now(),
-                appeared_views: std::collections::HashSet::new(),
                 resizing: false,
-                draw_list: HashMap::new(),
                 redraw: redraw_sender,
                 fullscreen_requested: false,
             },
@@ -529,19 +540,29 @@ impl<State: 'static> App<'_, State> {
             self.app_state.begin_editing_if_needed();
 
             let view = self.view;
-            let layout = view();
-            layout.draw(Area {
+            let mut layout = view(&mut self.state, &mut self.app_state);
+            let draw_items = layout.draw(Area {
                 x: 0.,
                 y: 0.,
                 width: ((width as f64) / self.app_state.scale_factor) as f32,
                 height: ((height as f64) / self.app_state.scale_factor) as f32,
             });
 
-            let mut layers = self.app_state.draw_list.keys().cloned().collect::<Vec<_>>();
-            layers.sort();
-            for layer in layers {
-                let list = self.app_state.draw_list.get_mut(&layer).unwrap();
-                for item in std::mem::take(list) {
+            let mut layers: std::collections::HashMap<i32, Vec<DrawItem<State>>> =
+                std::collections::HashMap::new();
+            for item in draw_items {
+                let z_index = match &item {
+                    DrawItem::Draw { view, .. } => view.z_index,
+                    _ => 0,
+                };
+                layers.entry(z_index).or_default().push(item);
+            }
+
+            let mut layer_indices: Vec<_> = layers.keys().cloned().collect();
+            layer_indices.sort();
+
+            for z_index in layer_indices {
+                for item in layers.remove(&z_index).unwrap_or_default() {
                     match item {
                         DrawItem::PushClip { path } => {
                             self.app_state.scene.push_layer(
@@ -559,31 +580,55 @@ impl<State: 'static> App<'_, State> {
                             area,
                             visible,
                             opacity,
-                        } => match &mut view.view_type {
-                            ViewType::Text(v) => v.draw(
-                                area,
-                                area,
-                                &mut self.state,
-                                &mut self.app_state,
-                                visible,
-                                opacity,
-                            ),
-                            ViewType::Layout(layout, transform) => {
-                                draw_layout(None, *transform, layout, &mut self.app_state.scene)
+                        } => {
+                            let id = view.id();
+                            self.app_state
+                                .gesture_handlers
+                                .entry(view.z_index)
+                                .or_default()
+                                .extend(
+                                    view.gesture_handlers
+                                        .clone()
+                                        .drain(..)
+                                        .map(|handler| (id, area, handler)),
+                                );
+
+                            match &mut view.view_type {
+                                ViewType::Text(v) => {
+                                    v.draw(area, area, &mut self.app_state, visible, opacity)
+                                }
+                                ViewType::Layout(layout, transform) => {
+                                    draw_layout(None, *transform, layout, &mut self.app_state.scene)
+                                }
+                                ViewType::Rect(v) => v.draw(
+                                    area,
+                                    &mut self.state,
+                                    &mut self.app_state,
+                                    visible,
+                                    opacity,
+                                ),
+                                ViewType::Svg(v) => v.draw(
+                                    area,
+                                    &mut self.state,
+                                    &mut self.app_state,
+                                    visible,
+                                    opacity,
+                                ),
+                                ViewType::Circle(v) => v.draw(
+                                    area,
+                                    &mut self.state,
+                                    &mut self.app_state,
+                                    visible,
+                                    opacity,
+                                ), // ViewType::Image(v) => v.draw(
+                                   //     area,
+                                   //     &mut self.state,
+                                   //     &mut self.app_state,
+                                   //     visible,
+                                   //     opacity,
+                                   // ),
                             }
-                            ViewType::Rect(v) => {
-                                v.draw(area, &mut self.state, &mut self.app_state, visible, opacity)
-                            }
-                            ViewType::Svg(v) => {
-                                v.draw(area, &mut self.state, &mut self.app_state, visible, opacity)
-                            }
-                            ViewType::Circle(v) => {
-                                v.draw(area, &mut self.state, &mut self.app_state, visible, opacity)
-                            }
-                            ViewType::Image(v) => {
-                                v.draw(area, &mut self.state, &mut self.app_state, visible, opacity)
-                            }
-                        },
+                        }
                     }
                 }
             }
@@ -653,6 +698,7 @@ impl<State: 'static> App<'_, State> {
         if self
             .app_state
             .animation_bank
+            .borrow()
             .in_progress(self.app_state.now)
             || self.app_state.animations_in_progress(self.app_state.now)
         {
@@ -817,7 +863,7 @@ impl<State: 'static> ApplicationHandler<AppEvent> for App<'_, State> {
                 event::WindowEvent::RedrawRequested => self.redraw(),
                 event::WindowEvent::ScaleFactorChanged(scale_factor) => {
                     self.app_state.scale_factor = scale_factor;
-                    self.app_state.layout_cache.clear();
+                    self.app_state.text_cache.layout_cache.borrow_mut().clear();
                     self.request_redraw();
                 }
                 event::WindowEvent::ModifiersChanged(modifiers) => {
@@ -835,26 +881,18 @@ impl<State: 'static> App<'_, State> {
         );
         let mut needs_redraw = false;
         self.app_state.cursor_position = Some(pos);
-        let App {
-            app_state:
-                AppState {
-                    editor,
-                    font_cx,
-                    layout_cx,
-                    ..
-                },
-            ..
-        } = self;
-        if let Some(EditState { id, editor, .. }) = editor.as_mut()
-            && let Some(area) = self.app_state.editor_areas.get(id)
+        if let Some(EditState { id, editor, .. }) = self.app_state.editor.as_mut()
+            && let Some(area) = self.app_state.editor_areas.get(id).copied()
         {
             needs_redraw = true;
-
+            let mut font_cx = self.app_state.text_cache.font_cx.borrow_mut();
+            let mut layout_cx = self.app_state.text_cache.layout_cx.borrow_mut();
             editor.mouse_moved(
                 Point::new(pos.x - area.x as f64, pos.y - area.y as f64),
-                layout_cx,
-                font_cx,
+                &mut layout_cx,
+                &mut font_cx,
             );
+            editor.mouse_pressed(&mut layout_cx, &mut font_cx);
         }
         self.gesture_handlers().iter().for_each(|(_, area, gh)| {
             if gh.interaction_type.hover
@@ -995,17 +1033,13 @@ impl<State: 'static> App<'_, State> {
                 }
             }
             // Once all click handlers are run, text fields will have set up an editor if they have been clicked, so we can send the mouse press to the editor
-            if let AppState {
-                editor: Some(EditState { id, editor, .. }),
-                font_cx,
-                layout_cx,
-                editor_areas,
-                ..
-            } = &mut self.app_state
-                && let Some(area) = editor_areas.get(id).cloned()
+            if let Some(EditState { id, editor, .. }) = self.app_state.editor.as_mut()
+                && let Some(area) = self.app_state.editor_areas.get(id).cloned()
                 && area_contains_padded(&area, point, 10.)
             {
-                editor.mouse_pressed(layout_cx, font_cx);
+                let mut font_cx = self.app_state.text_cache.font_cx.borrow_mut();
+                let mut layout_cx = self.app_state.text_cache.layout_cx.borrow_mut();
+                editor.mouse_pressed(&mut layout_cx, &mut font_cx);
             }
         }
 

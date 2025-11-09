@@ -24,13 +24,13 @@ mod ui;
 mod view;
 
 pub use app::{App, AppBuilder, AppState, RedrawTrigger};
-pub use backer::{Layout, Area, nodes::*};
+pub use backer::{Area, Layout, nodes::*};
 pub use button::*;
 pub use circle::circle;
 pub use dropdown::*;
 pub use editor::*;
 pub use gestures::{ClickState, DragState, EditInteraction, GestureHandler, GestureState};
-pub use image::{ImageSource, image, image_from_bytes, image_from_path};
+// pub use image::{ImageSource, image, image_from_bytes, image_from_path};
 pub use parley::{Alignment, FontWeight};
 pub use rect::rect;
 pub use scroller::*;

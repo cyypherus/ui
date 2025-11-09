@@ -5,7 +5,7 @@ use crate::app::AppState;
 use crate::shape::{AnimatedShape, Shape, ShapeType};
 use crate::view::{AnimatedView, View, ViewType};
 
-use backer::{Layout, Area};
+use backer::{Area, Layout};
 use std::time::Instant;
 
 #[derive(Debug, Clone)]
@@ -60,8 +60,8 @@ impl Circle {
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<State: 'static>(self) -> Layout<DrawItem<State>> {
-        self.view().finish()
+    pub fn finish<State: 'static>(self, app: &mut AppState<State>) -> Layout<DrawItem<State>> {
+        self.view().finish(app)
     }
 }
 
