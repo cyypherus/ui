@@ -317,7 +317,9 @@ impl<State> View<State> {
         let id = self.id();
         let view_type = self.view_type.clone();
 
-        draw(move |area| {
+        let is_text = matches!(view_type.clone(), ViewType::Text(_));
+
+        let node = draw(move |area| {
             let mut anim = animation_bank
                 .borrow_mut()
                 .animations
@@ -371,7 +373,7 @@ impl<State> View<State> {
 
             DrawItem::Draw {
                 view: Box::new(self.clone()),
-                area: if matches!(view_type, ViewType::Text(_)) {
+                area: if is_text {
                     Area::new(animated_area.x, animated_area.y, area.width, area.height)
                 } else {
                     animated_area
@@ -379,6 +381,12 @@ impl<State> View<State> {
                 visible: true,
                 opacity: visibility,
             }
-        })
+        });
+
+        if let ViewType::Text(text_view) = view_type {
+            text_view.with_text_constraints(app, node)
+        } else {
+            node
+        }
     }
 }

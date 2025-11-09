@@ -1,5 +1,5 @@
 use ui::*;
-use vello_svg::vello::peniko::color::AlphaColor;
+use vello_svg::vello::peniko::color::{AlphaColor, palette::css::RED};
 
 #[derive(Clone, Default, Debug)]
 struct State {

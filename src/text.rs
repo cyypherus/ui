@@ -292,7 +292,7 @@ impl Text {
             layout
         }
     }
-    pub(crate) fn create_node<State>(
+    pub(crate) fn with_text_constraints<State>(
         self,
         app: &mut AppState<State>,
         node: Layout<DrawItem<State>>,
