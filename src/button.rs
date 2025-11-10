@@ -16,18 +16,19 @@ pub struct ButtonState {
 
 pub struct Button<State> {
     id: u64,
-    body: Option<Layout<DrawItem<State>>>,
-    label: Option<Layout<DrawItem<State>>>,
+    body: Option<Layout<DrawItem<State>, AppState<State>>>,
+    label: Option<Layout<DrawItem<State>, AppState<State>>>,
     text_label: Option<String>,
     corner_rounding: Option<f32>,
     on_click: Option<Rc<dyn Fn(&mut State, &mut AppState<State>)>>,
-    state: Binding<State, ButtonState>,
+    state: ButtonState,
+    binding: Binding<State, ButtonState>,
     fill: Option<Color>,
     stroke: Option<(Color, f32)>,
     text_fill: Option<Color>,
 }
 
-pub fn button<State>(id: u64, binding: Binding<State, ButtonState>) -> Button<State> {
+pub fn button<State>(id: u64, state: (ButtonState, Binding<State, ButtonState>)) -> Button<State> {
     Button {
         id,
         body: None,
@@ -35,7 +36,8 @@ pub fn button<State>(id: u64, binding: Binding<State, ButtonState>) -> Button<St
         text_label: None,
         corner_rounding: None,
         on_click: None,
-        state: binding,
+        state: state.0,
+        binding: state.1,
         fill: None,
         stroke: None,
         text_fill: None,
@@ -43,11 +45,11 @@ pub fn button<State>(id: u64, binding: Binding<State, ButtonState>) -> Button<St
 }
 
 impl<State> Button<State> {
-    pub fn surface(mut self, body: Layout<DrawItem<State>>) -> Self {
+    pub fn surface(mut self, body: Layout<DrawItem<State>, AppState<State>>) -> Self {
         self.body = Some(body);
         self
     }
-    pub fn label(mut self, label: Layout<DrawItem<State>>) -> Self {
+    pub fn label(mut self, label: Layout<DrawItem<State>, AppState<State>>) -> Self {
         self.label = Some(label);
         self
     }
@@ -78,11 +80,11 @@ impl<State> Button<State> {
         self.text_fill = Some(color);
         self
     }
-    pub fn finish(self, state: &State, app: &mut AppState<State>) -> Layout<DrawItem<State>>
+    pub fn finish(self, app: &mut AppState<State>) -> Layout<DrawItem<State>, AppState<State>>
     where
         State: 'static,
     {
-        let btn_state = self.state.get(state);
+        let btn_state = self.state;
         stack(vec![
             if let Some(body) = self.body {
                 body
@@ -132,13 +134,13 @@ impl<State> Button<State> {
                 .fill(TRANSPARENT)
                 .view()
                 .on_hover({
-                    let binding = self.state.clone();
+                    let binding = self.binding.clone();
                     move |state, _app: &mut AppState<State>, h| {
                         binding.update(state, |s| s.hovered = h)
                     }
                 })
                 .on_click({
-                    let binding = self.state.clone();
+                    let binding = self.binding.clone();
                     let on_click = self.on_click.clone();
                     move |state: &mut State, app: &mut AppState<State>, click_state, _| {
                         match click_state {

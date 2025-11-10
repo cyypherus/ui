@@ -11,9 +11,7 @@ use parley::{
     Alignment, FontContext, FontWeight, LayoutContext, LineHeight, OverflowWrap, PlainEditor,
     StyleProperty,
 };
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
@@ -40,7 +38,7 @@ type FontEntry = (Arc<Vec<u8>>, Option<String>);
 
 pub struct AppBuilder<State> {
     state: State,
-    view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>>,
+    view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>, AppState<State>>,
     on_frame: fn(&mut State, &mut AppState<State>) -> (),
     on_start: fn(&mut State, &mut AppState<State>) -> (),
     on_exit: fn(&mut State, &mut AppState<State>) -> (),
@@ -54,7 +52,7 @@ pub struct AppBuilder<State> {
 impl<State: 'static> AppBuilder<State> {
     pub fn new(
         state: State,
-        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>>,
+        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>, AppState<State>>,
     ) -> Self {
         Self {
             state,
@@ -154,7 +152,8 @@ pub struct App<'s, State> {
     pub(crate) window_icon: Option<Icon>,
     pub(crate) app_state: AppState<State>,
     pub state: State,
-    pub(crate) view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>>,
+    pub(crate) view:
+        fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>, AppState<State>>,
     pub(crate) on_frame: fn(&mut State, &mut AppState<State>) -> (),
     pub(crate) on_start: fn(&mut State, &mut AppState<State>) -> (),
     pub(crate) on_exit: fn(&mut State, &mut AppState<State>) -> (),
@@ -169,13 +168,7 @@ pub(crate) struct RenderState<'surface> {
     pub(crate) window: Arc<Window>,
 }
 
-type TextLayoutCache = HashMap<u64, Vec<(String, f32, parley::Layout<Brush>)>>;
-
-pub struct TextCacheState {
-    pub layout_cache: RefCell<TextLayoutCache>,
-    pub font_cx: RefCell<FontContext>,
-    pub layout_cx: RefCell<LayoutContext<Brush>>,
-}
+pub(crate) type LayoutCache = HashMap<u64, Vec<(String, f32, parley::Layout<Brush>)>>;
 
 pub struct AppState<State> {
     pub cursor_position: Option<Point>,
@@ -188,9 +181,11 @@ pub struct AppState<State> {
     pub(crate) editor_setup: Option<EditorSetup>,
     pub(crate) editor: Option<EditState>,
     pub(crate) editor_areas: HashMap<u64, Area>,
-    pub(crate) animation_bank: Rc<RefCell<AnimationBank>>,
+    pub(crate) animation_bank: AnimationBank,
     pub(crate) scene: Scene,
-    pub(crate) text_cache: Rc<TextCacheState>,
+    pub(crate) layout_cache: LayoutCache,
+    pub(crate) layout_cx: LayoutContext<Brush>,
+    pub(crate) font_cx: FontContext,
     pub(crate) view_state: HashMap<u64, AnimatedView>,
     pub(crate) svg_scenes: HashMap<String, (Scene, f32, f32)>,
     pub(crate) image_scenes: HashMap<u64, (Scene, f32, f32)>,
@@ -212,6 +207,7 @@ pub enum DrawItem<State> {
         path: BezPath,
     },
     PopClip,
+    Empty,
 }
 
 pub(crate) struct EditorSetup {
@@ -315,14 +311,12 @@ impl<State> AppState<State> {
 
             if self.cursor_position.is_some() {
                 let pos = self.cursor_position.unwrap();
-                let mut font_cx = self.text_cache.font_cx.borrow_mut();
-                let mut layout_cx = self.text_cache.layout_cx.borrow_mut();
                 editor.mouse_moved(
                     Point::new(pos.x - area.x as f64, pos.y - area.y as f64),
-                    &mut layout_cx,
-                    &mut font_cx,
+                    &mut self.layout_cx,
+                    &mut self.font_cx,
                 );
-                editor.mouse_pressed(&mut layout_cx, &mut font_cx);
+                editor.mouse_pressed(&mut self.layout_cx, &mut self.font_cx);
             }
             self.editor = Some(EditState {
                 id: *id,
@@ -370,14 +364,14 @@ impl RedrawTrigger {
 impl<State: 'static> App<'_, State> {
     pub fn start(
         state: State,
-        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>>,
+        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>, AppState<State>>,
     ) {
         AppBuilder::new(state, view).start();
     }
 
     pub fn builder(
         state: State,
-        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>>,
+        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>, AppState<State>>,
     ) -> AppBuilder<State> {
         AppBuilder::new(state, view)
     }
@@ -404,7 +398,7 @@ impl<State: 'static> App<'_, State> {
         event_loop: EventLoop<AppEvent>,
         render_cx: RenderContext,
         #[cfg(target_arch = "wasm32")] render_state: RenderState,
-        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>>,
+        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>, AppState<State>>,
         on_frame: fn(&mut State, &mut AppState<State>) -> (),
         on_start: fn(&mut State, &mut AppState<State>) -> (),
         on_exit: fn(&mut State, &mut AppState<State>) -> (),
@@ -472,13 +466,12 @@ impl<State: 'static> App<'_, State> {
                 editor_setup: None,
                 editor_areas: HashMap::new(),
                 view_state: HashMap::new(),
-                animation_bank: Rc::new(RefCell::new(AnimationBank::new())),
+                animation_bank: AnimationBank::new(),
                 scene: Scene::new(),
-                text_cache: Rc::new(TextCacheState {
-                    layout_cx: RefCell::new(LayoutContext::new()),
-                    font_cx: RefCell::new(font_cx),
-                    layout_cache: RefCell::new(HashMap::new()),
-                }),
+
+                layout_cache: HashMap::new(),
+                layout_cx: LayoutContext::new(),
+                font_cx: FontContext::new(),
                 image_scenes: HashMap::new(),
                 svg_scenes: HashMap::new(),
                 modifiers: None,
@@ -541,12 +534,15 @@ impl<State: 'static> App<'_, State> {
 
             let view = self.view;
             let mut layout = view(&mut self.state, &mut self.app_state);
-            let draw_items = layout.draw(Area {
-                x: 0.,
-                y: 0.,
-                width: ((width as f64) / self.app_state.scale_factor) as f32,
-                height: ((height as f64) / self.app_state.scale_factor) as f32,
-            });
+            let draw_items = layout.draw_with(
+                Area {
+                    x: 0.,
+                    y: 0.,
+                    width: ((width as f64) / self.app_state.scale_factor) as f32,
+                    height: ((height as f64) / self.app_state.scale_factor) as f32,
+                },
+                &mut self.app_state,
+            );
 
             let mut layers: std::collections::HashMap<i32, Vec<DrawItem<State>>> =
                 std::collections::HashMap::new();
@@ -620,15 +616,17 @@ impl<State: 'static> App<'_, State> {
                                     &mut self.app_state,
                                     visible,
                                     opacity,
-                                ), // ViewType::Image(v) => v.draw(
-                                   //     area,
-                                   //     &mut self.state,
-                                   //     &mut self.app_state,
-                                   //     visible,
-                                   //     opacity,
-                                   // ),
+                                ),
+                                ViewType::Image(v) => v.draw(
+                                    area,
+                                    &mut self.state,
+                                    &mut self.app_state,
+                                    visible,
+                                    opacity,
+                                ),
                             }
                         }
+                        DrawItem::Empty => (),
                     }
                 }
             }
@@ -698,7 +696,6 @@ impl<State: 'static> App<'_, State> {
         if self
             .app_state
             .animation_bank
-            .borrow()
             .in_progress(self.app_state.now)
             || self.app_state.animations_in_progress(self.app_state.now)
         {
@@ -794,20 +791,6 @@ impl<State: 'static> ApplicationHandler<AppEvent> for App<'_, State> {
         self.request_redraw();
     }
 
-    // fn new_events(
-    //     &mut self,
-    //     event_loop: &winit::event_loop::ActiveEventLoop,
-    //     cause: winit::event::StartCause,
-    // ) {
-    //     if let StartCause::ResumeTimeReached { .. } = cause {
-    //         self.request_redraw();
-    //         event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
-    //             std::time::Instant::now() + std::time::Duration::from_millis(500),
-    //         ));
-    //     }
-    // }
-    // }
-
     fn window_event(
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
@@ -863,7 +846,7 @@ impl<State: 'static> ApplicationHandler<AppEvent> for App<'_, State> {
                 event::WindowEvent::RedrawRequested => self.redraw(),
                 event::WindowEvent::ScaleFactorChanged(scale_factor) => {
                     self.app_state.scale_factor = scale_factor;
-                    self.app_state.text_cache.layout_cache.borrow_mut().clear();
+                    self.app_state.layout_cache.clear();
                     self.request_redraw();
                 }
                 event::WindowEvent::ModifiersChanged(modifiers) => {
@@ -885,14 +868,12 @@ impl<State: 'static> App<'_, State> {
             && let Some(area) = self.app_state.editor_areas.get(id).copied()
         {
             needs_redraw = true;
-            let mut font_cx = self.app_state.text_cache.font_cx.borrow_mut();
-            let mut layout_cx = self.app_state.text_cache.layout_cx.borrow_mut();
             editor.mouse_moved(
                 Point::new(pos.x - area.x as f64, pos.y - area.y as f64),
-                &mut layout_cx,
-                &mut font_cx,
+                &mut self.app_state.layout_cx,
+                &mut self.app_state.font_cx,
             );
-            editor.mouse_pressed(&mut layout_cx, &mut font_cx);
+            editor.mouse_pressed(&mut self.app_state.layout_cx, &mut self.app_state.font_cx);
         }
         self.gesture_handlers().iter().for_each(|(_, area, gh)| {
             if gh.interaction_type.hover
@@ -1037,9 +1018,7 @@ impl<State: 'static> App<'_, State> {
                 && let Some(area) = self.app_state.editor_areas.get(id).cloned()
                 && area_contains_padded(&area, point, 10.)
             {
-                let mut font_cx = self.app_state.text_cache.font_cx.borrow_mut();
-                let mut layout_cx = self.app_state.text_cache.layout_cx.borrow_mut();
-                editor.mouse_pressed(&mut layout_cx, &mut font_cx);
+                editor.mouse_pressed(&mut self.app_state.layout_cx, &mut self.app_state.font_cx);
             }
         }
 

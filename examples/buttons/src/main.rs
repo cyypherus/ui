@@ -1,5 +1,5 @@
 use ui::*;
-use vello_svg::vello::peniko::color::{AlphaColor, palette::css::RED};
+use vello_svg::vello::peniko::color::AlphaColor;
 
 #[derive(Clone, Default, Debug)]
 struct State {
@@ -7,7 +7,7 @@ struct State {
     b1: ButtonState,
     b2: ButtonState,
     b3: ButtonState,
-    // t1: ToggleState,
+    t1: ToggleState,
 }
 
 fn main() {
@@ -21,7 +21,9 @@ fn main() {
                         text(id!(), "Custom Label Text")
                             .fill(Color::WHITE)
                             .finish(app),
-                        // toggle(id!(), binding!(State, t1)).finish().height(80.),
+                        toggle(id!(), binding!(state, State, t1))
+                            .finish()
+                            .height(80.),
                     ],
                 )
                 .height(150.)
@@ -32,10 +34,10 @@ fn main() {
                         text(id!(), "Custom Label Text")
                             .fill(Color::WHITE)
                             .finish(app),
-                        button(id!(), binding!(State, b1))
+                        button(id!(), binding!(state, State, b1))
                             .text_label(format!("Click count {}", state.count))
                             .on_click(|s, _| s.count += 1)
-                            .finish(state, app),
+                            .finish(app),
                     ],
                 )
                 .height(150.)
@@ -44,7 +46,7 @@ fn main() {
                     20.,
                     vec![
                         text(id!(), "Custom Body").fill(Color::WHITE).finish(app),
-                        button(id!(), binding!(State, b2))
+                        button(id!(), binding!(state, State, b2))
                             .on_click(|s, _| s.count += 1)
                             .surface(
                                 rect(id!())
@@ -58,7 +60,7 @@ fn main() {
                                     .corner_rounding(40.)
                                     .finish(app),
                             )
-                            .finish(state, app),
+                            .finish(app),
                     ],
                 )
                 .height(150.)
@@ -67,7 +69,7 @@ fn main() {
                     20.,
                     vec![
                         text(id!(), "Svg Label").fill(Color::WHITE).finish(app),
-                        button(id!(), binding!(State, b3))
+                        button(id!(), binding!(state, State, b3))
                             .on_click(|s, _| s.count += 1)
                             .label(
                                 svg(id!(), include_str!("../../../assets/download.svg"))
@@ -79,7 +81,7 @@ fn main() {
                                     .finish(app)
                                     .pad(15.),
                             )
-                            .finish(state, app),
+                            .finish(app),
                     ],
                 )
                 .height(150.)
