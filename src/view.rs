@@ -58,7 +58,7 @@ macro_rules! id {
 macro_rules! binding {
     ($state_var:ident, $State:ty, $field:ident) => {
         (
-            $state_var.$field,
+            $state_var.$field.clone(),
             Binding::new(
                 |s: &$State| s.$field.clone(),
                 |s: &mut $State, value| s.$field = value,
@@ -69,12 +69,12 @@ macro_rules! binding {
 
 pub fn clipping<State: 'static>(
     path: fn(Area) -> BezPath,
-    content: Layout<DrawItem<State>, AppState<State>>,
-) -> Layout<DrawItem<State>, AppState<State>> {
+    content: Layout<DrawItem<State>>,
+) -> Layout<DrawItem<State>> {
     stack(vec![
-        draw(move |area, _| DrawItem::PushClip { path: path(area) }),
+        draw(move |area| DrawItem::PushClip { path: path(area) }),
         content,
-        draw(|_, _| DrawItem::PopClip),
+        draw(|_| DrawItem::PopClip),
     ])
 }
 
@@ -311,7 +311,7 @@ impl<State> View<State> {
 }
 
 impl<State> View<State> {
-    pub fn finish(self, app: &mut AppState<State>) -> Layout<DrawItem<State>, AppState<State>>
+    pub fn finish(self) -> Layout<DrawItem<State>>
     where
         State: 'static,
     {
@@ -320,7 +320,7 @@ impl<State> View<State> {
 
         let is_text = matches!(view_type.clone(), ViewType::Text(_));
 
-        let node = draw(move |area, app: &mut AppState<State>| {
+        let node = draw(move |area| {
             let mut anim = app
                 .animation_bank
                 .animations

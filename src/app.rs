@@ -38,7 +38,7 @@ type FontEntry = (Arc<Vec<u8>>, Option<String>);
 
 pub struct AppBuilder<State> {
     state: State,
-    view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>, AppState<State>>,
+    view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>>,
     on_frame: fn(&mut State, &mut AppState<State>) -> (),
     on_start: fn(&mut State, &mut AppState<State>) -> (),
     on_exit: fn(&mut State, &mut AppState<State>) -> (),
@@ -52,7 +52,7 @@ pub struct AppBuilder<State> {
 impl<State: 'static> AppBuilder<State> {
     pub fn new(
         state: State,
-        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>, AppState<State>>,
+        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>>,
     ) -> Self {
         Self {
             state,
@@ -152,8 +152,7 @@ pub struct App<'s, State> {
     pub(crate) window_icon: Option<Icon>,
     pub(crate) app_state: AppState<State>,
     pub state: State,
-    pub(crate) view:
-        fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>, AppState<State>>,
+    pub(crate) view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>>,
     pub(crate) on_frame: fn(&mut State, &mut AppState<State>) -> (),
     pub(crate) on_start: fn(&mut State, &mut AppState<State>) -> (),
     pub(crate) on_exit: fn(&mut State, &mut AppState<State>) -> (),
@@ -364,14 +363,14 @@ impl RedrawTrigger {
 impl<State: 'static> App<'_, State> {
     pub fn start(
         state: State,
-        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>, AppState<State>>,
+        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>>,
     ) {
         AppBuilder::new(state, view).start();
     }
 
     pub fn builder(
         state: State,
-        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>, AppState<State>>,
+        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>>,
     ) -> AppBuilder<State> {
         AppBuilder::new(state, view)
     }
@@ -398,7 +397,7 @@ impl<State: 'static> App<'_, State> {
         event_loop: EventLoop<AppEvent>,
         render_cx: RenderContext,
         #[cfg(target_arch = "wasm32")] render_state: RenderState,
-        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>, AppState<State>>,
+        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>>,
         on_frame: fn(&mut State, &mut AppState<State>) -> (),
         on_start: fn(&mut State, &mut AppState<State>) -> (),
         on_exit: fn(&mut State, &mut AppState<State>) -> (),
@@ -534,15 +533,12 @@ impl<State: 'static> App<'_, State> {
 
             let view = self.view;
             let mut layout = view(&mut self.state, &mut self.app_state);
-            let draw_items = layout.draw_with(
-                Area {
-                    x: 0.,
-                    y: 0.,
-                    width: ((width as f64) / self.app_state.scale_factor) as f32,
-                    height: ((height as f64) / self.app_state.scale_factor) as f32,
-                },
-                &mut self.app_state,
-            );
+            let draw_items = layout.draw(Area {
+                x: 0.,
+                y: 0.,
+                width: ((width as f64) / self.app_state.scale_factor) as f32,
+                height: ((height as f64) / self.app_state.scale_factor) as f32,
+            });
 
             let mut layers: std::collections::HashMap<i32, Vec<DrawItem<State>>> =
                 std::collections::HashMap::new();

@@ -28,8 +28,8 @@ fn main() {
             button: ButtonState::default(),
             dropdown: DropdownState::default(),
         },
-        || {
-            dynamic(|_, _: &mut AppState<State>| {
+        |state, app| {
+
                 column_spaced(
                     20.,
                     vec![
@@ -40,24 +40,24 @@ fn main() {
                         .font_weight(FontWeight::BOLD)
                         .font_size(30)
                         .wrap()
-                        .finish(),
-                        text_field(id!(), binding!(State, text_a)).wrap().finish(),
-                        text_field(id!(), binding!(State, text_b)).font_size(14).align(parley::Alignment::Left).wrap().finish(),
-                        toggle(id!(), binding!(State, toggle)).finish().height(40.),
-                        slider(id!(), binding!(State, slider)).finish().height(40.),
-                        dropdown(id!(), binding!(State, dropdown), vec![
+                        .finish(app),
+                        text_field(id!(), binding!(state, State, text_a)).wrap().finish(app),
+                        text_field(id!(), binding!(state, State, text_b)).font_size(14).align(parley::Alignment::Left).wrap().finish(app),
+                        toggle(id!(), binding!(state, State, toggle)).finish(app).height(40.),
+                        slider(id!(), binding!(state, State, slider)).finish(app).height(40.),
+                        dropdown(id!(), binding!(state, State, dropdown), vec![
                             text(id!(), "Luminescent Moss"),
                             text(id!(), "Crystal Mycelium"),
                             text(id!(), "Quantum Algae"),
                             text(id!(), "Floating Gardens"),
                             text(id!(), "Cerebral Forests"),
                             text(id!(), "Glass Marrow"),
-                        ]).finish().height(20.),
-                        button(id!(), binding!(State, button)).text_label("Engage thrusters").finish().height(50.),
+                        ]).finish(app).height(20.),
+                        button(id!(), binding!(state, State, button)).text_label("Engage thrusters").finish(app).height(50.),
                     ],
                 )
                 .pad(20.)
-            })
+
         },
     )
     .inner_size(800, 600)

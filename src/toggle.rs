@@ -73,7 +73,7 @@ impl<State> Toggle<State> {
         self.knob_fill = fill;
         self
     }
-    pub fn finish(self) -> Layout<DrawItem<State>, AppState<State>>
+    pub fn finish(self, _app: &mut AppState<State>) -> Layout<DrawItem<State>>
     where
         State: 'static,
     {

@@ -16,8 +16,8 @@ pub struct ButtonState {
 
 pub struct Button<State> {
     id: u64,
-    body: Option<Layout<DrawItem<State>, AppState<State>>>,
-    label: Option<Layout<DrawItem<State>, AppState<State>>>,
+    body: Option<Layout<DrawItem<State>>>,
+    label: Option<Layout<DrawItem<State>>>,
     text_label: Option<String>,
     corner_rounding: Option<f32>,
     on_click: Option<Rc<dyn Fn(&mut State, &mut AppState<State>)>>,
@@ -45,11 +45,11 @@ pub fn button<State>(id: u64, state: (ButtonState, Binding<State, ButtonState>))
 }
 
 impl<State> Button<State> {
-    pub fn surface(mut self, body: Layout<DrawItem<State>, AppState<State>>) -> Self {
+    pub fn surface(mut self, body: Layout<DrawItem<State>>) -> Self {
         self.body = Some(body);
         self
     }
-    pub fn label(mut self, label: Layout<DrawItem<State>, AppState<State>>) -> Self {
+    pub fn label(mut self, label: Layout<DrawItem<State>>) -> Self {
         self.label = Some(label);
         self
     }
@@ -80,7 +80,7 @@ impl<State> Button<State> {
         self.text_fill = Some(color);
         self
     }
-    pub fn finish(self, app: &mut AppState<State>) -> Layout<DrawItem<State>, AppState<State>>
+    pub fn finish(self, app: &mut AppState<State>) -> Layout<DrawItem<State>>
     where
         State: 'static,
     {

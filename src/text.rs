@@ -125,10 +125,7 @@ impl Text {
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<State>(
-        self,
-        app: &mut AppState<State>,
-    ) -> Layout<DrawItem<State>, AppState<State>>
+    pub fn finish<State>(self, app: &mut AppState<State>) -> Layout<DrawItem<State>>
     where
         State: 'static,
     {
@@ -302,8 +299,8 @@ impl Text {
     pub(crate) fn with_text_constraints<State>(
         self,
         app: &mut AppState<State>,
-        node: Layout<DrawItem<State>, AppState<State>>,
-    ) -> Layout<DrawItem<State>, AppState<State>>
+        node: Layout<DrawItem<State>>,
+    ) -> Layout<DrawItem<State>>
     where
         State: 'static,
     {

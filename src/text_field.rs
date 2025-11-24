@@ -30,10 +30,14 @@ impl TextState {
     }
 }
 
-pub fn text_field<State>(id: u64, state: Binding<State, TextState>) -> TextField<State> {
+pub fn text_field<State>(
+    id: u64,
+    state: (TextState, Binding<State, TextState>),
+) -> TextField<State> {
     TextField {
         id,
-        state,
+        state: state.0,
+        binding: state.1,
         font_size: DEFAULT_FONT_SIZE,
         font_weight: FontWeight::NORMAL,
         font_family: None,
@@ -59,7 +63,8 @@ pub fn text_field<State>(id: u64, state: Binding<State, TextState>) -> TextField
 
 pub struct TextField<State> {
     pub(crate) id: u64,
-    pub(crate) state: Binding<State, TextState>,
+    pub(crate) state: TextState,
+    pub(crate) binding: Binding<State, TextState>,
     pub(crate) fill: Color,
     pub(crate) font_size: u32,
     pub(crate) font_weight: FontWeight,
@@ -86,7 +91,7 @@ impl<State> Debug for TextField<State> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Text")
             .field("id", &self.id)
-            .field("state", &self.state)
+            .field("state", &self.binding)
             .field("fill", &self.fill)
             .field("font_size", &self.font_size)
             .field("font_weight", &self.font_weight)
@@ -116,6 +121,7 @@ impl<State> Clone for TextField<State> {
         Self {
             id: self.id,
             state: self.state.clone(),
+            binding: self.binding.clone(),
             fill: self.fill,
             font_size: self.font_size,
             font_weight: self.font_weight,
@@ -211,11 +217,7 @@ impl<State> TextField<State> {
 }
 
 impl<State> TextField<State> {
-    pub fn finish(
-        self,
-        state: &mut State,
-        app: &mut AppState<State>,
-    ) -> Layout<DrawItem<State>, AppState<State>>
+    pub fn finish(self, app: &mut AppState<State>) -> Layout<DrawItem<State>>
     where
         State: 'static,
     {
@@ -225,7 +227,7 @@ impl<State> TextField<State> {
         let bg_stroke = self.background_stroke;
         let bg_rounding = self.background_corner_rounding;
         let bg_padding = self.background_padding;
-        let binding = self.state.clone();
+        let binding = self.binding.clone();
         let font_size = self.font_size;
         let font_weight = self.font_weight;
         let font_family = self.font_family.clone();
@@ -240,7 +242,7 @@ impl<State> TextField<State> {
         let wrap = self.wrap;
         let root_id = crate::id!(id);
         let text_id = crate::id!(id);
-        if binding.get(state).editing
+        if self.state.editing
             && let Some(ref mut edit_state) = app.editor
         {
             let cursor_width = 2f64;
@@ -371,11 +373,11 @@ impl<State> TextField<State> {
         } else {
             Text {
                 id: text_id,
-                string: binding.get(state).text,
+                string: self.state.text,
                 font_size,
                 font_weight,
                 font_family: font_family.clone(),
-                fill: if binding.get(state).editing {
+                fill: if self.state.editing {
                     TRANSPARENT
                 } else {
                     fill
@@ -497,20 +499,13 @@ impl<State> TextField<State> {
         })
         .pad(if editable { bg_padding } else { 0. })
         .attach_under(if bg_fill.is_some() || bg_stroke.is_some() {
-            let binding = binding.clone();
             let mut rect_node = rect(crate::id!(id));
             if let Some(fill) = bg_fill {
                 rect_node = rect_node.fill(fill);
             }
             if let Some((normal, focused, width)) = bg_stroke {
-                rect_node = rect_node.stroke(
-                    if binding.get(state).editing {
-                        focused
-                    } else {
-                        normal
-                    },
-                    width,
-                );
+                rect_node =
+                    rect_node.stroke(if self.state.editing { focused } else { normal }, width);
             }
             rect_node.corner_rounding(bg_rounding).finish(app)
         } else {
