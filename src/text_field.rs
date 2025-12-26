@@ -270,8 +270,8 @@ impl<State> TextField<State> {
 
             let mut selection_drawables = Vec::new();
             for rect in selection_rects.clone() {
-                selection_drawables.push(draw(move |area, _| DrawItem::Draw {
-                    view: Box::new(View {
+                selection_drawables.push(draw(move |area| DrawItem::Draw {
+                    view: Box::new(View::<State> {
                         view_type: ViewType::Rect(Rect {
                             id,
                             shape: Shape {
@@ -288,6 +288,12 @@ impl<State> TextField<State> {
                         z_index: 0,
                         gesture_handlers: Vec::new(),
                     }),
+                    layout_area: Area {
+                        x: area.x + rect.x0 as f32,
+                        y: area.y + rect.y0 as f32,
+                        width: rect.width() as f32,
+                        height: rect.height() as f32,
+                    },
                     area: Area {
                         x: area.x + rect.x0 as f32,
                         y: area.y + rect.y0 as f32,
@@ -296,6 +302,9 @@ impl<State> TextField<State> {
                     },
                     visible: true,
                     opacity: 1.,
+                    duration: Some(0.),
+                    easing: Some(Easing::EaseOut),
+                    delay: 0.,
                 }));
             }
 
@@ -311,44 +320,55 @@ impl<State> TextField<State> {
                 cursor
             } {
                 let rounding = (cursor_width * 0.5) as f32;
-                cursor_drawables.push(draw(move |area, _: &mut AppState<State>| {
-                    DrawItem::<State>::Draw {
-                        view: Box::new(View {
-                            view_type: ViewType::Rect(Rect {
-                                id,
-                                shape: Shape {
-                                    shape: ShapeType::Rect {
-                                        corner_rounding: (rounding, rounding, rounding, rounding),
-                                    },
-                                    fill: Some(cursor_fill),
-                                    stroke: None,
-                                    easing: None,
-                                    duration: Some(0.),
-                                    delay: 0.,
+                cursor_drawables.push(draw(move |area| DrawItem::<State>::Draw {
+                    view: Box::new(View {
+                        view_type: ViewType::Rect(Rect {
+                            id,
+                            shape: Shape {
+                                shape: ShapeType::Rect {
+                                    corner_rounding: (rounding, rounding, rounding, rounding),
                                 },
-                            }),
-                            z_index: 0,
-                            gesture_handlers: Vec::new(),
-                        }),
-                        area: Area {
-                            x: area.x + cursor.x0 as f32,
-                            y: area.y + cursor.y0 as f32,
-                            width: cursor.width() as f32,
-                            height: if is_empty {
-                                area.height
-                            } else {
-                                cursor.height() as f32
+                                fill: Some(cursor_fill),
+                                stroke: None,
+                                easing: None,
+                                duration: Some(0.),
+                                delay: 0.,
                             },
+                        }),
+                        z_index: 0,
+                        gesture_handlers: Vec::new(),
+                    }),
+                    layout_area: Area {
+                        x: area.x + cursor.x0 as f32,
+                        y: area.y + cursor.y0 as f32,
+                        width: cursor.width() as f32,
+                        height: if is_empty {
+                            area.height
+                        } else {
+                            cursor.height() as f32
                         },
-                        visible: true,
-                        opacity: 1.,
-                    }
+                    },
+                    area: Area {
+                        x: area.x + cursor.x0 as f32,
+                        y: area.y + cursor.y0 as f32,
+                        width: cursor.width() as f32,
+                        height: if is_empty {
+                            area.height
+                        } else {
+                            cursor.height() as f32
+                        },
+                    },
+                    visible: true,
+                    opacity: 1.,
+                    duration: Some(0.),
+                    easing: None,
+                    delay: 0.,
                 }));
             }
 
             let mut text_drawables = Vec::new();
 
-            text_drawables.push(draw(move |area, _: &mut AppState<State>| {
+            text_drawables.push(draw(move |area| {
                 let transform =
                     Affine::translate((area.x as f64, area.y as f64)).then_scale(scale_factor);
                 DrawItem::<State>::Draw {
@@ -357,6 +377,12 @@ impl<State> TextField<State> {
                         z_index: 0,
                         gesture_handlers: Vec::new(),
                     }),
+                    layout_area: Area {
+                        x: area.x,
+                        y: area.y,
+                        width: area.width,
+                        height: area.height,
+                    },
                     area: Area {
                         x: area.x,
                         y: area.y,
@@ -365,10 +391,19 @@ impl<State> TextField<State> {
                     },
                     visible: true,
                     opacity: 1.,
+                    duration: None,
+                    easing: None,
+                    delay: 0.,
                 }
             }));
 
-            let stack = stack(selection_drawables).height(height);
+            let stack = stack(
+                [selection_drawables, cursor_drawables, text_drawables]
+                    .into_iter()
+                    .flatten()
+                    .collect(),
+            )
+            .height(height);
             if wrap { stack } else { stack.width(width) }
         } else {
             Text {
@@ -398,10 +433,7 @@ impl<State> TextField<State> {
             let font_family = self.font_family.clone();
             let on_edit = self.on_edit.clone();
             stack(vec![
-                draw(move |area, app: &mut AppState<State>| {
-                    app.editor_areas.insert(root_id, area);
-                    DrawItem::Empty
-                }),
+                draw(move |area| DrawItem::EditorArea(root_id, area)),
                 rect(root_id)
                     .fill(TRANSPARENT)
                     .view()

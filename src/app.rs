@@ -1,17 +1,21 @@
 use crate::draw_layout::draw_layout;
 use crate::gestures::{ClickLocation, Interaction, ScrollDelta};
+use crate::text::TextLayout;
 use crate::ui::AnimationBank;
 use crate::view::{AnimatedView, View, ViewType};
 use crate::{ClickState, DragState, Editor, GestureHandler, Point, area_contains};
 use crate::{GestureState, RUBIK_FONT, area_contains_padded, event};
 use backer::{Area, Layout};
+use lilt::Easing;
 use parley::fontique::Blob;
 use parley::fontique::FontInfoOverride;
 use parley::{
     Alignment, FontContext, FontWeight, LayoutContext, LineHeight, OverflowWrap, PlainEditor,
     StyleProperty,
 };
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
@@ -182,6 +186,7 @@ pub struct AppState<State> {
     pub(crate) editor_areas: HashMap<u64, Area>,
     pub(crate) animation_bank: AnimationBank,
     pub(crate) scene: Scene,
+    pub(crate) text_layout: Rc<RefCell<TextLayout>>,
     pub(crate) layout_cache: LayoutCache,
     pub(crate) layout_cx: LayoutContext<Brush>,
     pub(crate) font_cx: FontContext,
@@ -198,14 +203,19 @@ pub struct AppState<State> {
 pub enum DrawItem<State> {
     Draw {
         view: Box<View<State>>,
+        layout_area: Area,
         area: Area,
         visible: bool,
         opacity: f32,
+        duration: Option<f32>,
+        easing: Option<Easing>,
+        delay: f32,
     },
     PushClip {
         path: BezPath,
     },
     PopClip,
+    EditorArea(u64, Area),
     Empty,
 }
 
@@ -441,6 +451,11 @@ impl<State: 'static> App<'_, State> {
             }
         });
 
+        let layout_cache = HashMap::new();
+        let layout_cx = LayoutContext::new();
+        let font_cx_inner = FontContext::new();
+        let text_layout = TextLayout::new(layout_cache, font_cx_inner, layout_cx);
+
         let mut app = Self {
             context: render_cx,
             renderers,
@@ -467,7 +482,7 @@ impl<State: 'static> App<'_, State> {
                 view_state: HashMap::new(),
                 animation_bank: AnimationBank::new(),
                 scene: Scene::new(),
-
+                text_layout: Rc::new(RefCell::new(text_layout)),
                 layout_cache: HashMap::new(),
                 layout_cx: LayoutContext::new(),
                 font_cx: FontContext::new(),
@@ -540,90 +555,150 @@ impl<State: 'static> App<'_, State> {
                 height: ((height as f64) / self.app_state.scale_factor) as f32,
             });
 
-            let mut layers: std::collections::HashMap<i32, Vec<DrawItem<State>>> =
-                std::collections::HashMap::new();
             for item in draw_items {
-                let z_index = match &item {
-                    DrawItem::Draw { view, .. } => view.z_index,
-                    _ => 0,
-                };
-                layers.entry(z_index).or_default().push(item);
-            }
-
-            let mut layer_indices: Vec<_> = layers.keys().cloned().collect();
-            layer_indices.sort();
-
-            for z_index in layer_indices {
-                for item in layers.remove(&z_index).unwrap_or_default() {
-                    match item {
-                        DrawItem::PushClip { path } => {
-                            self.app_state.scene.push_layer(
-                                Mix::Normal,
-                                1.,
-                                Affine::IDENTITY,
-                                &path,
-                            );
-                        }
-                        DrawItem::PopClip => {
-                            self.app_state.scene.pop_layer();
-                        }
-                        DrawItem::Draw {
-                            mut view,
-                            area,
-                            visible,
-                            opacity,
-                        } => {
-                            let id = view.id();
-                            self.app_state
-                                .gesture_handlers
-                                .entry(view.z_index)
-                                .or_default()
-                                .extend(
-                                    view.gesture_handlers
-                                        .clone()
-                                        .drain(..)
-                                        .map(|handler| (id, area, handler)),
-                                );
-
-                            match &mut view.view_type {
-                                ViewType::Text(v) => {
-                                    v.draw(area, area, &mut self.app_state, visible, opacity)
-                                }
-                                ViewType::Layout(layout, transform) => {
-                                    draw_layout(None, *transform, layout, &mut self.app_state.scene)
-                                }
-                                ViewType::Rect(v) => v.draw(
-                                    area,
-                                    &mut self.state,
-                                    &mut self.app_state,
-                                    visible,
-                                    opacity,
-                                ),
-                                ViewType::Svg(v) => v.draw(
-                                    area,
-                                    &mut self.state,
-                                    &mut self.app_state,
-                                    visible,
-                                    opacity,
-                                ),
-                                ViewType::Circle(v) => v.draw(
-                                    area,
-                                    &mut self.state,
-                                    &mut self.app_state,
-                                    visible,
-                                    opacity,
-                                ),
-                                ViewType::Image(v) => v.draw(
-                                    area,
-                                    &mut self.state,
-                                    &mut self.app_state,
-                                    visible,
-                                    opacity,
-                                ),
-                            }
-                        }
-                        DrawItem::Empty => (),
+                match item {
+                    DrawItem::PushClip { path } => {
+                        self.app_state
+                            .scene
+                            .push_layer(Mix::Normal, 1., Affine::IDENTITY, &path);
                     }
+                    DrawItem::PopClip => {
+                        self.app_state.scene.pop_layer();
+                    }
+                    DrawItem::EditorArea(id, area) => {
+                        self.app_state.editor_areas.insert(id, area);
+                    }
+                    DrawItem::Draw {
+                        mut view,
+                        layout_area,
+                        area,
+                        visible,
+                        opacity,
+                        duration,
+                        easing,
+                        delay,
+                    } => {
+                        let id = view.id();
+
+                        let mut anim = self
+                            .app_state
+                            .animation_bank
+                            .animations
+                            .remove(&id)
+                            .unwrap_or(crate::ui::AnimArea {
+                                visible: lilt::Animated::new(true)
+                                    .duration(duration.unwrap_or(200.))
+                                    .easing(easing.unwrap_or(Easing::EaseOut))
+                                    .delay(delay),
+                                x: lilt::Animated::new(layout_area.x)
+                                    .duration(duration.unwrap_or(200.))
+                                    .easing(easing.unwrap_or(Easing::EaseOut))
+                                    .delay(delay),
+                                y: lilt::Animated::new(layout_area.y)
+                                    .duration(duration.unwrap_or(200.))
+                                    .easing(easing.unwrap_or(Easing::EaseOut))
+                                    .delay(delay),
+                                width: lilt::Animated::new(layout_area.width)
+                                    .duration(duration.unwrap_or(200.))
+                                    .easing(easing.unwrap_or(Easing::EaseOut))
+                                    .delay(delay),
+                                height: lilt::Animated::new(layout_area.height)
+                                    .duration(duration.unwrap_or(200.))
+                                    .easing(easing.unwrap_or(Easing::EaseOut))
+                                    .delay(delay),
+                            });
+
+                        let now = self.app_state.now;
+                        if self.app_state.resizing {
+                            anim.visible.transition_instantaneous(true, now);
+                            anim.x.transition_instantaneous(layout_area.x, now);
+                            anim.y.transition_instantaneous(layout_area.y, now);
+                            anim.width.transition_instantaneous(layout_area.width, now);
+                            anim.height
+                                .transition_instantaneous(layout_area.height, now);
+                        } else {
+                            anim.visible.transition(true, now);
+                            anim.x.transition(layout_area.x, now);
+                            anim.y.transition(layout_area.y, now);
+                            anim.width.transition(layout_area.width, now);
+                            anim.height.transition(layout_area.height, now);
+                        }
+
+                        let visibility = anim.visible.animate_bool(0., 1., now);
+                        let animated_area = Area {
+                            x: anim.x.animate_wrapped(now),
+                            y: anim.y.animate_wrapped(now),
+                            width: anim.width.animate_wrapped(now),
+                            height: anim.height.animate_wrapped(now),
+                        };
+
+                        self.app_state.animation_bank.animations.insert(id, anim);
+
+                        let is_text = matches!(view.view_type, ViewType::Text(_));
+                        let draw_area = if is_text {
+                            Area::new(
+                                animated_area.x,
+                                animated_area.y,
+                                layout_area.width,
+                                layout_area.height,
+                            )
+                        } else {
+                            animated_area
+                        };
+
+                        self.app_state
+                            .gesture_handlers
+                            .entry(view.z_index)
+                            .or_default()
+                            .extend(
+                                view.gesture_handlers
+                                    .clone()
+                                    .drain(..)
+                                    .map(|handler| (id, draw_area, handler)),
+                            );
+
+                        match &mut view.view_type {
+                            ViewType::Text(v) => v.draw(
+                                draw_area,
+                                layout_area,
+                                &mut self.app_state,
+                                visible,
+                                visibility,
+                            ),
+                            ViewType::Layout(layout, transform) => {
+                                draw_layout(None, *transform, layout, &mut self.app_state.scene)
+                            }
+                            ViewType::Rect(v) => v.draw(
+                                draw_area,
+                                &mut self.state,
+                                &mut self.app_state,
+                                visible,
+                                visibility,
+                            ),
+                            ViewType::Svg(v) => v.draw(
+                                draw_area,
+                                &mut self.state,
+                                &mut self.app_state,
+                                visible,
+                                visibility,
+                            ),
+                            ViewType::Circle(v) => v.draw(
+                                draw_area,
+                                &mut self.state,
+                                &mut self.app_state,
+                                visible,
+                                visibility,
+                            ),
+                            ViewType::Image(v) => v.draw(
+                                draw_area,
+                                &mut self.state,
+                                &mut self.app_state,
+                                visible,
+                                visibility,
+                            ),
+                        }
+                    }
+                    DrawItem::Empty => (),
                 }
             }
         }

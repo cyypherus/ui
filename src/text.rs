@@ -5,11 +5,11 @@ use crate::{
     DEFAULT_DURATION, DEFAULT_EASING,
     view::{AnimatedView, View, ViewType},
 };
-use crate::{DEFAULT_FG, DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE};
+use crate::{DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE};
 use backer::{Area, Layout};
 use lilt::{Animated, Easing};
 use parley::{
-    Alignment, AlignmentOptions, FontContext, FontStack, FontWeight, Layout as TextLayout,
+    Alignment, AlignmentOptions, FontContext, FontStack, FontWeight, Layout as ParleyLayout,
     LayoutContext, LineHeight, TextStyle,
 };
 use std::fmt::Debug;
@@ -181,6 +181,95 @@ impl AnimatedText {
     }
 }
 
+pub struct TextLayout {
+    pub(crate) layout_cache: LayoutCache,
+    pub(crate) font_cx: FontContext,
+    pub(crate) layout_cx: LayoutContext<Brush>,
+}
+
+impl TextLayout {
+    pub(crate) fn new(
+        layout_cache: LayoutCache,
+        font_cx: FontContext,
+        layout_cx: LayoutContext<Brush>,
+    ) -> Self {
+        Self {
+            layout_cache,
+            font_cx,
+            layout_cx,
+        }
+    }
+
+    pub(crate) fn build_layout(
+        &mut self,
+        text: &Text,
+        current_fill: Color,
+        available_width: f32,
+        cache: bool,
+    ) -> ParleyLayout<Brush> {
+        let text_str = text.string.clone();
+        let current_text = if text_str.is_empty() {
+            " ".to_string()
+        } else {
+            text_str
+        };
+
+        if !current_text.is_empty()
+            && let Some((_, _, layout)) = self.layout_cache.get(&text.id).and_then(|cached| {
+                cached
+                    .iter()
+                    .find(|(t, width, _)| *t == current_text && *width == available_width)
+            })
+        {
+            return layout.clone();
+        }
+
+        {
+            let mut builder = self.layout_cx.tree_builder(
+                &mut self.font_cx,
+                1.,
+                true,
+                &TextStyle {
+                    brush: Brush::Solid(current_fill),
+                    font_stack: FontStack::Single(parley::FontFamily::Named(
+                        text.font_family
+                            .clone()
+                            .unwrap_or(DEFAULT_FONT_FAMILY.to_string())
+                            .into(),
+                    )),
+                    font_weight: text.font_weight,
+                    line_height: LineHeight::FontSizeRelative(text.line_height),
+                    font_size: text.font_size as f32,
+                    overflow_wrap: parley::OverflowWrap::Anywhere,
+                    ..Default::default()
+                },
+            );
+            builder.push_text(&current_text);
+            let mut layout = builder.build().0;
+            layout.break_all_lines(Some(available_width));
+            layout.align(
+                Some(available_width),
+                text.alignment,
+                AlignmentOptions {
+                    align_when_overflowing: true,
+                },
+            );
+            if cache {
+                let entry = self.layout_cache.entry(text.id).or_insert(vec![(
+                    current_text.clone(),
+                    available_width,
+                    layout.clone(),
+                )]);
+                entry.push((current_text.clone(), available_width, layout.clone()));
+                if entry.len() > 2 {
+                    entry.remove(0);
+                }
+            }
+            layout
+        }
+    }
+}
+
 impl Text {
     pub(crate) fn draw<State>(
         &mut self,
@@ -210,92 +299,20 @@ impl Text {
         )
         .multiply_alpha(visible_amount);
 
-        let layout = self.current_layout(
-            anim_fill,
-            area.width,
-            true,
-            &mut app.layout_cache,
-            &mut app.font_cx,
-            &mut app.layout_cx,
-        );
+        let layout = app
+            .text_layout
+            .borrow_mut()
+            .build_layout(self, self.fill, area.width, true);
 
         let transform = Affine::translate((animated_area.x as f64, animated_area.y as f64))
             .then_scale(app.scale_factor);
+
         draw_layout(Some(anim_fill), transform, &layout, &mut app.scene);
         app.view_state.insert(self.id, AnimatedView::Text(animated));
     }
 }
 
 impl Text {
-    pub(crate) fn current_layout(
-        &self,
-        current_fill: Color,
-        available_width: f32,
-        cache: bool,
-        layout_cache: &mut LayoutCache,
-        font_cx: &mut FontContext,
-        layout_cx: &mut LayoutContext<Brush>,
-    ) -> TextLayout<Brush> {
-        let text = self.string.clone();
-        let current_text = if text.is_empty() {
-            " ".to_string()
-        } else {
-            text
-        };
-        if !current_text.is_empty()
-            && let Some((_, _, layout)) = layout_cache.get(&self.id).and_then(|cached| {
-                cached
-                    .iter()
-                    .find(|(text, width, _)| *text == current_text && *width == available_width)
-            })
-        {
-            return layout.clone();
-        }
-
-        {
-            let mut builder = layout_cx.tree_builder(
-                font_cx,
-                1.,
-                true,
-                &TextStyle {
-                    brush: Brush::Solid(current_fill),
-                    font_stack: FontStack::Single(parley::FontFamily::Named(
-                        self.font_family
-                            .clone()
-                            .unwrap_or(DEFAULT_FONT_FAMILY.to_string())
-                            .into(),
-                    )),
-                    font_weight: self.font_weight,
-                    line_height: LineHeight::FontSizeRelative(self.line_height),
-                    font_size: self.font_size as f32,
-                    overflow_wrap: parley::OverflowWrap::Anywhere,
-                    ..Default::default()
-                },
-            );
-            builder.push_text(&current_text);
-            let mut layout = builder.build().0;
-            layout.break_all_lines(Some(available_width));
-            layout.align(
-                Some(available_width),
-                self.alignment,
-                AlignmentOptions {
-                    align_when_overflowing: true,
-                },
-            );
-            if cache {
-                let entry = layout_cache.entry(self.id).or_insert(vec![(
-                    current_text.clone(),
-                    available_width,
-                    layout.clone(),
-                )]);
-                entry.push((current_text.clone(), available_width, layout.clone()));
-                if entry.len() > 2 {
-                    entry.remove(0);
-                }
-            }
-            layout
-        }
-    }
     pub(crate) fn with_text_constraints<State>(
         self,
         app: &mut AppState<State>,
@@ -305,26 +322,18 @@ impl Text {
         State: 'static,
     {
         if self.wrap {
-            node.dynamic_height(move |width, app| {
-                self.current_layout(
-                    DEFAULT_FG,
-                    width,
-                    false,
-                    &mut app.layout_cache,
-                    &mut app.font_cx,
-                    &mut app.layout_cx,
-                )
-                .height()
+            let text_layout = app.text_layout.clone();
+            node.dynamic_height(move |w| {
+                text_layout
+                    .borrow_mut()
+                    .build_layout(&self, self.fill, w, true)
+                    .height()
             })
         } else {
-            let layout = self.current_layout(
-                DEFAULT_FG,
-                10000.,
-                false,
-                &mut app.layout_cache,
-                &mut app.font_cx,
-                &mut app.layout_cx,
-            );
+            let layout = app
+                .text_layout
+                .borrow_mut()
+                .build_layout(&self, self.fill, 10000., true);
             node.height(layout.height()).width(layout.width().max(10.))
         }
     }

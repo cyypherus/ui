@@ -40,6 +40,10 @@ pub const fn const_hash(s: &str, line: u32, col: u32) -> u64 {
 /// where it's invoked, and at runtime combines it (via XOR) with another id.
 #[macro_export]
 macro_rules! id {
+    // It would be good to explore using a TypeId for uniqueness instead of
+    // the caller location. Currently we can't hash TypeId values at
+    // compile time / in const contexts so the ids throughout the crate would
+    // have to be changed to some Hashable struct with the unique token.
     () => {{
         const ID: u64 = $crate::const_hash(file!(), line!(), column!());
         ID
@@ -311,78 +315,24 @@ impl<State> View<State> {
 }
 
 impl<State> View<State> {
-    pub fn finish(self) -> Layout<DrawItem<State>>
+    pub fn finish(self, app: &mut AppState<State>) -> Layout<DrawItem<State>>
     where
         State: 'static,
     {
-        let id = self.id();
         let view_type = self.view_type.clone();
+        let duration = self.get_duration();
+        let easing = self.get_easing();
+        let delay = self.get_delay();
 
-        let is_text = matches!(view_type.clone(), ViewType::Text(_));
-
-        let node = draw(move |area| {
-            let mut anim = app
-                .animation_bank
-                .animations
-                .remove(&id)
-                .unwrap_or(AnimArea {
-                    visible: Animated::new(true)
-                        .duration(self.get_duration())
-                        .easing(self.get_easing())
-                        .delay(self.get_delay()),
-                    x: Animated::new(area.x)
-                        .duration(self.get_duration())
-                        .easing(self.get_easing())
-                        .delay(self.get_delay()),
-                    y: Animated::new(area.y)
-                        .duration(self.get_duration())
-                        .easing(self.get_easing())
-                        .delay(self.get_delay()),
-                    width: Animated::new(area.width)
-                        .duration(self.get_duration())
-                        .easing(self.get_easing())
-                        .delay(self.get_delay()),
-                    height: Animated::new(area.height)
-                        .duration(self.get_duration())
-                        .easing(self.get_easing())
-                        .delay(self.get_delay()),
-                });
-
-            let now = app.now;
-            if app.resizing {
-                anim.visible.transition_instantaneous(true, now);
-                anim.x.transition_instantaneous(area.x, now);
-                anim.y.transition_instantaneous(area.y, now);
-                anim.width.transition_instantaneous(area.width, now);
-                anim.height.transition_instantaneous(area.height, now);
-            } else {
-                anim.visible.transition(true, now);
-                anim.x.transition(area.x, now);
-                anim.y.transition(area.y, now);
-                anim.width.transition(area.width, now);
-                anim.height.transition(area.height, now);
-            }
-
-            let visibility = anim.visible.animate_bool(0., 1., now);
-            let animated_area = Area {
-                x: anim.x.animate_wrapped(now),
-                y: anim.y.animate_wrapped(now),
-                width: anim.width.animate_wrapped(now),
-                height: anim.height.animate_wrapped(now),
-            };
-
-            app.animation_bank.animations.insert(id, anim);
-
-            DrawItem::Draw {
-                view: Box::new(self.clone()),
-                area: if is_text {
-                    Area::new(animated_area.x, animated_area.y, area.width, area.height)
-                } else {
-                    animated_area
-                },
-                visible: true,
-                opacity: visibility,
-            }
+        let node = draw(move |area| DrawItem::Draw {
+            view: Box::new(self.clone()),
+            layout_area: area,
+            area,
+            visible: true,
+            opacity: 1.0,
+            duration: Some(duration),
+            easing: Some(easing),
+            delay,
         });
 
         if let ViewType::Text(text_view) = view_type {

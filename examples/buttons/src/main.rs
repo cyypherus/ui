@@ -7,7 +7,7 @@ struct State {
     b1: ButtonState,
     b2: ButtonState,
     b3: ButtonState,
-    t1: ToggleState,
+    // t1: ToggleState,
 }
 
 fn main() {
@@ -21,9 +21,9 @@ fn main() {
                         text(id!(), "Custom Label Text")
                             .fill(Color::WHITE)
                             .finish(app),
-                        toggle(id!(), binding!(state, State, t1))
-                            .finish()
-                            .height(80.),
+                        // toggle(id!(), binding!(state, State, t1))
+                        // .finish()
+                        // .height(80.),
                     ],
                 )
                 .height(150.)
