@@ -29,7 +29,7 @@ pub fn text(id: u64, text: impl AsRef<str> + 'static) -> Text {
         easing: None,
         duration: None,
         delay: 0.,
-        alignment: Alignment::Middle,
+        alignment: Alignment::Center,
         line_height: 1.,
         wrap: false,
     }

@@ -11,7 +11,7 @@ use lilt::Easing;
 use parley::{Alignment, FontWeight};
 use std::fmt::Debug;
 use std::rc::Rc;
-use vello_svg::vello::kurbo::Affine;
+use vello_svg::vello::kurbo::{Affine, Rect as KRect};
 use vello_svg::vello::peniko::Color;
 use vello_svg::vello::peniko::color::palette::css::TRANSPARENT;
 
@@ -45,7 +45,7 @@ pub fn text_field<State>(
         easing: None,
         duration: None,
         delay: 0.,
-        alignment: Alignment::Middle,
+        alignment: Alignment::Center,
         editable: true,
         line_height: 1.,
         background_fill: Some(Color::from_rgb8(50, 50, 50)),
@@ -247,18 +247,19 @@ impl<State> TextField<State> {
         {
             let cursor_width = 2f64;
             let half_cursor_width = 1f64;
-            let selection_rects = edit_state
+            let selection_rects: Vec<vello_svg::vello::kurbo::Rect> = edit_state
                 .editor
                 .editor
                 .selection_geometry()
                 .iter()
-                .map(|(rect, _i)| *rect)
-                .collect::<Vec<_>>();
+                .map(|(bb, _i)| KRect::new(bb.x0, bb.y0, bb.x1, bb.y1))
+                .collect();
             let is_empty = edit_state.editor.text().to_string().is_empty();
             let cursor = edit_state
                 .editor
                 .editor
-                .cursor_geometry(cursor_width as f32);
+                .cursor_geometry(cursor_width as f32)
+                .map(|bb| KRect::new(bb.x0, bb.y0, bb.x1, bb.y1));
             let layout = edit_state
                 .editor
                 .editor

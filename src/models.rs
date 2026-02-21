@@ -2,7 +2,7 @@ use std::{fmt::Debug, rc::Rc};
 use vello_svg::vello::kurbo::Point;
 use winit::keyboard::{NamedKey, SmolStr};
 
-pub use backer::{Area, Align};
+pub use backer::{Align, Area};
 
 pub(crate) fn area_contains(area: &Area, point: Point) -> bool {
     let x = point.x;

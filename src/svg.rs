@@ -47,7 +47,10 @@ impl Svg {
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<State: 'static>(self, app: &mut AppState<State>) -> Layout<DrawItem<State>, AppContext> {
+    pub fn finish<State: 'static>(
+        self,
+        app: &mut AppState<State>,
+    ) -> Layout<DrawItem<State>, AppContext> {
         self.view().finish(app)
     }
 }
@@ -97,6 +100,7 @@ impl Svg {
             let area_height = area.height as f64 * app.scale_factor;
             if self.fill.is_some() {
                 scene.push_layer(
+                    Fill::NonZero,
                     peniko::BlendMode {
                         mix: Mix::Normal,
                         compose: Compose::SrcOver,
@@ -126,8 +130,9 @@ impl Svg {
             );
             if let Some(fill) = self.fill {
                 scene.push_layer(
+                    Fill::NonZero,
                     peniko::BlendMode {
-                        mix: Mix::Clip,
+                        mix: Mix::Normal,
                         compose: Compose::SrcIn,
                     },
                     1.0,

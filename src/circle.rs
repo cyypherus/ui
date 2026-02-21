@@ -58,7 +58,10 @@ impl Circle {
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<State: 'static>(self, app: &mut AppState<State>) -> Layout<DrawItem<State>, AppContext> {
+    pub fn finish<State: 'static>(
+        self,
+        app: &mut AppState<State>,
+    ) -> Layout<DrawItem<State>, AppContext> {
         self.view().finish(app)
     }
 }

@@ -1,5 +1,5 @@
 use core::default::Default;
-use parley::{GenericFamily, StyleProperty, editor::SplitString};
+use parley::{GenericFamily, StyleProperty, editing::SplitString};
 use std::time::{Duration, Instant};
 use vello_svg::vello::{
     kurbo::Point,
@@ -7,7 +7,7 @@ use vello_svg::vello::{
 };
 use winit::{event::Modifiers, keyboard::NamedKey};
 
-pub use parley::layout::editor::Generation;
+pub use parley::editing::Generation;
 use parley::{FontContext, LayoutContext, PlainEditor, PlainEditorDriver};
 
 use crate::Key;

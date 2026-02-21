@@ -21,7 +21,7 @@ use tokio::sync::mpsc::Sender;
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
 use vello_svg::vello::kurbo::{Affine, BezPath};
-use vello_svg::vello::peniko::{Brush, Color, Mix};
+use vello_svg::vello::peniko::{Brush, Color, Fill, Mix};
 use vello_svg::vello::util::{RenderContext, RenderSurface};
 use vello_svg::vello::{Renderer, RendererOptions, Scene};
 use winit::event::{Modifiers, MouseScrollDelta};
@@ -542,9 +542,13 @@ impl<State: 'static> App<'_, State> {
             for item in draw_items {
                 match item {
                     DrawItem::PushClip { path } => {
-                        self.app_state
-                            .scene
-                            .push_layer(Mix::Normal, 1., Affine::IDENTITY, &path);
+                        self.app_state.scene.push_layer(
+                            Fill::NonZero,
+                            Mix::Normal,
+                            1.,
+                            Affine::IDENTITY,
+                            &path,
+                        );
                     }
                     DrawItem::PopClip => {
                         self.app_state.scene.pop_layer();

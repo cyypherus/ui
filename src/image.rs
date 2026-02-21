@@ -8,7 +8,7 @@ use image::{DynamicImage, ImageBuffer, Rgba};
 use lilt::Easing;
 use std::sync::Arc;
 use vello_svg::vello::kurbo::{Affine, Point, RoundedRect, Size, Vec2};
-use vello_svg::vello::peniko::Mix;
+use vello_svg::vello::peniko::{Fill, Mix};
 use vello_svg::vello::{Scene, peniko};
 
 #[derive(Debug, Clone)]
@@ -95,7 +95,10 @@ impl Image {
         }
     }
 
-    pub fn finish<State: 'static>(self, app: &mut AppState<State>) -> Layout<DrawItem<State>, AppContext> {
+    pub fn finish<State: 'static>(
+        self,
+        app: &mut AppState<State>,
+    ) -> Layout<DrawItem<State>, AppContext> {
         self.view().finish(app)
     }
 }
@@ -173,6 +176,7 @@ impl Image {
             };
 
             scene.push_layer(
+                Fill::NonZero,
                 Mix::Normal,
                 1.,
                 transform,
@@ -187,7 +191,7 @@ impl Image {
         }
     }
 
-    fn load_image(&self) -> Result<peniko::Image, Box<dyn std::error::Error>> {
+    fn load_image(&self) -> Result<peniko::ImageData, Box<dyn std::error::Error>> {
         #[derive(Debug)]
         pub enum ImageError {
             InvalidBuffer(String),
@@ -226,11 +230,12 @@ impl Image {
 
         let blob = peniko::Blob::new(Arc::new(rgba_img.into_raw()));
 
-        Ok(peniko::Image::new(
-            blob,
-            peniko::ImageFormat::Rgba8,
+        Ok(peniko::ImageData {
+            data: blob,
+            format: peniko::ImageFormat::Rgba8,
+            alpha_type: peniko::ImageAlphaType::Alpha,
             width,
             height,
-        ))
+        })
     }
 }
