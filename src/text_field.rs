@@ -49,7 +49,7 @@ pub fn text_field<State>(
         editable: true,
         line_height: 1.,
         background_fill: Some(Color::from_rgb8(50, 50, 50)),
-        background_stroke: Some((Color::from_rgb8(60, 60, 60), DEFAULT_PURP, 3.)),
+        background_stroke: Some((Color::from_rgb8(60, 60, 60), DEFAULT_PURP, 1.)),
         background_corner_rounding: DEFAULT_CORNER_ROUNDING,
         background_padding: DEFAULT_PADDING,
         wrap: false,

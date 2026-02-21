@@ -555,9 +555,9 @@ impl<State: 'static> App<'_, State> {
                     DrawItem::Draw {
                         mut view,
                         layout_area,
-                        area,
+                        area: _area,
                         visible,
-                        opacity,
+                        opacity: _opacity,
                         duration,
                         easing,
                         delay,
