@@ -1,7 +1,6 @@
 use crate::DEFAULT_CORNER_ROUNDING;
-use crate::app::DrawItem;
+use crate::app::{AppContext, AppState, DrawItem};
 
-use crate::app::AppState;
 use crate::view::{View, ViewType};
 
 use backer::{Area, Layout};
@@ -96,7 +95,7 @@ impl Image {
         }
     }
 
-    pub fn finish<State: 'static>(self, app: &mut AppState<State>) -> Layout<DrawItem<State>> {
+    pub fn finish<State: 'static>(self, app: &mut AppState<State>) -> Layout<DrawItem<State>, AppContext> {
         self.view().finish(app)
     }
 }

@@ -1,7 +1,5 @@
 use crate::Color;
-use crate::app::DrawItem;
-
-use crate::app::AppState;
+use crate::app::{AppContext, AppState, DrawItem};
 use crate::shape::{AnimatedShape, Shape, ShapeType};
 use crate::view::{AnimatedView, View, ViewType};
 
@@ -60,7 +58,7 @@ impl Circle {
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<State: 'static>(self, app: &mut AppState<State>) -> Layout<DrawItem<State>> {
+    pub fn finish<State: 'static>(self, app: &mut AppState<State>) -> Layout<DrawItem<State>, AppContext> {
         self.view().finish(app)
     }
 }

@@ -1,4 +1,4 @@
-use crate::app::{AppState, DrawItem};
+use crate::app::{AppContext, AppState, DrawItem};
 use crate::circle::{AnimatedCircle, Circle};
 use crate::gestures::{ClickLocation, Interaction, InteractionType, ScrollDelta};
 use crate::image::Image;
@@ -73,12 +73,12 @@ macro_rules! binding {
 
 pub fn clipping<State: 'static>(
     path: fn(Area) -> BezPath,
-    content: Layout<DrawItem<State>>,
-) -> Layout<DrawItem<State>> {
+    content: Layout<DrawItem<State>, AppContext>,
+) -> Layout<DrawItem<State>, AppContext> {
     stack(vec![
-        draw(move |area| DrawItem::PushClip { path: path(area) }),
+        draw(move |area, _| DrawItem::PushClip { path: path(area) }),
         content,
-        draw(|_| DrawItem::PopClip),
+        draw(|_, _| DrawItem::PopClip),
     ])
 }
 
@@ -315,7 +315,7 @@ impl<State> View<State> {
 }
 
 impl<State> View<State> {
-    pub fn finish(self, app: &mut AppState<State>) -> Layout<DrawItem<State>>
+    pub fn finish(self, app: &mut AppState<State>) -> Layout<DrawItem<State>, AppContext>
     where
         State: 'static,
     {
@@ -324,7 +324,7 @@ impl<State> View<State> {
         let easing = self.get_easing();
         let delay = self.get_delay();
 
-        let node = draw(move |area| DrawItem::Draw {
+        let node = draw(move |area, _| DrawItem::Draw {
             view: Box::new(self.clone()),
             layout_area: area,
             area,

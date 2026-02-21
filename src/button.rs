@@ -1,6 +1,6 @@
 use crate::{
     Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, DEFAULT_PURP,
-    app::{AppState, DrawItem},
+    app::{AppContext, AppState, DrawItem},
     rect,
 };
 use crate::{Color, DEFAULT_FG};
@@ -16,8 +16,8 @@ pub struct ButtonState {
 
 pub struct Button<State> {
     id: u64,
-    body: Option<Layout<DrawItem<State>>>,
-    label: Option<Layout<DrawItem<State>>>,
+    body: Option<Layout<DrawItem<State>, AppContext>>,
+    label: Option<Layout<DrawItem<State>, AppContext>>,
     text_label: Option<String>,
     corner_rounding: Option<f32>,
     on_click: Option<Rc<dyn Fn(&mut State, &mut AppState<State>)>>,
@@ -45,11 +45,11 @@ pub fn button<State>(id: u64, state: (ButtonState, Binding<State, ButtonState>))
 }
 
 impl<State> Button<State> {
-    pub fn surface(mut self, body: Layout<DrawItem<State>>) -> Self {
+    pub fn surface(mut self, body: Layout<DrawItem<State>, AppContext>) -> Self {
         self.body = Some(body);
         self
     }
-    pub fn label(mut self, label: Layout<DrawItem<State>>) -> Self {
+    pub fn label(mut self, label: Layout<DrawItem<State>, AppContext>) -> Self {
         self.label = Some(label);
         self
     }
@@ -80,7 +80,7 @@ impl<State> Button<State> {
         self.text_fill = Some(color);
         self
     }
-    pub fn finish(self, app: &mut AppState<State>) -> Layout<DrawItem<State>>
+    pub fn finish(self, app: &mut AppState<State>) -> Layout<DrawItem<State>, AppContext>
     where
         State: 'static,
     {

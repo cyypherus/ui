@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::app::DrawItem;
+use crate::app::{AppContext, DrawItem};
 use crate::{Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_PURP, app::AppState, rect};
 use crate::{ButtonState, Color, DEFAULT_DARK_GRAY, DEFAULT_FG_COLOR, TRANSPARENT, Text, svg};
 use backer::{Align, Layout, nodes::*};
@@ -95,7 +95,7 @@ impl<State> DropDown<State> {
         self
     }
 
-    pub fn finish(self, app: &mut AppState<State>) -> Layout<DrawItem<State>>
+    pub fn finish(self, app: &mut AppState<State>) -> Layout<DrawItem<State>, AppContext>
     where
         State: 'static,
     {

@@ -1,4 +1,4 @@
-use crate::app::{AppState, DrawItem, EditState, EditorSetup};
+use crate::app::{AppContext, AppState, DrawItem, EditState};
 use crate::rect::Rect;
 use crate::shape::{Shape, ShapeType};
 use crate::view::{View, ViewType};
@@ -217,7 +217,7 @@ impl<State> TextField<State> {
 }
 
 impl<State> TextField<State> {
-    pub fn finish(self, app: &mut AppState<State>) -> Layout<DrawItem<State>>
+    pub fn finish(self, app: &mut AppState<State>) -> Layout<DrawItem<State>, AppContext>
     where
         State: 'static,
     {
@@ -270,7 +270,7 @@ impl<State> TextField<State> {
 
             let mut selection_drawables = Vec::new();
             for rect in selection_rects.clone() {
-                selection_drawables.push(draw(move |area| DrawItem::Draw {
+                selection_drawables.push(draw(move |area, _| DrawItem::Draw {
                     view: Box::new(View::<State> {
                         view_type: ViewType::Rect(Rect {
                             id,
@@ -320,7 +320,7 @@ impl<State> TextField<State> {
                 cursor
             } {
                 let rounding = (cursor_width * 0.5) as f32;
-                cursor_drawables.push(draw(move |area| DrawItem::<State>::Draw {
+                cursor_drawables.push(draw(move |area, _| DrawItem::<State>::Draw {
                     view: Box::new(View {
                         view_type: ViewType::Rect(Rect {
                             id,
@@ -368,7 +368,7 @@ impl<State> TextField<State> {
 
             let mut text_drawables = Vec::new();
 
-            text_drawables.push(draw(move |area| {
+            text_drawables.push(draw(move |area, _| {
                 let transform =
                     Affine::translate((area.x as f64, area.y as f64)).then_scale(scale_factor);
                 DrawItem::<State>::Draw {
@@ -433,7 +433,7 @@ impl<State> TextField<State> {
             let font_family = self.font_family.clone();
             let on_edit = self.on_edit.clone();
             stack(vec![
-                draw(move |area| DrawItem::EditorArea(root_id, area)),
+                draw(move |area, _| DrawItem::EditorArea(root_id, area)),
                 rect(root_id)
                     .fill(TRANSPARENT)
                     .view()
@@ -504,25 +504,23 @@ impl<State> TextField<State> {
                             let editing = binding.get(state).editing;
                             if !editing && app.editor.is_none() {
                                 app.animation_bank.animations.remove(&text_id);
-                                if app.editor_setup.is_none() {
-                                    binding.update(state, |s| s.editing = true);
-                                    app.editor_setup = Some(EditorSetup {
-                                        id: root_id,
-                                        text: binding.get(state).text,
-                                        fill: self.fill,
-                                        font_family: font_family
-                                            .clone()
-                                            .unwrap_or(DEFAULT_FONT_FAMILY.to_string()),
-                                        font_weight: self.font_weight,
-                                        line_height: self.line_height,
-                                        font_size: self.font_size as f32,
-                                        overflow_wrap: parley::OverflowWrap::Anywhere,
-                                        alignment: self.alignment,
-                                        cursor_fill: self.cursor_fill,
-                                        highlight_fill: self.highlight_fill,
-                                        wrap: self.wrap,
-                                    })
-                                }
+                                binding.update(state, |s| s.editing = true);
+                                app.begin_editing(
+                                    root_id,
+                                    binding.get(state).text,
+                                    self.fill,
+                                    font_family
+                                        .clone()
+                                        .unwrap_or(DEFAULT_FONT_FAMILY.to_string()),
+                                    self.font_weight,
+                                    self.line_height,
+                                    self.font_size as f32,
+                                    parley::OverflowWrap::Anywhere,
+                                    self.alignment,
+                                    self.cursor_fill,
+                                    self.highlight_fill,
+                                    self.wrap,
+                                );
                             }
                         }
                     })

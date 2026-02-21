@@ -1,5 +1,5 @@
 use crate::animated_color::{AnimatedColor, AnimatedU8};
-use crate::app::{AppState, DrawItem, LayoutCache};
+use crate::app::{AppContext, AppState, DrawItem, LayoutCache};
 use crate::draw_layout::draw_layout;
 use crate::{
     DEFAULT_DURATION, DEFAULT_EASING,
@@ -125,7 +125,7 @@ impl Text {
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<State>(self, app: &mut AppState<State>) -> Layout<DrawItem<State>>
+    pub fn finish<State>(self, app: &mut AppState<State>) -> Layout<DrawItem<State>, AppContext>
     where
         State: 'static,
     {
@@ -300,8 +300,8 @@ impl Text {
         .multiply_alpha(visible_amount);
 
         let layout = app
+            .app_context
             .text_layout
-            .borrow_mut()
             .build_layout(self, self.fill, area.width, true);
 
         let transform = Affine::translate((animated_area.x as f64, animated_area.y as f64))
@@ -316,23 +316,21 @@ impl Text {
     pub(crate) fn with_text_constraints<State>(
         self,
         app: &mut AppState<State>,
-        node: Layout<DrawItem<State>>,
-    ) -> Layout<DrawItem<State>>
+        node: Layout<DrawItem<State>, AppContext>,
+    ) -> Layout<DrawItem<State>, AppContext>
     where
         State: 'static,
     {
         if self.wrap {
-            let text_layout = app.text_layout.clone();
-            node.dynamic_height(move |w| {
-                text_layout
-                    .borrow_mut()
+            node.dynamic_height(move |w, ctx| {
+                ctx.text_layout
                     .build_layout(&self, self.fill, w, true)
                     .height()
             })
         } else {
             let layout = app
+                .app_context
                 .text_layout
-                .borrow_mut()
                 .build_layout(&self, self.fill, 10000., true);
             node.height(layout.height()).width(layout.width().max(10.))
         }
