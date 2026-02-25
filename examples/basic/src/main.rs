@@ -14,6 +14,7 @@ struct State {
     text_a: TextState,
     text_b: TextState,
     toggle: ToggleState,
+    slider: SliderState,
     button: ButtonState,
     dropdown: DropdownState,
 }
@@ -75,7 +76,7 @@ fn main() {
                 editing: false,
             },
             toggle: ToggleState::default(),
-            // slider: SliderState::default(),
+            slider: SliderState::default(),
             button: ButtonState::default(),
             dropdown: DropdownState::default(),
         },
@@ -101,7 +102,7 @@ fn main() {
                         text_field(id!(), binding!(state, State, text_b)).font_size(14).align(parley::Alignment::Left).wrap().finish(app.ctx()),
                         toggle(id!(), binding!(state, State, toggle)).finish(app.ctx()).height(40.),
                         button(id!(), binding!(state, State, button)).text_label("Engage thrusters").finish(app.ctx()).height(50.),
-                        // slider(id!(), binding!(state, State, slider)).finish(app.ctx()).height(40.),
+                        slider(id!(), binding!(state, State, slider)).finish(app.ctx()).height(40.),
                         dropdown(id!(), binding!(state, State, dropdown), vec![
                             text(id!(), "Luminescent Moss"),
                             text(id!(), "Crystal Mycelium"),
