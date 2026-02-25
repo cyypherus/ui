@@ -80,7 +80,7 @@ impl<State> Button<State> {
         self.text_fill = Some(color);
         self
     }
-    pub fn finish(self, app: &mut AppState<State>) -> Layout<DrawItem<State>, AppContext>
+    pub fn finish(self, ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
     where
         State: 'static,
     {
@@ -103,7 +103,7 @@ impl<State> Button<State> {
                     )
                     .corner_rounding(self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
                     .view()
-                    .finish(app)
+                    .finish(ctx)
             },
             if let Some(label) = self.label {
                 label
@@ -126,7 +126,7 @@ impl<State> Button<State> {
                 .font_size(DEFAULT_FONT_SIZE)
                 .view()
                 // .transition_duration(0.)
-                .finish(app)
+                .finish(ctx)
             },
         ])
         .attach_over(
@@ -155,7 +155,7 @@ impl<State> Button<State> {
                         }
                     }
                 })
-                .finish(app),
+                .finish(ctx),
         )
     }
 }

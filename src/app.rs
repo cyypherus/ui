@@ -174,6 +174,11 @@ pub(crate) type LayoutCache = HashMap<u64, Vec<(String, f32, parley::Layout<Brus
 
 pub struct AppContext {
     pub(crate) text_layout: TextLayout,
+    pub(crate) font_cx: FontContext,
+    pub(crate) layout_cx: LayoutContext<Brush>,
+    pub(crate) scale_factor: f64,
+    pub(crate) editor: Option<EditState>,
+    pub(crate) editor_areas: HashMap<u64, Area>,
 }
 
 pub struct AppState<State> {
@@ -183,14 +188,9 @@ pub struct AppState<State> {
     pub(crate) runtime: Runtime,
     pub(crate) cancellation_token: CancellationToken,
     pub(crate) task_tracker: TaskTracker,
-    pub(crate) scale_factor: f64,
-    pub(crate) editor: Option<EditState>,
-    pub(crate) editor_areas: HashMap<u64, Area>,
     pub(crate) scene: Scene,
     pub(crate) app_context: AppContext,
     pub(crate) layout_cache: LayoutCache,
-    pub(crate) layout_cx: LayoutContext<Brush>,
-    pub(crate) font_cx: FontContext,
     pub(crate) svg_scenes: HashMap<String, (Scene, f32, f32)>,
     pub(crate) image_scenes: HashMap<u64, (Scene, f32, f32)>,
     pub(crate) modifiers: Option<Modifiers>,
@@ -233,9 +233,13 @@ impl Clone for EditState {
 }
 
 impl<State> AppState<State> {
+    pub fn ctx(&mut self) -> &mut AppContext {
+        &mut self.app_context
+    }
+
     pub fn end_editing(&mut self) {
-        if self.editor.is_some() {
-            self.editor = None;
+        if self.app_context.editor.is_some() {
+            self.app_context.editor = None;
         }
     }
 
@@ -262,10 +266,10 @@ impl<State> AppState<State> {
         highlight_fill: Color,
         wrap: bool,
     ) {
-        if self.editor.is_some() {
+        if self.app_context.editor.is_some() {
             return;
         }
-        let Some(area) = self.editor_areas.get(&id) else {
+        let Some(area) = self.app_context.editor_areas.get(&id) else {
             return;
         };
         let mut editor = PlainEditor::new(font_size);
@@ -300,11 +304,11 @@ impl<State> AppState<State> {
         if let Some(pos) = self.cursor_position {
             editor.mouse_moved(
                 Point::new(pos.x - area.x as f64, pos.y - area.y as f64),
-                &mut self.layout_cx,
-                &mut self.font_cx,
+                &mut self.app_context.layout_cx,
+                &mut self.app_context.font_cx,
             );
         }
-        self.editor = Some(EditState {
+        self.app_context.editor = Some(EditState {
             id,
             editor,
             editing: true,
@@ -441,16 +445,16 @@ impl<State: 'static> App<'_, State> {
                 runtime,
                 cancellation_token: CancellationToken::new(),
                 task_tracker: TaskTracker::new(),
-                scale_factor: 1.,
-                editor: None,
-                editor_areas: HashMap::new(),
                 scene: Scene::new(),
                 app_context: AppContext {
                     text_layout: TextLayout::new(layout_cache, font_cx_inner, layout_cx),
+                    font_cx: FontContext::new(),
+                    layout_cx: LayoutContext::new(),
+                    scale_factor: 1.,
+                    editor: None,
+                    editor_areas: HashMap::new(),
                 },
                 layout_cache: HashMap::new(),
-                layout_cx: LayoutContext::new(),
-                font_cx: FontContext::new(),
                 image_scenes: HashMap::new(),
                 svg_scenes: HashMap::new(),
                 modifiers: None,
@@ -493,7 +497,7 @@ impl<State: 'static> App<'_, State> {
         {
             let size = window.inner_size();
             self.last_window_size = Some(size);
-            self.app_state.scale_factor = window.scale_factor();
+            self.app_state.app_context.scale_factor = window.scale_factor();
             let size = window.inner_size();
             let width = size.width;
             let height = size.height;
@@ -507,8 +511,8 @@ impl<State: 'static> App<'_, State> {
                 Area {
                     x: 0.,
                     y: 0.,
-                    width: ((width as f64) / self.app_state.scale_factor) as f32,
-                    height: ((height as f64) / self.app_state.scale_factor) as f32,
+                    width: ((width as f64) / self.app_state.app_context.scale_factor) as f32,
+                    height: ((height as f64) / self.app_state.app_context.scale_factor) as f32,
                 },
                 &mut self.app_state.app_context,
             );
@@ -529,7 +533,7 @@ impl<State: 'static> App<'_, State> {
                         self.app_state.scene.pop_layer();
                     }
                     DrawItem::EditorArea(id, area) => {
-                        self.app_state.editor_areas.insert(id, area);
+                        self.app_state.app_context.editor_areas.insert(id, area);
                     }
                     DrawItem::Draw {
                         mut view,
@@ -819,7 +823,7 @@ impl<State: 'static> ApplicationHandler<AppEvent> for App<'_, State> {
                 event::WindowEvent::Closed => event_loop.exit(),
                 event::WindowEvent::RedrawRequested => self.redraw(),
                 event::WindowEvent::ScaleFactorChanged(scale_factor) => {
-                    self.app_state.scale_factor = scale_factor;
+                    self.app_state.app_context.scale_factor = scale_factor;
                     self.app_state.layout_cache.clear();
                     self.request_redraw();
                 }
@@ -833,19 +837,19 @@ impl<State: 'static> ApplicationHandler<AppEvent> for App<'_, State> {
 impl<State: 'static> App<'_, State> {
     pub(crate) fn mouse_moved(&mut self, pos: Point) {
         let pos = Point::new(
-            pos.x / self.app_state.scale_factor,
-            pos.y / self.app_state.scale_factor,
+            pos.x / self.app_state.app_context.scale_factor,
+            pos.y / self.app_state.app_context.scale_factor,
         );
         let mut needs_redraw = false;
         self.app_state.cursor_position = Some(pos);
-        if let Some(EditState { id, editor, .. }) = self.app_state.editor.as_mut()
-            && let Some(area) = self.app_state.editor_areas.get(id).copied()
+        if let Some(EditState { id, editor, .. }) = self.app_state.app_context.editor.as_mut()
+            && let Some(area) = self.app_state.app_context.editor_areas.get(id).copied()
         {
             needs_redraw = true;
             editor.mouse_moved(
                 Point::new(pos.x - area.x as f64, pos.y - area.y as f64),
-                &mut self.app_state.layout_cx,
-                &mut self.app_state.font_cx,
+                &mut self.app_state.app_context.layout_cx,
+                &mut self.app_state.app_context.font_cx,
             );
         }
         self.gesture_handlers().iter().for_each(|(_, area, gh)| {
@@ -987,11 +991,14 @@ impl<State: 'static> App<'_, State> {
                 }
             }
             // Once all click handlers are run, text fields will have set up an editor if they have been clicked, so we can send the mouse press to the editor
-            if let Some(EditState { id, editor, .. }) = self.app_state.editor.as_mut()
-                && let Some(area) = self.app_state.editor_areas.get(id).cloned()
+            if let Some(EditState { id, editor, .. }) = self.app_state.app_context.editor.as_mut()
+                && let Some(area) = self.app_state.app_context.editor_areas.get(id).cloned()
                 && area_contains_padded(&area, point, 10.)
             {
-                editor.mouse_pressed(&mut self.app_state.layout_cx, &mut self.app_state.font_cx);
+                editor.mouse_pressed(
+                    &mut self.app_state.app_context.layout_cx,
+                    &mut self.app_state.app_context.font_cx,
+                );
             }
         }
 
@@ -1002,8 +1009,8 @@ impl<State: 'static> App<'_, State> {
     pub(crate) fn mouse_released(&mut self) {
         let mut needs_redraw = false;
         if let Some(current) = self.app_state.cursor_position {
-            if let Some(EditState { id, editor, .. }) = self.app_state.editor.as_mut()
-                && let Some(area) = self.app_state.editor_areas.get(id)
+            if let Some(EditState { id, editor, .. }) = self.app_state.app_context.editor.as_mut()
+                && let Some(area) = self.app_state.app_context.editor_areas.get(id)
             {
                 editor.mouse_released();
                 needs_redraw = true;

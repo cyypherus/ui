@@ -23,8 +23,12 @@ impl Rect {
         if !visible && visible_amount == 0. {
             return;
         }
-        self.shape
-            .draw(&mut app.scene, area, app.scale_factor, visible_amount);
+        self.shape.draw(
+            &mut app.scene,
+            area,
+            app.app_context.scale_factor,
+            visible_amount,
+        );
     }
 }
 
@@ -82,8 +86,8 @@ impl Rect {
     }
     pub fn finish<State: 'static>(
         self,
-        app: &mut AppState<State>,
+        ctx: &mut AppContext,
     ) -> Layout<DrawItem<State>, AppContext> {
-        self.view().finish(app)
+        self.view().finish(ctx)
     }
 }

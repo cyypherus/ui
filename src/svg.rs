@@ -42,9 +42,9 @@ impl Svg {
     }
     pub fn finish<State: 'static>(
         self,
-        app: &mut AppState<State>,
+        ctx: &mut AppContext,
     ) -> Layout<DrawItem<State>, AppContext> {
-        self.view().finish(app)
+        self.view().finish(ctx)
     }
 }
 
@@ -87,10 +87,10 @@ impl Svg {
         if let Some((svg_scene, width, height)) = svg_scenes.get(&self.content) {
             let width = *width as f64;
             let height = *height as f64;
-            let area_x = area.x as f64 * app.scale_factor;
-            let area_y = area.y as f64 * app.scale_factor;
-            let area_width = area.width as f64 * app.scale_factor;
-            let area_height = area.height as f64 * app.scale_factor;
+            let area_x = area.x as f64 * app.app_context.scale_factor;
+            let area_y = area.y as f64 * app.app_context.scale_factor;
+            let area_width = area.width as f64 * app.app_context.scale_factor;
+            let area_height = area.height as f64 * app.app_context.scale_factor;
             if self.fill.is_some() {
                 scene.push_layer(
                     Fill::NonZero,

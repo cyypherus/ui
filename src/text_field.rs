@@ -204,7 +204,7 @@ impl<State> TextField<State> {
 }
 
 impl<State> TextField<State> {
-    pub fn finish(self, app: &mut AppState<State>) -> Layout<DrawItem<State>, AppContext>
+    pub fn finish(self, ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
     where
         State: 'static,
     {
@@ -227,7 +227,7 @@ impl<State> TextField<State> {
         let root_id = crate::id!(id);
         let text_id = crate::id!(id);
         if self.state.editing
-            && let Some(ref mut edit_state) = app.editor
+            && let Some(ref mut edit_state) = ctx.editor
         {
             let cursor_width = 2f64;
             let half_cursor_width = 1f64;
@@ -247,11 +247,11 @@ impl<State> TextField<State> {
             let layout = edit_state
                 .editor
                 .editor
-                .layout(&mut app.font_cx, &mut app.layout_cx)
+                .layout(&mut ctx.font_cx, &mut ctx.layout_cx)
                 .clone();
             let width = layout.width();
             let height = layout.height();
-            let scale_factor = app.scale_factor;
+            let scale_factor = ctx.scale_factor;
 
             let mut selection_drawables = Vec::new();
             for rect in selection_rects.clone() {
@@ -367,7 +367,7 @@ impl<State> TextField<State> {
                 wrap,
             }
             .view()
-            .finish(app)
+            .finish(ctx)
         }
         .attach_under({
             let binding = binding.clone();
@@ -395,9 +395,13 @@ impl<State> TextField<State> {
                                 return;
                             };
                             if let AppState {
-                                editor: Some(EditState { editor, id, .. }),
-                                layout_cx,
-                                font_cx,
+                                app_context:
+                                    AppContext {
+                                        editor: Some(EditState { editor, id, .. }),
+                                        layout_cx,
+                                        font_cx,
+                                        ..
+                                    },
                                 modifiers,
                                 ..
                             } = app
@@ -405,11 +409,14 @@ impl<State> TextField<State> {
                             {
                                 editor.handle_key(key.clone(), layout_cx, font_cx, *modifiers);
                             }
-                            let edit_text =
-                                app.editor.as_ref().map(|e| e.editor.text().to_string());
+                            let edit_text = app
+                                .app_context
+                                .editor
+                                .as_ref()
+                                .map(|e| e.editor.text().to_string());
 
                             if let Some(edit_text) = edit_text
-                                && app.editor.as_ref().map(|e| e.id) == Some(root_id)
+                                && app.app_context.editor.as_ref().map(|e| e.id) == Some(root_id)
                             {
                                 if let Some(ref on_edit) = on_edit {
                                     on_edit(state, app, EditInteraction::Update(edit_text.clone()));
@@ -425,7 +432,11 @@ impl<State> TextField<State> {
                         let on_edit = on_edit.clone();
                         move |state: &mut State, app, _, _| {
                             if let AppState {
-                                editor: Some(EditState { id, .. }),
+                                app_context:
+                                    AppContext {
+                                        editor: Some(EditState { id, .. }),
+                                        ..
+                                    },
                                 ..
                             } = app
                                 && *id == root_id
@@ -443,7 +454,7 @@ impl<State> TextField<State> {
                         let font_family = font_family.clone();
                         move |state: &mut State, app, _, _| {
                             let editing = binding.get(state).editing;
-                            if !editing && app.editor.is_none() {
+                            if !editing && app.app_context.editor.is_none() {
                                 binding.update(state, |s| s.editing = true);
                                 app.begin_editing(
                                     root_id,
@@ -464,7 +475,7 @@ impl<State> TextField<State> {
                             }
                         }
                     })
-                    .finish(app),
+                    .finish(ctx),
             ])
         })
         .pad(if editable { bg_padding } else { 0. })
@@ -477,7 +488,7 @@ impl<State> TextField<State> {
                 rect_node =
                     rect_node.stroke(if self.state.editing { focused } else { normal }, width);
             }
-            rect_node.corner_rounding(bg_rounding).finish(app)
+            rect_node.corner_rounding(bg_rounding).finish(ctx)
         } else {
             space()
         })

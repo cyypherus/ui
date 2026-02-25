@@ -95,7 +95,7 @@ impl<State> DropDown<State> {
         self
     }
 
-    pub fn finish(self, app: &mut AppState<State>) -> Layout<DrawItem<State>, AppContext>
+    pub fn finish(self, ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
     where
         State: 'static,
     {
@@ -144,7 +144,7 @@ impl<State> DropDown<State> {
                                 }
                             }
                         })
-                        .finish(app)
+                        .finish(ctx)
                         .layer(1),
                     row_spaced(
                         5.,
@@ -161,7 +161,7 @@ impl<State> DropDown<State> {
                                 .fill(text_fill.unwrap_or(DEFAULT_FG_COLOR))
                                 .view()
                                 .z_index(1)
-                                .finish(app)
+                                .finish(ctx)
                                 .width(12.)
                                 .height(if expanded {
                                     12.
@@ -180,7 +180,7 @@ impl<State> DropDown<State> {
                                     })
                                     .view()
                                     .z_index(1)
-                                    .finish(app);
+                                    .finish(ctx);
                                 if index == selected || expanded {
                                     opt
                                 } else {
@@ -219,7 +219,7 @@ impl<State> DropDown<State> {
                             }
                         }
                     })
-                    .finish(app)
+                    .finish(ctx)
                     .layer(1),
             );
 
@@ -250,7 +250,7 @@ impl<State> DropDown<State> {
                         }
                     }
                 })
-                .finish(app)
+                .finish(ctx)
                 .layer(1),
         )
     }

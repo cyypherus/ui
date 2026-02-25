@@ -13,6 +13,7 @@ struct ShaderInputs {
 struct State {
     text_a: TextState,
     text_b: TextState,
+    toggle: ToggleState,
     button: ButtonState,
     dropdown: DropdownState,
 }
@@ -73,7 +74,7 @@ fn main() {
                     .to_string(),
                 editing: false,
             },
-            // toggle: ToggleState::default(),
+            toggle: ToggleState::default(),
             // slider: SliderState::default(),
             button: ButtonState::default(),
             dropdown: DropdownState::default(),
@@ -90,17 +91,17 @@ fn main() {
                         .font_weight(FontWeight::BOLD)
                         .font_size(30)
                         .wrap()
-                        .finish(app),
+                        .finish(app.ctx()),
                         shader(id!(), CAUSTICS_SHADER)
                             .inputs(preset(state))
                             .corner_rounding(12.)
-                            .finish(app)
+                            .finish(app.ctx())
                             .height(200.),
-                        text_field(id!(), binding!(state, State, text_a)).wrap().finish(app),
-                        text_field(id!(), binding!(state, State, text_b)).font_size(14).align(parley::Alignment::Left).wrap().finish(app),
-                        // toggle(id!(), binding!(state, State, toggle)).finish(app).height(40.),
-                        button(id!(), binding!(state, State, button)).text_label("Engage thrusters").finish(app).height(50.),
-                        // slider(id!(), binding!(state, State, slider)).finish(app).height(40.),
+                        text_field(id!(), binding!(state, State, text_a)).wrap().finish(app.ctx()),
+                        text_field(id!(), binding!(state, State, text_b)).font_size(14).align(parley::Alignment::Left).wrap().finish(app.ctx()),
+                        toggle(id!(), binding!(state, State, toggle)).finish(app.ctx()).height(40.),
+                        button(id!(), binding!(state, State, button)).text_label("Engage thrusters").finish(app.ctx()).height(50.),
+                        // slider(id!(), binding!(state, State, slider)).finish(app.ctx()).height(40.),
                         dropdown(id!(), binding!(state, State, dropdown), vec![
                             text(id!(), "Luminescent Moss"),
                             text(id!(), "Crystal Mycelium"),
@@ -108,7 +109,7 @@ fn main() {
                             text(id!(), "Floating Gardens"),
                             text(id!(), "Cerebral Forests"),
                             text(id!(), "Glass Marrow"),
-                        ]).finish(app).height(20.),
+                        ]).finish(app.ctx()).height(20.),
                     ],
                 )
                 .pad(20.)

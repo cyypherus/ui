@@ -318,9 +318,9 @@ impl Shader {
 
     pub fn finish<State: 'static>(
         self,
-        app: &mut AppState<State>,
+        ctx: &mut AppContext,
     ) -> Layout<DrawItem<State>, AppContext> {
-        self.view().finish(app)
+        self.view().finish(ctx)
     }
 
     pub(crate) fn draw<State>(
@@ -335,7 +335,7 @@ impl Shader {
         command_buffers: &mut Vec<wgpu::CommandBuffer>,
     ) {
         let device = &context.devices[dev_id].device;
-        let scale_factor = app_state.scale_factor;
+        let scale_factor = app_state.app_context.scale_factor;
 
         let cursor_local = app_state
             .cursor_position

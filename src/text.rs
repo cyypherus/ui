@@ -18,7 +18,6 @@ pub fn text(id: u64, text: impl AsRef<str> + 'static) -> Text {
         font_size: DEFAULT_FONT_SIZE,
         font_weight: FontWeight::NORMAL,
         font_family: None,
-        // font: None,
         fill: DEFAULT_FG_COLOR,
         alignment: Alignment::Center,
         line_height: 1.,
@@ -107,11 +106,11 @@ impl Text {
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<State>(self, app: &mut AppState<State>) -> Layout<DrawItem<State>, AppContext>
+    pub fn finish<State>(self, ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
     where
         State: 'static,
     {
-        self.view().finish(app)
+        self.view().finish(ctx)
     }
 }
 
@@ -225,7 +224,7 @@ impl Text {
             .build_layout(self, self.fill, area.width, true);
 
         let transform = Affine::translate((animated_area.x as f64, animated_area.y as f64))
-            .then_scale(app.scale_factor);
+            .then_scale(app.app_context.scale_factor);
 
         draw_layout(Some(fill), transform, &layout, &mut app.scene);
     }
@@ -234,7 +233,7 @@ impl Text {
 impl Text {
     pub(crate) fn with_text_constraints<State>(
         self,
-        app: &mut AppState<State>,
+        ctx: &mut AppContext,
         node: Layout<DrawItem<State>, AppContext>,
     ) -> Layout<DrawItem<State>, AppContext>
     where
@@ -247,10 +246,7 @@ impl Text {
                     .height()
             })
         } else {
-            let layout = app
-                .app_context
-                .text_layout
-                .build_layout(&self, self.fill, 10000., true);
+            let layout = ctx.text_layout.build_layout(&self, self.fill, 10000., true);
             node.height(layout.height()).width(layout.width().max(10.))
         }
     }

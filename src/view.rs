@@ -244,7 +244,7 @@ impl<State> View<State> {
 }
 
 impl<State> View<State> {
-    pub fn finish(self, app: &mut AppState<State>) -> Layout<DrawItem<State>, AppContext>
+    pub fn finish(self, ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
     where
         State: 'static,
     {
@@ -257,7 +257,7 @@ impl<State> View<State> {
         });
 
         if let ViewType::Text(text_view) = view_type {
-            text_view.with_text_constraints(app, node)
+            text_view.with_text_constraints(ctx, node)
         } else {
             node
         }
