@@ -1,11 +1,9 @@
-use crate::DEFAULT_CORNER_ROUNDING;
 use crate::app::{AppContext, AppState, DrawItem};
 
 use crate::view::{View, ViewType};
 
 use backer::{Area, Layout};
 use image::{DynamicImage, ImageBuffer, Rgba};
-use lilt::Easing;
 use std::sync::Arc;
 use vello_svg::vello::kurbo::{Affine, Point, RoundedRect, Size, Vec2};
 use vello_svg::vello::peniko::{Fill, Mix};
@@ -16,9 +14,6 @@ pub struct Image {
     pub(crate) id: u64,
     pub(crate) source: ImageSource,
     pub(crate) unlocked_aspect_ratio: bool,
-    pub(crate) easing: Option<Easing>,
-    pub(crate) duration: Option<f32>,
-    pub(crate) delay: f32,
     pub(crate) image_id: Option<String>,
     pub(crate) corner_rounding: f32,
 }
@@ -34,9 +29,6 @@ pub fn image(id: u64, source: impl Into<ImageSource>) -> Image {
     Image {
         id,
         source: source.into(),
-        easing: None,
-        duration: None,
-        delay: 0.,
         unlocked_aspect_ratio: false,
         image_id: None,
         corner_rounding: DEFAULT_CORNER_ROUNDING,

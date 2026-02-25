@@ -134,7 +134,6 @@ impl<State> DropDown<State> {
                         )
                         .corner_rounding(corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
                         .view()
-                        .transition_duration(0.)
                         .on_hover({
                             let binding = binding_clone.clone();
                             move |state: &mut State, _app, h| {

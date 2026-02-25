@@ -1,10 +1,9 @@
 use crate::Color;
 use crate::app::{AppContext, AppState, DrawItem};
-use crate::shape::{AnimatedShape, Shape, ShapeType};
-use crate::view::{AnimatedView, View, ViewType};
+use crate::shape::{Shape, ShapeType};
+use crate::view::{View, ViewType};
 
 use backer::{Area, Layout};
-use std::time::Instant;
 
 #[derive(Debug, Clone)]
 pub struct Circle {
@@ -12,19 +11,20 @@ pub struct Circle {
     pub(crate) shape: Shape,
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct AnimatedCircle {
-    pub(crate) shape: AnimatedShape,
-}
-
-impl AnimatedCircle {
-    pub(crate) fn update(now: Instant, from: &Circle, existing: &mut AnimatedCircle) {
-        AnimatedShape::update(now, &from.shape, &mut existing.shape);
-    }
-    pub(crate) fn new_from(from: &Circle) -> Self {
-        AnimatedCircle {
-            shape: AnimatedShape::new_from(&from.shape),
+impl Circle {
+    pub(crate) fn draw<State>(
+        &self,
+        area: Area,
+        _state: &mut State,
+        app: &mut AppState<State>,
+        visible: bool,
+        visible_amount: f32,
+    ) {
+        if !visible && visible_amount == 0. {
+            return;
         }
+        self.shape
+            .draw(&mut app.scene, area, app.scale_factor, visible_amount);
     }
 }
 
@@ -35,9 +35,6 @@ pub fn circle(id: u64) -> Circle {
             shape: ShapeType::Circle,
             fill: None,
             stroke: None,
-            easing: None,
-            duration: None,
-            delay: 0.,
         },
     }
 }
@@ -63,36 +60,5 @@ impl Circle {
         app: &mut AppState<State>,
     ) -> Layout<DrawItem<State>, AppContext> {
         self.view().finish(app)
-    }
-}
-
-impl Circle {
-    pub(crate) fn draw<State>(
-        &mut self,
-        area: Area,
-        _state: &mut State,
-        app: &mut AppState<State>,
-        visible: bool,
-        visible_amount: f32,
-    ) {
-        if !visible && visible_amount == 0. {
-            return;
-        }
-        let AnimatedView::Circle(mut animated) =
-            app.view_state
-                .remove(&self.id)
-                .unwrap_or(AnimatedView::Circle(Box::new(AnimatedCircle::new_from(
-                    self,
-                ))))
-        else {
-            return;
-        };
-        AnimatedCircle::update(app.now, self, &mut animated);
-        let now = app.now;
-        animated
-            .shape
-            .draw(&mut app.scene, area, app.scale_factor, now, visible_amount);
-        app.view_state
-            .insert(self.id, AnimatedView::Circle(animated));
     }
 }

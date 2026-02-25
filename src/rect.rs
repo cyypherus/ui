@@ -1,9 +1,8 @@
 use crate::Color;
 use crate::app::{AppContext, AppState, DrawItem};
-use crate::shape::{AnimatedShape, Shape, ShapeType};
-use crate::view::{AnimatedView, View, ViewType};
+use crate::shape::{Shape, ShapeType};
+use crate::view::{View, ViewType};
 use backer::{Area, Layout};
-use std::time::Instant;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Rect {
@@ -12,19 +11,20 @@ pub struct Rect {
     // pub(crate) box_shadow: Option<(Color, f32)>,
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct AnimatedRect {
-    pub(crate) shape: AnimatedShape,
-}
-
-impl AnimatedRect {
-    pub(crate) fn update(now: Instant, from: &Rect, existing: &mut AnimatedRect) {
-        AnimatedShape::update(now, &from.shape, &mut existing.shape);
-    }
-    pub(crate) fn new_from(from: &Rect) -> Self {
-        AnimatedRect {
-            shape: AnimatedShape::new_from(&from.shape),
+impl Rect {
+    pub(crate) fn draw<State>(
+        &self,
+        area: Area,
+        _state: &mut State,
+        app: &mut AppState<State>,
+        visible: bool,
+        visible_amount: f32,
+    ) {
+        if !visible && visible_amount == 0. {
+            return;
         }
+        self.shape
+            .draw(&mut app.scene, area, app.scale_factor, visible_amount);
     }
 }
 
@@ -37,9 +37,6 @@ pub fn rect(id: u64) -> Rect {
             },
             fill: None,
             stroke: None,
-            easing: None,
-            duration: None,
-            delay: 0.,
         },
         // box_shadow: None,
     }
@@ -88,54 +85,5 @@ impl Rect {
         app: &mut AppState<State>,
     ) -> Layout<DrawItem<State>, AppContext> {
         self.view().finish(app)
-    }
-}
-
-impl Rect {
-    pub(crate) fn draw<State>(
-        &mut self,
-        area: Area,
-        _state: &mut State,
-        app: &mut AppState<State>,
-        visible: bool,
-        visible_amount: f32,
-    ) {
-        if !visible && visible_amount == 0. {
-            return;
-        }
-        let AnimatedView::Rect(mut animated) = app
-            .view_state
-            .remove(&self.id)
-            .unwrap_or(AnimatedView::Rect(Box::new(AnimatedRect::new_from(self))))
-        else {
-            return;
-        };
-        AnimatedRect::update(app.now, self, &mut animated);
-        // TODO: Fix box shadow drawing with scale factor
-        // if let Some((color, radius)) = self.box_shadow {
-        //     app.scene.draw_blurred_rounded_rect(
-        //         Affine::IDENTITY,
-        //         kurbo::Rect::new(
-        //             area.x as f64 * app.scale_factor,
-        //             area.y as f64 * app.scale_factor,
-        //             area.x as f64 + area.width as f64 * app.scale_factor,
-        //             area.y as f64 + area.height as f64 * app.scale_factor,
-        //         ),
-        //         color,
-        //         {
-        //             if let ShapeType::Rect { corner_rounding } = self.shape.shape {
-        //                 corner_rounding as f64 * app.scale_factor
-        //             } else {
-        //                 0.0
-        //             }
-        //         },
-        //         radius as f64 * app.scale_factor,
-        //     );
-        // }
-        let now = app.now;
-        animated
-            .shape
-            .draw(&mut app.scene, area, app.scale_factor, now, visible_amount);
-        app.view_state.insert(self.id, AnimatedView::Rect(animated));
     }
 }

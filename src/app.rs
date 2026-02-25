@@ -2,12 +2,10 @@ use crate::draw_layout::draw_layout;
 use crate::gestures::{ClickLocation, Interaction, ScrollDelta};
 use crate::shader::ShaderCache;
 use crate::text::TextLayout;
-use crate::ui::AnimationBank;
-use crate::view::{AnimatedView, View, ViewType};
+use crate::view::{View, ViewType};
 use crate::{ClickState, DragState, Editor, GestureHandler, Point, area_contains};
 use crate::{GestureState, RUBIK_FONT, area_contains_padded, event};
 use backer::{Area, Layout};
-use lilt::Easing;
 use parley::fontique::Blob;
 use parley::fontique::FontInfoOverride;
 use parley::{
@@ -188,18 +186,14 @@ pub struct AppState<State> {
     pub(crate) scale_factor: f64,
     pub(crate) editor: Option<EditState>,
     pub(crate) editor_areas: HashMap<u64, Area>,
-    pub(crate) animation_bank: AnimationBank,
     pub(crate) scene: Scene,
     pub(crate) app_context: AppContext,
     pub(crate) layout_cache: LayoutCache,
     pub(crate) layout_cx: LayoutContext<Brush>,
     pub(crate) font_cx: FontContext,
-    pub(crate) view_state: HashMap<u64, AnimatedView>,
     pub(crate) svg_scenes: HashMap<String, (Scene, f32, f32)>,
     pub(crate) image_scenes: HashMap<u64, (Scene, f32, f32)>,
     pub(crate) modifiers: Option<Modifiers>,
-    pub(crate) now: Instant,
-    pub(crate) resizing: bool,
     pub(crate) redraw: Sender<()>,
     pub(crate) fullscreen_requested: bool,
 }
@@ -207,13 +201,8 @@ pub struct AppState<State> {
 pub enum DrawItem<State> {
     Draw {
         view: Box<View<State>>,
-        layout_area: Area,
         area: Area,
         visible: bool,
-        opacity: f32,
-        duration: Option<f32>,
-        easing: Option<Easing>,
-        delay: f32,
     },
     PushClip {
         path: BezPath,
@@ -322,14 +311,6 @@ impl<State> AppState<State> {
             cursor_color: cursor_fill,
             highlight_color: highlight_fill,
         });
-    }
-
-    pub(crate) fn animations_in_progress(&self, now: Instant) -> bool {
-        self.view_state.values().any(|v| match v {
-            AnimatedView::Rect(animated_rect) => animated_rect.shape.in_progress(now),
-            AnimatedView::Text(animated_text) => animated_text.fill.in_progress(now),
-            AnimatedView::Circle(animated_circle) => animated_circle.shape.in_progress(now),
-        })
     }
 
     pub fn spawn(&self, task: impl std::future::Future<Output = ()> + Send + 'static) {
@@ -463,8 +444,6 @@ impl<State: 'static> App<'_, State> {
                 scale_factor: 1.,
                 editor: None,
                 editor_areas: HashMap::new(),
-                view_state: HashMap::new(),
-                animation_bank: AnimationBank::new(),
                 scene: Scene::new(),
                 app_context: AppContext {
                     text_layout: TextLayout::new(layout_cache, font_cx_inner, layout_cx),
@@ -475,8 +454,6 @@ impl<State: 'static> App<'_, State> {
                 image_scenes: HashMap::new(),
                 svg_scenes: HashMap::new(),
                 modifiers: None,
-                now: Instant::now(),
-                resizing: false,
                 redraw: redraw_sender,
                 fullscreen_requested: false,
             },
@@ -507,7 +484,6 @@ impl<State: 'static> App<'_, State> {
             (self.on_start)(&mut self.state, &mut self.app_state);
         }
 
-        self.app_state.now = Instant::now();
         self.app_state.gesture_handlers.clear();
         if let Self {
             context,
@@ -516,13 +492,6 @@ impl<State: 'static> App<'_, State> {
         } = self
         {
             let size = window.inner_size();
-            if let Some(last_size) = self.last_window_size
-                && last_size != size
-            {
-                self.app_state.resizing = true;
-            } else {
-                self.app_state.resizing = false;
-            }
             self.last_window_size = Some(size);
             self.app_state.scale_factor = window.scale_factor();
             let size = window.inner_size();
@@ -564,81 +533,11 @@ impl<State: 'static> App<'_, State> {
                     }
                     DrawItem::Draw {
                         mut view,
-                        layout_area,
-                        area: _area,
+                        area,
                         visible,
-                        opacity: _opacity,
-                        duration,
-                        easing,
-                        delay,
                     } => {
                         let id = view.id();
-
-                        let mut anim = self
-                            .app_state
-                            .animation_bank
-                            .animations
-                            .remove(&id)
-                            .unwrap_or(crate::ui::AnimArea {
-                                visible: lilt::Animated::new(true)
-                                    .duration(duration.unwrap_or(200.))
-                                    .easing(easing.unwrap_or(Easing::EaseOut))
-                                    .delay(delay),
-                                x: lilt::Animated::new(layout_area.x)
-                                    .duration(duration.unwrap_or(200.))
-                                    .easing(easing.unwrap_or(Easing::EaseOut))
-                                    .delay(delay),
-                                y: lilt::Animated::new(layout_area.y)
-                                    .duration(duration.unwrap_or(200.))
-                                    .easing(easing.unwrap_or(Easing::EaseOut))
-                                    .delay(delay),
-                                width: lilt::Animated::new(layout_area.width)
-                                    .duration(duration.unwrap_or(200.))
-                                    .easing(easing.unwrap_or(Easing::EaseOut))
-                                    .delay(delay),
-                                height: lilt::Animated::new(layout_area.height)
-                                    .duration(duration.unwrap_or(200.))
-                                    .easing(easing.unwrap_or(Easing::EaseOut))
-                                    .delay(delay),
-                            });
-
-                        let now = self.app_state.now;
-                        if self.app_state.resizing {
-                            anim.visible.transition_instantaneous(true, now);
-                            anim.x.transition_instantaneous(layout_area.x, now);
-                            anim.y.transition_instantaneous(layout_area.y, now);
-                            anim.width.transition_instantaneous(layout_area.width, now);
-                            anim.height
-                                .transition_instantaneous(layout_area.height, now);
-                        } else {
-                            anim.visible.transition(true, now);
-                            anim.x.transition(layout_area.x, now);
-                            anim.y.transition(layout_area.y, now);
-                            anim.width.transition(layout_area.width, now);
-                            anim.height.transition(layout_area.height, now);
-                        }
-
-                        let visibility = anim.visible.animate_bool(0., 1., now);
-                        let animated_area = Area {
-                            x: anim.x.animate_wrapped(now),
-                            y: anim.y.animate_wrapped(now),
-                            width: anim.width.animate_wrapped(now),
-                            height: anim.height.animate_wrapped(now),
-                        };
-
-                        self.app_state.animation_bank.animations.insert(id, anim);
-
-                        let is_text = matches!(view.view_type, ViewType::Text(_));
-                        let draw_area = if is_text {
-                            Area::new(
-                                animated_area.x,
-                                animated_area.y,
-                                layout_area.width,
-                                layout_area.height,
-                            )
-                        } else {
-                            animated_area
-                        };
+                        let draw_area = area;
 
                         self.app_state
                             .gesture_handlers
@@ -651,15 +550,18 @@ impl<State: 'static> App<'_, State> {
                                     .map(|handler| (id, draw_area, handler)),
                             );
 
+                        let visible_amount = if visible { 1.0 } else { 0.0 };
+
                         match &mut view.view_type {
                             ViewType::Text(v) => v.draw(
                                 draw_area,
-                                layout_area,
+                                area,
                                 &mut self.app_state,
                                 visible,
-                                visibility,
+                                visible_amount,
                             ),
-                            ViewType::Layout(layout, transform) => {
+                            ViewType::Layout(boxed) => {
+                                let (layout, transform) = boxed.as_mut();
                                 draw_layout(None, *transform, layout, &mut self.app_state.scene)
                             }
                             ViewType::Rect(v) => v.draw(
@@ -667,28 +569,28 @@ impl<State: 'static> App<'_, State> {
                                 &mut self.state,
                                 &mut self.app_state,
                                 visible,
-                                visibility,
+                                visible_amount,
                             ),
                             ViewType::Svg(v) => v.draw(
                                 draw_area,
                                 &mut self.state,
                                 &mut self.app_state,
                                 visible,
-                                visibility,
+                                visible_amount,
                             ),
                             ViewType::Circle(v) => v.draw(
                                 draw_area,
                                 &mut self.state,
                                 &mut self.app_state,
                                 visible,
-                                visibility,
+                                visible_amount,
                             ),
                             ViewType::Image(v) => v.draw(
                                 draw_area,
                                 &mut self.state,
                                 &mut self.app_state,
                                 visible,
-                                visibility,
+                                visible_amount,
                             ),
                             ViewType::Shader(v) => v.draw(
                                 draw_area,
@@ -773,14 +675,6 @@ impl<State: 'static> App<'_, State> {
         surface_texture.present();
 
         scene.reset();
-        if self
-            .app_state
-            .animation_bank
-            .in_progress(self.app_state.now)
-            || self.app_state.animations_in_progress(self.app_state.now)
-        {
-            self.request_redraw();
-        }
     }
 }
 

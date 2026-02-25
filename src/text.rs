@@ -1,19 +1,13 @@
-use crate::animated_color::{AnimatedColor, AnimatedU8};
 use crate::app::{AppContext, AppState, DrawItem, LayoutCache};
 use crate::draw_layout::draw_layout;
-use crate::{
-    DEFAULT_DURATION, DEFAULT_EASING,
-    view::{AnimatedView, View, ViewType},
-};
+use crate::view::{View, ViewType};
 use crate::{DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE};
 use backer::{Area, Layout};
-use lilt::{Animated, Easing};
 use parley::{
     Alignment, AlignmentOptions, FontContext, FontStack, FontWeight, Layout as ParleyLayout,
     LayoutContext, LineHeight, TextStyle,
 };
 use std::fmt::Debug;
-use std::time::Instant;
 use vello_svg::vello::peniko::Brush;
 use vello_svg::vello::{kurbo::Affine, peniko::Color};
 
@@ -26,9 +20,6 @@ pub fn text(id: u64, text: impl AsRef<str> + 'static) -> Text {
         font_family: None,
         // font: None,
         fill: DEFAULT_FG_COLOR,
-        easing: None,
-        duration: None,
-        delay: 0.,
         alignment: Alignment::Center,
         line_height: 1.,
         wrap: false,
@@ -43,9 +34,6 @@ pub struct Text {
     pub(crate) font_weight: FontWeight,
     pub(crate) font_family: Option<String>,
     pub(crate) alignment: Alignment,
-    pub(crate) easing: Option<Easing>,
-    pub(crate) duration: Option<f32>,
-    pub(crate) delay: f32,
     pub(crate) line_height: f32,
     pub(crate) wrap: bool,
 }
@@ -59,9 +47,6 @@ impl Debug for Text {
             .field("font_size", &self.font_size)
             .field("font_weight", &self.font_weight)
             .field("alignment", &self.alignment)
-            .field("easing", &self.easing)
-            .field("duration", &self.duration)
-            .field("delay", &self.delay)
             .field("line_height", &self.line_height)
             .field("wrap", &self.wrap)
             .finish()
@@ -78,9 +63,6 @@ impl Clone for Text {
             font_weight: self.font_weight,
             font_family: self.font_family.clone(),
             alignment: self.alignment,
-            easing: self.easing,
-            duration: self.duration,
-            delay: self.delay,
             line_height: self.line_height,
             wrap: self.wrap,
         }
@@ -130,54 +112,6 @@ impl Text {
         State: 'static,
     {
         self.view().finish(app)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct AnimatedText {
-    pub(crate) fill: AnimatedColor,
-}
-
-impl AnimatedText {
-    pub(crate) fn update(now: Instant, from: &Text, existing: &mut AnimatedText) {
-        existing
-            .fill
-            .r
-            .transition(AnimatedU8(from.fill.to_rgba8().r), now);
-        existing
-            .fill
-            .g
-            .transition(AnimatedU8(from.fill.to_rgba8().g), now);
-        existing
-            .fill
-            .b
-            .transition(AnimatedU8(from.fill.to_rgba8().b), now);
-        existing
-            .fill
-            .a
-            .transition(AnimatedU8(from.fill.to_rgba8().a), now);
-    }
-    pub(crate) fn new_from(from: &Text) -> Self {
-        AnimatedText {
-            fill: AnimatedColor {
-                r: Animated::new(AnimatedU8(from.fill.to_rgba8().r))
-                    .easing(from.easing.unwrap_or(DEFAULT_EASING))
-                    .duration(from.duration.unwrap_or(DEFAULT_DURATION))
-                    .delay(from.delay),
-                g: Animated::new(AnimatedU8(from.fill.to_rgba8().g))
-                    .easing(from.easing.unwrap_or(DEFAULT_EASING))
-                    .duration(from.duration.unwrap_or(DEFAULT_DURATION))
-                    .delay(from.delay),
-                b: Animated::new(AnimatedU8(from.fill.to_rgba8().b))
-                    .easing(from.easing.unwrap_or(DEFAULT_EASING))
-                    .duration(from.duration.unwrap_or(DEFAULT_DURATION))
-                    .delay(from.delay),
-                a: Animated::new(AnimatedU8(from.fill.to_rgba8().a))
-                    .easing(from.easing.unwrap_or(DEFAULT_EASING))
-                    .duration(from.duration.unwrap_or(DEFAULT_DURATION))
-                    .delay(from.delay),
-            },
-        }
     }
 }
 
@@ -283,21 +217,7 @@ impl Text {
             return;
         }
 
-        let AnimatedView::Text(mut animated) = app
-            .view_state
-            .remove(&self.id)
-            .unwrap_or(AnimatedView::Text(Box::new(AnimatedText::new_from(self))))
-        else {
-            return;
-        };
-        AnimatedText::update(app.now, self, &mut animated);
-        let anim_fill = Color::from_rgba8(
-            animated.fill.r.animate_wrapped(app.now).0,
-            animated.fill.g.animate_wrapped(app.now).0,
-            animated.fill.b.animate_wrapped(app.now).0,
-            animated.fill.a.animate_wrapped(app.now).0,
-        )
-        .multiply_alpha(visible_amount);
+        let fill = self.fill.multiply_alpha(visible_amount);
 
         let layout = app
             .app_context
@@ -307,8 +227,7 @@ impl Text {
         let transform = Affine::translate((animated_area.x as f64, animated_area.y as f64))
             .then_scale(app.scale_factor);
 
-        draw_layout(Some(anim_fill), transform, &layout, &mut app.scene);
-        app.view_state.insert(self.id, AnimatedView::Text(animated));
+        draw_layout(Some(fill), transform, &layout, &mut app.scene);
     }
 }
 

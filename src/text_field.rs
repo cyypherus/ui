@@ -7,7 +7,6 @@ use crate::{
     DEFAULT_PADDING, DEFAULT_PURP, EditInteraction, Key, Text, rect,
 };
 use backer::{Area, Layout, nodes::*};
-use lilt::Easing;
 use parley::{Alignment, FontWeight};
 use std::fmt::Debug;
 use std::rc::Rc;
@@ -42,9 +41,6 @@ pub fn text_field<State>(
         font_weight: FontWeight::NORMAL,
         font_family: None,
         fill: DEFAULT_FG_COLOR,
-        easing: None,
-        duration: None,
-        delay: 0.,
         alignment: Alignment::Center,
         editable: true,
         line_height: 1.,
@@ -71,9 +67,6 @@ pub struct TextField<State> {
     pub(crate) font_family: Option<String>,
     pub(crate) alignment: Alignment,
     pub(crate) editable: bool,
-    pub(crate) easing: Option<Easing>,
-    pub(crate) duration: Option<f32>,
-    pub(crate) delay: f32,
     pub(crate) line_height: f32,
     pub(crate) background_fill: Option<Color>,
     pub(crate) background_stroke: Option<(Color, Color, f32)>, // (normal, focused, width)
@@ -97,9 +90,6 @@ impl<State> Debug for TextField<State> {
             .field("font_weight", &self.font_weight)
             .field("alignment", &self.alignment)
             .field("editable", &self.editable)
-            .field("easing", &self.easing)
-            .field("duration", &self.duration)
-            .field("delay", &self.delay)
             .field("line_height", &self.line_height)
             .field("background_fill", &self.background_fill)
             .field("background_stroke", &self.background_stroke)
@@ -128,9 +118,6 @@ impl<State> Clone for TextField<State> {
             font_family: self.font_family.clone(),
             alignment: self.alignment,
             editable: self.editable,
-            easing: self.easing,
-            duration: self.duration,
-            delay: self.delay,
             line_height: self.line_height,
             background_fill: self.background_fill,
             background_stroke: self.background_stroke,
@@ -234,9 +221,6 @@ impl<State> TextField<State> {
         let fill = self.fill;
         let cursor_fill = self.cursor_fill;
         let highlight_fill = self.highlight_fill;
-        let easing = self.easing;
-        let duration = self.duration;
-        let delay = self.delay;
         let alignment = self.alignment;
         let line_height = self.line_height;
         let wrap = self.wrap;
@@ -281,20 +265,11 @@ impl<State> TextField<State> {
                                 },
                                 fill: Some(highlight_fill),
                                 stroke: None,
-                                easing: Some(Easing::EaseOut),
-                                duration: Some(0.),
-                                delay: 0.,
                             },
                         }),
                         z_index: 0,
                         gesture_handlers: Vec::new(),
                     }),
-                    layout_area: Area {
-                        x: area.x + rect.x0 as f32,
-                        y: area.y + rect.y0 as f32,
-                        width: rect.width() as f32,
-                        height: rect.height() as f32,
-                    },
                     area: Area {
                         x: area.x + rect.x0 as f32,
                         y: area.y + rect.y0 as f32,
@@ -302,10 +277,6 @@ impl<State> TextField<State> {
                         height: rect.height() as f32,
                     },
                     visible: true,
-                    opacity: 1.,
-                    duration: Some(0.),
-                    easing: Some(Easing::EaseOut),
-                    delay: 0.,
                 }));
             }
 
@@ -331,24 +302,11 @@ impl<State> TextField<State> {
                                 },
                                 fill: Some(cursor_fill),
                                 stroke: None,
-                                easing: None,
-                                duration: Some(0.),
-                                delay: 0.,
                             },
                         }),
                         z_index: 0,
                         gesture_handlers: Vec::new(),
                     }),
-                    layout_area: Area {
-                        x: area.x + cursor.x0 as f32,
-                        y: area.y + cursor.y0 as f32,
-                        width: cursor.width() as f32,
-                        height: if is_empty {
-                            area.height
-                        } else {
-                            cursor.height() as f32
-                        },
-                    },
                     area: Area {
                         x: area.x + cursor.x0 as f32,
                         y: area.y + cursor.y0 as f32,
@@ -360,10 +318,6 @@ impl<State> TextField<State> {
                         },
                     },
                     visible: true,
-                    opacity: 1.,
-                    duration: Some(0.),
-                    easing: None,
-                    delay: 0.,
                 }));
             }
 
@@ -374,16 +328,10 @@ impl<State> TextField<State> {
                     Affine::translate((area.x as f64, area.y as f64)).then_scale(scale_factor);
                 DrawItem::<State>::Draw {
                     view: Box::new(View {
-                        view_type: ViewType::Layout(layout.clone(), transform),
+                        view_type: ViewType::Layout(Box::new((layout.clone(), transform))),
                         z_index: 0,
                         gesture_handlers: Vec::new(),
                     }),
-                    layout_area: Area {
-                        x: area.x,
-                        y: area.y,
-                        width: area.width,
-                        height: area.height,
-                    },
                     area: Area {
                         x: area.x,
                         y: area.y,
@@ -391,10 +339,6 @@ impl<State> TextField<State> {
                         height: area.height,
                     },
                     visible: true,
-                    opacity: 1.,
-                    duration: None,
-                    easing: None,
-                    delay: 0.,
                 }
             }));
 
@@ -418,15 +362,11 @@ impl<State> TextField<State> {
                 } else {
                     fill
                 },
-                easing,
-                duration,
-                delay,
                 alignment,
                 line_height,
                 wrap,
             }
             .view()
-            .transition_duration(0.)
             .finish(app)
         }
         .attach_under({
@@ -504,7 +444,6 @@ impl<State> TextField<State> {
                         move |state: &mut State, app, _, _| {
                             let editing = binding.get(state).editing;
                             if !editing && app.editor.is_none() {
-                                app.animation_bank.animations.remove(&text_id);
                                 binding.update(state, |s| s.editing = true);
                                 app.begin_editing(
                                     root_id,

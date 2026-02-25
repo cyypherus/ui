@@ -1,14 +1,13 @@
 use crate::app::{AppContext, AppState, DrawItem};
-use crate::circle::{AnimatedCircle, Circle};
+use crate::circle::Circle;
 use crate::gestures::{ClickLocation, Interaction, InteractionType, ScrollDelta};
 use crate::image::Image;
-use crate::rect::{AnimatedRect, Rect};
+use crate::rect::Rect;
 use crate::shader::Shader;
 use crate::svg::Svg;
-use crate::text::{AnimatedText, Text};
+use crate::text::Text;
 use crate::{ClickState, DragState, GestureHandler, Key};
 use backer::{Area, Layout, nodes::*};
-use lilt::Easing;
 use parley::Layout as TextLayout;
 use std::rc::Rc;
 use vello_svg::vello::kurbo::{Affine, BezPath};
@@ -99,7 +98,7 @@ impl<State> Clone for View<State> {
 
 pub(crate) enum ViewType {
     Text(Text),
-    Layout(TextLayout<Brush>, Affine),
+    Layout(Box<(TextLayout<Brush>, Affine)>),
     Rect(Rect),
     Circle(Circle),
     Svg(Svg),
@@ -111,7 +110,7 @@ impl Clone for ViewType {
     fn clone(&self) -> Self {
         match self {
             ViewType::Text(text) => ViewType::Text(text.clone()),
-            ViewType::Layout(layout, affine) => ViewType::Layout(layout.clone(), *affine),
+            ViewType::Layout(boxed) => ViewType::Layout(boxed.clone()),
             ViewType::Rect(rect) => ViewType::Rect(*rect),
             ViewType::Circle(circle) => ViewType::Circle(circle.clone()),
             ViewType::Svg(svg) => ViewType::Svg(svg.clone()),
@@ -119,13 +118,6 @@ impl Clone for ViewType {
             ViewType::Shader(shader) => ViewType::Shader(shader.clone()),
         }
     }
-}
-
-#[derive(Debug)]
-pub(crate) enum AnimatedView {
-    Rect(Box<AnimatedRect>),
-    Text(Box<AnimatedText>),
-    Circle(Box<AnimatedCircle>),
 }
 
 impl<State> View<State> {
@@ -234,42 +226,6 @@ impl<State> View<State> {
         });
         self
     }
-    pub fn easing(mut self, easing: lilt::Easing) -> Self {
-        match self.view_type {
-            ViewType::Text(ref mut view) => view.easing = Some(easing),
-            ViewType::Layout(_, _) => (),
-            ViewType::Rect(ref mut view) => view.shape.easing = Some(easing),
-            ViewType::Svg(ref mut view) => view.easing = Some(easing),
-            ViewType::Circle(ref mut view) => view.shape.easing = Some(easing),
-            ViewType::Image(ref mut view) => view.easing = Some(easing),
-            ViewType::Shader(_) => (),
-        }
-        self
-    }
-    pub fn transition_duration(mut self, duration_ms: f32) -> Self {
-        match self.view_type {
-            ViewType::Text(ref mut view) => view.duration = Some(duration_ms),
-            ViewType::Layout(_, _) => (),
-            ViewType::Rect(ref mut view) => view.shape.duration = Some(duration_ms),
-            ViewType::Svg(ref mut view) => view.duration = Some(duration_ms),
-            ViewType::Circle(ref mut view) => view.shape.duration = Some(duration_ms),
-            ViewType::Image(ref mut view) => view.duration = Some(duration_ms),
-            ViewType::Shader(_) => (),
-        }
-        self
-    }
-    pub fn transition_delay(mut self, delay_ms: f32) -> Self {
-        match self.view_type {
-            ViewType::Text(ref mut view) => view.delay = delay_ms,
-            ViewType::Layout(_, _) => (),
-            ViewType::Rect(ref mut view) => view.shape.delay = delay_ms,
-            ViewType::Svg(ref mut view) => view.delay = delay_ms,
-            ViewType::Circle(ref mut view) => view.shape.delay = delay_ms,
-            ViewType::Image(ref mut view) => view.delay = delay_ms,
-            ViewType::Shader(_) => (),
-        }
-        self
-    }
     pub fn z_index(mut self, z_index: i32) -> Self {
         self.z_index = z_index;
         self
@@ -277,47 +233,12 @@ impl<State> View<State> {
     pub(crate) fn id(&self) -> u64 {
         match &self.view_type {
             ViewType::Text(view) => view.id,
-            ViewType::Layout(_, _) => 0,
+            ViewType::Layout(_) => 0,
             ViewType::Rect(view) => view.id,
             ViewType::Svg(view) => view.id,
             ViewType::Circle(view) => view.id,
             ViewType::Image(view) => view.id,
             ViewType::Shader(view) => view.id,
-        }
-    }
-    fn get_easing(&self) -> Easing {
-        match &self.view_type {
-            ViewType::Text(view) => view.easing,
-            ViewType::Layout(_, _) => Easing::EaseOut.into(),
-            ViewType::Rect(view) => view.shape.easing,
-            ViewType::Svg(view) => view.easing,
-            ViewType::Circle(view) => view.shape.easing,
-            ViewType::Image(view) => view.easing,
-            ViewType::Shader(_) => None,
-        }
-        .unwrap_or(Easing::EaseOut)
-    }
-    fn get_duration(&self) -> f32 {
-        match &self.view_type {
-            ViewType::Text(view) => view.duration,
-            ViewType::Layout(_, _) => None,
-            ViewType::Rect(view) => view.shape.duration,
-            ViewType::Svg(view) => view.duration,
-            ViewType::Circle(view) => view.shape.duration,
-            ViewType::Image(view) => view.duration,
-            ViewType::Shader(_) => None,
-        }
-        .unwrap_or(200.)
-    }
-    fn get_delay(&self) -> f32 {
-        match &self.view_type {
-            ViewType::Text(view) => view.delay,
-            ViewType::Layout(_, _) => 0.,
-            ViewType::Rect(view) => view.shape.delay,
-            ViewType::Svg(view) => view.delay,
-            ViewType::Circle(view) => view.shape.delay,
-            ViewType::Image(view) => view.delay,
-            ViewType::Shader(_) => 0.,
         }
     }
 }
@@ -328,19 +249,11 @@ impl<State> View<State> {
         State: 'static,
     {
         let view_type = self.view_type.clone();
-        let duration = self.get_duration();
-        let easing = self.get_easing();
-        let delay = self.get_delay();
 
         let node = draw(move |area, _| DrawItem::Draw {
             view: Box::new(self.clone()),
-            layout_area: area,
             area,
             visible: true,
-            opacity: 1.0,
-            duration: Some(duration),
-            easing: Some(easing),
-            delay,
         });
 
         if let ViewType::Text(text_view) = view_type {

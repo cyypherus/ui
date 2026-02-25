@@ -3,7 +3,6 @@ use crate::app::{AppContext, AppState, DrawItem};
 use crate::view::{View, ViewType};
 
 use backer::{Area, Layout};
-use lilt::Easing;
 use vello_svg::vello::kurbo::{self, Affine, Vec2};
 use vello_svg::vello::peniko::{Color, Compose, Fill, Mix};
 use vello_svg::vello::{Scene, peniko};
@@ -14,18 +13,12 @@ pub struct Svg {
     pub(crate) content: String,
     pub(crate) unlocked_aspect_ratio: bool,
     pub(crate) fill: Option<Color>,
-    pub(crate) easing: Option<Easing>,
-    pub(crate) duration: Option<f32>,
-    pub(crate) delay: f32,
 }
 
 pub fn svg(id: u64, content: impl AsRef<str>) -> Svg {
     Svg {
         id,
         content: content.as_ref().to_string(),
-        easing: None,
-        duration: None,
-        delay: 0.,
         unlocked_aspect_ratio: false,
         fill: None,
     }
