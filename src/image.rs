@@ -1,5 +1,6 @@
 use crate::app::{AppContext, AppState, DrawItem};
 
+use crate::DEFAULT_CORNER_ROUNDING;
 use crate::view::{View, ViewType};
 
 use backer::{Area, Layout};
