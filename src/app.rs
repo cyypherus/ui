@@ -525,7 +525,7 @@ impl<State: 'static> App<'_, State> {
                             Fill::NonZero,
                             Mix::Normal,
                             1.,
-                            Affine::IDENTITY,
+                            Affine::scale(self.app_state.app_context.scale_factor),
                             &path,
                         );
                     }
