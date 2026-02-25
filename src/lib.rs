@@ -14,6 +14,7 @@ mod models;
 mod rect;
 mod scroller;
 mod segment_picker;
+mod shader;
 mod shape;
 mod slider;
 mod svg;
@@ -33,6 +34,7 @@ pub use gestures::{ClickState, DragState, EditInteraction, GestureHandler, Gestu
 pub use image::{ImageSource, image, image_from_bytes, image_from_path};
 pub use parley::{Alignment, FontWeight};
 pub use rect::rect;
+pub use shader::shader;
 // pub use scroller::*;
 // pub use segment_picker::*;
 // pub use slider::*;
@@ -40,6 +42,7 @@ pub use svg::svg;
 pub use text::*;
 pub use text_field::*;
 // pub use toggle::*;
+pub use bytemuck;
 pub use view::{clipping, const_hash};
 pub use winit::keyboard::NamedKey;
 

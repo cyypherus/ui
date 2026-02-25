@@ -23,6 +23,7 @@ path = "examples/image/src/main.rs"
 [dependencies]
 # backer = { git = "https://github.com/cyypherus/backer", branch = "mvp" }
 backer = { path = "../backer" }
+bytemuck = { version = "1", features = ["derive"] }
 clipboard-rs = "0.3.0"
 image = { version = "0.25", default-features = false, features = [
     "png",

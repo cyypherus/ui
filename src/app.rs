@@ -1,5 +1,6 @@
 use crate::draw_layout::draw_layout;
 use crate::gestures::{ClickLocation, Interaction, ScrollDelta};
+use crate::shader::ShaderCache;
 use crate::text::TextLayout;
 use crate::ui::AnimationBank;
 use crate::view::{AnimatedView, View, ViewType};
@@ -160,6 +161,8 @@ pub struct App<'s, State> {
     pub(crate) on_exit: fn(&mut State, &mut AppState<State>) -> (),
     pub(crate) started: bool,
     pub(crate) last_window_size: Option<winit::dpi::PhysicalSize<u32>>,
+    pub(crate) shader_cache: ShaderCache,
+    pub(crate) start_instant: Instant,
 }
 
 pub(crate) struct RenderState<'surface> {
@@ -482,6 +485,8 @@ impl<State: 'static> App<'_, State> {
             on_exit,
             started: false,
             last_window_size: None,
+            shader_cache: HashMap::new(),
+            start_instant: Instant::now(),
         };
 
         event_loop.run_app(&mut app).expect("run to completion");
@@ -539,6 +544,7 @@ impl<State: 'static> App<'_, State> {
                 &mut self.app_state.app_context,
             );
 
+            let mut shader_commands: Vec<wgpu::CommandBuffer> = Vec::new();
             for item in draw_items {
                 match item {
                     DrawItem::PushClip { path } => {
@@ -684,10 +690,25 @@ impl<State: 'static> App<'_, State> {
                                 visible,
                                 visibility,
                             ),
+                            ViewType::Shader(v) => v.draw(
+                                draw_area,
+                                &mut self.app_state,
+                                &self.context,
+                                &mut self.renderers,
+                                &mut self.shader_cache,
+                                surface.dev_id,
+                                self.start_instant,
+                                &mut shader_commands,
+                            ),
                         }
                     }
                     DrawItem::Empty => (),
                 }
+            }
+
+            if !shader_commands.is_empty() {
+                let queue = &self.context.devices[surface.dev_id].queue;
+                queue.submit(shader_commands);
             }
         }
 

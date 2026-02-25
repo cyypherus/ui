@@ -134,7 +134,6 @@ impl<State> DropDown<State> {
                         )
                         .corner_rounding(corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
                         .view()
-                        .z_index(1)
                         .transition_duration(0.)
                         .on_hover({
                             let binding = binding_clone.clone();
@@ -146,7 +145,8 @@ impl<State> DropDown<State> {
                                 }
                             }
                         })
-                        .finish(app),
+                        .finish(app)
+                        .layer(1),
                     row_spaced(
                         5.,
                         vec![
@@ -190,14 +190,14 @@ impl<State> DropDown<State> {
                             },
                         ],
                     )
-                    .pad(5.),
+                    .pad(5.)
+                    .layer(1),
                 ],
             )
             .attach_over(
                 rect(crate::id!(index as u64, id))
                     .fill(TRANSPARENT)
                     .view()
-                    .z_index(1)
                     .on_click({
                         let binding = binding_clone2.clone();
                         let on_select = on_select_clone.clone();
@@ -220,7 +220,8 @@ impl<State> DropDown<State> {
                             }
                         }
                     })
-                    .finish(app),
+                    .finish(app)
+                    .layer(1),
             );
 
             option_views.push(view);
@@ -240,7 +241,6 @@ impl<State> DropDown<State> {
                 )
                 .corner_rounding(corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
                 .view()
-                .z_index(1)
                 .on_click_outside({
                     let binding = binding.clone();
                     move |state: &mut State, _app, _click, _pos| {
@@ -251,7 +251,8 @@ impl<State> DropDown<State> {
                         }
                     }
                 })
-                .finish(app),
+                .finish(app)
+                .layer(1),
         )
     }
 }

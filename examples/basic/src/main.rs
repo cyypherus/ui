@@ -1,13 +1,63 @@
 use ui::*;
 
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct ShaderInputs {
+    brightness: f32,
+    color_speed: f32,
+    wave_amp: f32,
+    color_base: f32,
+}
+
 #[derive(Debug, Clone, Default)]
 struct State {
     text_a: TextState,
     text_b: TextState,
-    // toggle: ToggleState,
-    // slider: SliderState,
     button: ButtonState,
     dropdown: DropdownState,
+}
+
+const CAUSTICS_SHADER: &str = include_str!("../shaders/caustics.wgsl");
+
+fn preset(state: &State) -> ShaderInputs {
+    match state.dropdown.selected {
+        1 => ShaderInputs {
+            brightness: 0.8,
+            color_speed: 0.1,
+            wave_amp: 0.9,
+            color_base: 2.0,
+        },
+        2 => ShaderInputs {
+            brightness: 1.5,
+            color_speed: 0.8,
+            wave_amp: 0.3,
+            color_base: 1.0,
+        },
+        3 => ShaderInputs {
+            brightness: 1.0,
+            color_speed: 0.5,
+            wave_amp: 1.2,
+            color_base: 1.2,
+        },
+        4 => ShaderInputs {
+            brightness: 0.6,
+            color_speed: 0.2,
+            wave_amp: 0.4,
+            color_base: 2.5,
+        },
+        5 => ShaderInputs {
+            brightness: 2.0,
+            color_speed: 1.0,
+            wave_amp: 0.8,
+            color_base: 0.8,
+        },
+        _ => ShaderInputs {
+            brightness: 1.2,
+            color_speed: 0.3,
+            wave_amp: 0.6,
+            color_base: 1.5,
+        },
+    }
 }
 
 fn main() {
@@ -41,9 +91,15 @@ fn main() {
                         .font_size(30)
                         .wrap()
                         .finish(app),
+                        shader(id!(), CAUSTICS_SHADER)
+                            .inputs(preset(state))
+                            .corner_rounding(12.)
+                            .finish(app)
+                            .height(200.),
                         text_field(id!(), binding!(state, State, text_a)).wrap().finish(app),
                         text_field(id!(), binding!(state, State, text_b)).font_size(14).align(parley::Alignment::Left).wrap().finish(app),
                         // toggle(id!(), binding!(state, State, toggle)).finish(app).height(40.),
+                        button(id!(), binding!(state, State, button)).text_label("Engage thrusters").finish(app).height(50.),
                         // slider(id!(), binding!(state, State, slider)).finish(app).height(40.),
                         dropdown(id!(), binding!(state, State, dropdown), vec![
                             text(id!(), "Luminescent Moss"),
@@ -53,7 +109,6 @@ fn main() {
                             text(id!(), "Cerebral Forests"),
                             text(id!(), "Glass Marrow"),
                         ]).finish(app).height(20.),
-                        button(id!(), binding!(state, State, button)).text_label("Engage thrusters").finish(app).height(50.),
                     ],
                 )
                 .pad(20.)

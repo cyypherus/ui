@@ -2,8 +2,8 @@ use crate::app::{AppContext, AppState, DrawItem};
 use crate::circle::{AnimatedCircle, Circle};
 use crate::gestures::{ClickLocation, Interaction, InteractionType, ScrollDelta};
 use crate::image::Image;
-// use crate::image::Image;
 use crate::rect::{AnimatedRect, Rect};
+use crate::shader::Shader;
 use crate::svg::Svg;
 use crate::text::{AnimatedText, Text};
 use crate::{ClickState, DragState, GestureHandler, Key};
@@ -104,6 +104,7 @@ pub(crate) enum ViewType {
     Circle(Circle),
     Svg(Svg),
     Image(Image),
+    Shader(Shader),
 }
 
 impl Clone for ViewType {
@@ -115,6 +116,7 @@ impl Clone for ViewType {
             ViewType::Circle(circle) => ViewType::Circle(circle.clone()),
             ViewType::Svg(svg) => ViewType::Svg(svg.clone()),
             ViewType::Image(image) => ViewType::Image(image.clone()),
+            ViewType::Shader(shader) => ViewType::Shader(shader.clone()),
         }
     }
 }
@@ -240,6 +242,7 @@ impl<State> View<State> {
             ViewType::Svg(ref mut view) => view.easing = Some(easing),
             ViewType::Circle(ref mut view) => view.shape.easing = Some(easing),
             ViewType::Image(ref mut view) => view.easing = Some(easing),
+            ViewType::Shader(_) => (),
         }
         self
     }
@@ -251,6 +254,7 @@ impl<State> View<State> {
             ViewType::Svg(ref mut view) => view.duration = Some(duration_ms),
             ViewType::Circle(ref mut view) => view.shape.duration = Some(duration_ms),
             ViewType::Image(ref mut view) => view.duration = Some(duration_ms),
+            ViewType::Shader(_) => (),
         }
         self
     }
@@ -262,6 +266,7 @@ impl<State> View<State> {
             ViewType::Svg(ref mut view) => view.delay = delay_ms,
             ViewType::Circle(ref mut view) => view.shape.delay = delay_ms,
             ViewType::Image(ref mut view) => view.delay = delay_ms,
+            ViewType::Shader(_) => (),
         }
         self
     }
@@ -277,6 +282,7 @@ impl<State> View<State> {
             ViewType::Svg(view) => view.id,
             ViewType::Circle(view) => view.id,
             ViewType::Image(view) => view.id,
+            ViewType::Shader(view) => view.id,
         }
     }
     fn get_easing(&self) -> Easing {
@@ -287,6 +293,7 @@ impl<State> View<State> {
             ViewType::Svg(view) => view.easing,
             ViewType::Circle(view) => view.shape.easing,
             ViewType::Image(view) => view.easing,
+            ViewType::Shader(_) => None,
         }
         .unwrap_or(Easing::EaseOut)
     }
@@ -298,6 +305,7 @@ impl<State> View<State> {
             ViewType::Svg(view) => view.duration,
             ViewType::Circle(view) => view.shape.duration,
             ViewType::Image(view) => view.duration,
+            ViewType::Shader(_) => None,
         }
         .unwrap_or(200.)
     }
@@ -309,6 +317,7 @@ impl<State> View<State> {
             ViewType::Svg(view) => view.delay,
             ViewType::Circle(view) => view.shape.delay,
             ViewType::Image(view) => view.delay,
+            ViewType::Shader(_) => 0.,
         }
     }
 }
