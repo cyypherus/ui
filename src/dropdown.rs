@@ -193,6 +193,16 @@ impl<State> DropDown<State> {
                         binding.update(state, |s| s.expanded = false);
                     }
                 })
+                .on_hover({
+                    let binding = binding.clone();
+                    move |state: &mut State, _app, hovered| {
+                        binding.update(state, move |s| {
+                            if !hovered {
+                                s.hovered = None
+                            }
+                        });
+                    }
+                })
                 .finish(ctx),
         )
     }

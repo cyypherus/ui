@@ -725,7 +725,7 @@ impl<State: 'static> ApplicationHandler<AppEvent> for App<'_, State> {
             window.clone(),
             size.width,
             size.height,
-            vello_svg::vello::wgpu::PresentMode::AutoVsync,
+            vello_svg::vello::wgpu::PresentMode::Immediate,
         );
         let surface = pollster::block_on(surface_future).expect("Error creating surface");
         let render_state = RenderState { window, surface };
@@ -910,7 +910,8 @@ impl<State: 'static> App<'_, State> {
                     .iter()
                     .rev()
                     .filter(|(_, area, handler)| {
-                        handler.interaction_type.click_outside && !area_contains_padded(area, point, 10.)
+                        handler.interaction_type.click_outside
+                            && !area_contains_padded(area, point, 10.)
                     })
             {
                 if handler.interaction_type.click_outside
