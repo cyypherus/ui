@@ -4,6 +4,7 @@ use crate::app::{AppContext, DrawItem};
 use crate::{Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_PURP, app::AppState, rect};
 use crate::{ButtonState, Color, DEFAULT_DARK_GRAY, DEFAULT_FG_COLOR, TRANSPARENT, Text, svg};
 use backer::{Align, Layout, nodes::*};
+use vello_svg::vello::kurbo::Stroke;
 
 #[derive(Debug, Clone, Default)]
 pub struct DropdownState {
@@ -35,7 +36,7 @@ pub struct DropDown<State> {
     binding: Binding<State, DropdownState>,
     corner_rounding: Option<f32>,
     fill: Option<Color>,
-    stroke: Option<(Color, f32)>,
+    stroke: Option<(Color, Stroke)>,
     text_fill: Option<Color>,
     highlight_fill: Option<Color>,
     options: Vec<Text>,
@@ -72,8 +73,8 @@ impl<State> DropDown<State> {
         self
     }
 
-    pub fn stroke(mut self, color: Color, line_width: f32) -> Self {
-        self.stroke = Some((color, line_width));
+    pub fn stroke(mut self, color: Color, style: Stroke) -> Self {
+        self.stroke = Some((color, style));
         self
     }
 
@@ -235,8 +236,8 @@ impl<State> DropDown<State> {
             rect(crate::id!(id))
                 .fill(fill.unwrap_or(DEFAULT_DARK_GRAY))
                 .stroke(
-                    stroke.map(|s| s.0).unwrap_or(TRANSPARENT),
-                    stroke.map(|s| s.1).unwrap_or(0.),
+                    stroke.as_ref().map(|s| s.0).unwrap_or(TRANSPARENT),
+                    stroke.unwrap_or((TRANSPARENT, Stroke::new(0.))).1,
                 )
                 .corner_rounding(corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
                 .view()

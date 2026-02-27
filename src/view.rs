@@ -1,9 +1,8 @@
 use crate::app::{AppContext, AppState, DrawItem};
-use crate::circle::Circle;
 use crate::gestures::{ClickLocation, Interaction, InteractionType, ScrollDelta};
 use crate::image::Image;
-use crate::rect::Rect;
 use crate::shader::Shader;
+use crate::shape::PathData;
 use crate::svg::Svg;
 use crate::text::Text;
 use crate::{ClickState, DragState, GestureHandler, Key};
@@ -99,8 +98,7 @@ impl<State> Clone for View<State> {
 pub(crate) enum ViewType {
     Text(Text),
     Layout(Box<(TextLayout<Brush>, Affine)>),
-    Rect(Rect),
-    Circle(Circle),
+    Path(PathData),
     Svg(Svg),
     Image(Image),
     Shader(Shader),
@@ -111,8 +109,7 @@ impl Clone for ViewType {
         match self {
             ViewType::Text(text) => ViewType::Text(text.clone()),
             ViewType::Layout(boxed) => ViewType::Layout(boxed.clone()),
-            ViewType::Rect(rect) => ViewType::Rect(*rect),
-            ViewType::Circle(circle) => ViewType::Circle(circle.clone()),
+            ViewType::Path(path) => ViewType::Path(path.clone()),
             ViewType::Svg(svg) => ViewType::Svg(svg.clone()),
             ViewType::Image(image) => ViewType::Image(image.clone()),
             ViewType::Shader(shader) => ViewType::Shader(shader.clone()),
@@ -234,9 +231,8 @@ impl<State> View<State> {
         match &self.view_type {
             ViewType::Text(view) => view.id,
             ViewType::Layout(_) => 0,
-            ViewType::Rect(view) => view.id,
+            ViewType::Path(view) => view.id,
             ViewType::Svg(view) => view.id,
-            ViewType::Circle(view) => view.id,
             ViewType::Image(view) => view.id,
             ViewType::Shader(view) => view.id,
         }

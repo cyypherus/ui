@@ -568,21 +568,17 @@ impl<State: 'static> App<'_, State> {
                                 let (layout, transform) = boxed.as_mut();
                                 draw_layout(None, *transform, layout, &mut self.app_state.scene)
                             }
-                            ViewType::Rect(v) => v.draw(
-                                draw_area,
-                                &mut self.state,
-                                &mut self.app_state,
-                                visible,
-                                visible_amount,
-                            ),
+                            ViewType::Path(v) => {
+                                if visible || visible_amount > 0. {
+                                    v.draw(
+                                        &mut self.app_state.scene,
+                                        draw_area,
+                                        self.app_state.app_context.scale_factor,
+                                        visible_amount,
+                                    )
+                                }
+                            }
                             ViewType::Svg(v) => v.draw(
-                                draw_area,
-                                &mut self.state,
-                                &mut self.app_state,
-                                visible,
-                                visible_amount,
-                            ),
-                            ViewType::Circle(v) => v.draw(
                                 draw_area,
                                 &mut self.state,
                                 &mut self.app_state,

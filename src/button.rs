@@ -6,6 +6,7 @@ use crate::{
 use crate::{Color, DEFAULT_FG};
 use backer::{Layout, nodes::stack};
 use std::rc::Rc;
+use vello_svg::vello::kurbo::Stroke;
 use vello_svg::vello::peniko::color::palette::css::TRANSPARENT;
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -24,7 +25,7 @@ pub struct Button<State> {
     state: ButtonState,
     binding: Binding<State, ButtonState>,
     fill: Option<Color>,
-    stroke: Option<(Color, f32)>,
+    stroke: Option<(Color, Stroke)>,
     text_fill: Option<Color>,
 }
 
@@ -72,8 +73,8 @@ impl<State> Button<State> {
         self.fill = Some(color);
         self
     }
-    pub fn stroke(mut self, color: Color, line_width: f32) -> Self {
-        self.stroke = Some((color, line_width));
+    pub fn stroke(mut self, color: Color, style: Stroke) -> Self {
+        self.stroke = Some((color, style));
         self
     }
     pub fn idle_text_fill(mut self, color: Color) -> Self {
@@ -98,8 +99,8 @@ impl<State> Button<State> {
                         (false, false) => self.fill.unwrap_or(DEFAULT_PURP),
                     })
                     .stroke(
-                        self.stroke.map(|s| s.0).unwrap_or(TRANSPARENT),
-                        self.stroke.map(|s| s.1).unwrap_or(0.),
+                        self.stroke.as_ref().map(|s| s.0).unwrap_or(TRANSPARENT),
+                        self.stroke.unwrap_or((TRANSPARENT, Stroke::new(0.))).1,
                     )
                     .corner_rounding(self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
                     .view()

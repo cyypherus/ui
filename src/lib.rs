@@ -10,6 +10,7 @@ mod event;
 mod gestures;
 mod image;
 mod models;
+mod path;
 mod rect;
 mod scroller;
 mod shader;
@@ -31,6 +32,7 @@ pub use editor::*;
 pub use gestures::{ClickState, DragState, EditInteraction, GestureHandler, GestureState};
 pub use image::{ImageSource, image, image_from_bytes, image_from_path};
 pub use parley::{Alignment, FontWeight};
+pub use path::path;
 pub use rect::rect;
 pub use scroller::*;
 pub use shader::shader;
@@ -46,19 +48,21 @@ use vello_svg::vello::kurbo::*;
 use vello_svg::vello::peniko::color::AlphaColor;
 use vello_svg::vello::peniko::color::Srgb;
 
+pub use vello_svg::vello::kurbo::{BezPath, Cap, Join, Stroke};
+
 pub use models::*;
 
 pub type Color = AlphaColor<Srgb>;
 
 const RUBIK_FONT: &[u8] = include_bytes!("../assets/Rubik-VariableFont_wght.ttf");
 const DEFAULT_FONT_FAMILY: &str = "Rubik";
-const DEFAULT_PADDING: f32 = 10.;
-const DEFAULT_CORNER_ROUNDING: f32 = 6.;
-const DEFAULT_FONT_SIZE: u32 = 14;
-const DEFAULT_FG_COLOR: AlphaColor<Srgb> = AlphaColor::WHITE;
-const DEFAULT_PURP: Color = AlphaColor::from_rgb8(113, 70, 232);
-const DEFAULT_DARK_GRAY: Color = AlphaColor::from_rgb8(30, 30, 30);
-const DEFAULT_GRAY: Color = AlphaColor::from_rgb8(50, 50, 50);
-const DEFAULT_LIGHT_GRAY: Color = AlphaColor::from_rgb8(113, 70, 232);
-const DEFAULT_FG: Color = Color::from_rgb8(230, 230, 230);
-const TRANSPARENT: Color = Color::TRANSPARENT;
+pub const DEFAULT_PADDING: f32 = 10.;
+pub const DEFAULT_CORNER_ROUNDING: f32 = 6.;
+pub const DEFAULT_FONT_SIZE: u32 = 14;
+pub const DEFAULT_FG_COLOR: Color = AlphaColor::WHITE;
+pub const DEFAULT_PURP: Color = AlphaColor::from_rgb8(113, 70, 232);
+pub const DEFAULT_DARK_GRAY: Color = AlphaColor::from_rgb8(30, 30, 30);
+pub const DEFAULT_GRAY: Color = AlphaColor::from_rgb8(50, 50, 50);
+pub const DEFAULT_LIGHT_GRAY: Color = AlphaColor::from_rgb8(113, 70, 232);
+pub const DEFAULT_FG: Color = Color::from_rgb8(230, 230, 230);
+pub const TRANSPARENT: Color = Color::TRANSPARENT;

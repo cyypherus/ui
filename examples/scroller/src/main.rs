@@ -46,7 +46,7 @@ fn main() {
                     Some(
                         rect(id!())
                             .corner_rounding(10.)
-                            .stroke(Color::from_rgb8(50, 50, 50), 2.)
+                            .stroke(Color::from_rgb8(50, 50, 50), Stroke::new(2.))
                             .fill(Color::from_rgb8(30, 30, 30))
                             .finish(app.ctx()),
                     ),

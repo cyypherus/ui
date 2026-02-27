@@ -1,60 +1,33 @@
 use crate::Color;
-use crate::app::{AppContext, AppState, DrawItem};
-use crate::shape::{Shape, ShapeType};
+use crate::app::{AppContext, DrawItem};
+use crate::shape::{PathData, rect_path};
 use crate::view::{View, ViewType};
-use backer::{Area, Layout};
+use backer::Layout;
+use vello_svg::vello::kurbo::Stroke;
 
-#[derive(Debug, Clone, Copy)]
 pub struct Rect {
-    pub(crate) id: u64,
-    pub(crate) shape: Shape,
-    // pub(crate) box_shadow: Option<(Color, f32)>,
-}
-
-impl Rect {
-    pub(crate) fn draw<State>(
-        &self,
-        area: Area,
-        _state: &mut State,
-        app: &mut AppState<State>,
-        visible: bool,
-        visible_amount: f32,
-    ) {
-        if !visible && visible_amount == 0. {
-            return;
-        }
-        self.shape.draw(
-            &mut app.scene,
-            area,
-            app.app_context.scale_factor,
-            visible_amount,
-        );
-    }
+    id: u64,
+    fill: Option<Color>,
+    stroke: Option<(Color, Stroke)>,
+    corner_rounding: (f32, f32, f32, f32),
 }
 
 pub fn rect(id: u64) -> Rect {
     Rect {
         id,
-        shape: Shape {
-            shape: ShapeType::Rect {
-                corner_rounding: (0., 0., 0., 0.),
-            },
-            fill: None,
-            stroke: None,
-        },
-        // box_shadow: None,
+        fill: None,
+        stroke: None,
+        corner_rounding: (0., 0., 0., 0.),
     }
 }
 
 impl Rect {
     pub fn fill(mut self, color: Color) -> Self {
-        self.shape.fill = Some(color);
+        self.fill = Some(color);
         self
     }
     pub fn corner_rounding(mut self, radius: f32) -> Self {
-        self.shape.shape = ShapeType::Rect {
-            corner_rounding: (radius, radius, radius, radius),
-        };
+        self.corner_rounding = (radius, radius, radius, radius);
         self
     }
     pub fn corner_rounding_individual(
@@ -64,22 +37,24 @@ impl Rect {
         bottom_right: f32,
         bottom_left: f32,
     ) -> Self {
-        self.shape.shape = ShapeType::Rect {
-            corner_rounding: (top_left, top_right, bottom_right, bottom_left),
-        };
+        self.corner_rounding = (top_left, top_right, bottom_right, bottom_left);
         self
     }
-    pub fn stroke(mut self, color: Color, line_width: f32) -> Self {
-        self.shape.stroke = Some((color, line_width));
+    pub fn stroke(mut self, color: Color, style: Stroke) -> Self {
+        self.stroke = Some((color, style));
         self
     }
-    // pub fn box_shadow(mut self, color: Color, radius: f32) -> Self {
-    //     self.box_shadow = Some((color, radius));
-    //     self
-    // }
+    pub(crate) fn into_path_data(self) -> PathData {
+        PathData {
+            id: self.id,
+            builder: rect_path(self.corner_rounding),
+            fill: self.fill,
+            stroke: self.stroke,
+        }
+    }
     pub fn view<State>(self) -> View<State> {
         View {
-            view_type: ViewType::Rect(self),
+            view_type: ViewType::Path(self.into_path_data()),
             z_index: 0,
             gesture_handlers: Vec::new(),
         }

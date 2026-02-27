@@ -1,6 +1,5 @@
 use crate::app::{AppContext, AppState, DrawItem, EditState};
-use crate::rect::Rect;
-use crate::shape::{Shape, ShapeType};
+use crate::shape::{PathData, rect_path};
 use crate::view::{View, ViewType};
 use crate::{
     Binding, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE,
@@ -10,7 +9,7 @@ use backer::{Area, Layout, nodes::*};
 use parley::{Alignment, FontWeight};
 use std::fmt::Debug;
 use std::rc::Rc;
-use vello_svg::vello::kurbo::{Affine, Rect as KRect};
+use vello_svg::vello::kurbo::{Affine, Rect as KRect, Stroke};
 use vello_svg::vello::peniko::Color;
 use vello_svg::vello::peniko::color::palette::css::TRANSPARENT;
 
@@ -45,7 +44,7 @@ pub fn text_field<State>(
         editable: true,
         line_height: 1.,
         background_fill: Some(Color::from_rgb8(50, 50, 50)),
-        background_stroke: Some((Color::from_rgb8(60, 60, 60), DEFAULT_PURP, 1.)),
+        background_stroke: Some((Color::from_rgb8(60, 60, 60), DEFAULT_PURP, Stroke::new(1.))),
         background_corner_rounding: DEFAULT_CORNER_ROUNDING,
         background_padding: DEFAULT_PADDING,
         wrap: false,
@@ -69,7 +68,7 @@ pub struct TextField<State> {
     pub(crate) editable: bool,
     pub(crate) line_height: f32,
     pub(crate) background_fill: Option<Color>,
-    pub(crate) background_stroke: Option<(Color, Color, f32)>, // (normal, focused, width)
+    pub(crate) background_stroke: Option<(Color, Color, Stroke)>,
     pub(crate) background_corner_rounding: f32,
     pub(crate) background_padding: f32,
     pub(crate) wrap: bool,
@@ -120,7 +119,7 @@ impl<State> Clone for TextField<State> {
             editable: self.editable,
             line_height: self.line_height,
             background_fill: self.background_fill,
-            background_stroke: self.background_stroke,
+            background_stroke: self.background_stroke.clone(),
             background_corner_rounding: self.background_corner_rounding,
             background_padding: self.background_padding,
             wrap: self.wrap,
@@ -138,8 +137,8 @@ impl<State> TextField<State> {
         self.background_fill = color;
         self
     }
-    pub fn background_stroke(mut self, normal: Color, focused: Color, width: f32) -> Self {
-        self.background_stroke = Some((normal, focused, width));
+    pub fn background_stroke(mut self, normal: Color, focused: Color, style: Stroke) -> Self {
+        self.background_stroke = Some((normal, focused, style));
         self
     }
     pub fn no_background_stroke(mut self) -> Self {
@@ -257,15 +256,11 @@ impl<State> TextField<State> {
             for rect in selection_rects.clone() {
                 selection_drawables.push(draw(move |area, _| DrawItem::Draw {
                     view: Box::new(View::<State> {
-                        view_type: ViewType::Rect(Rect {
+                        view_type: ViewType::Path(PathData {
                             id,
-                            shape: Shape {
-                                shape: ShapeType::Rect {
-                                    corner_rounding: (2., 2., 2., 2.),
-                                },
-                                fill: Some(highlight_fill),
-                                stroke: None,
-                            },
+                            builder: rect_path((2., 2., 2., 2.)),
+                            fill: Some(highlight_fill),
+                            stroke: None,
                         }),
                         z_index: 0,
                         gesture_handlers: Vec::new(),
@@ -294,15 +289,11 @@ impl<State> TextField<State> {
                 let rounding = (cursor_width * 0.5) as f32;
                 cursor_drawables.push(draw(move |area, _| DrawItem::<State>::Draw {
                     view: Box::new(View {
-                        view_type: ViewType::Rect(Rect {
+                        view_type: ViewType::Path(PathData {
                             id,
-                            shape: Shape {
-                                shape: ShapeType::Rect {
-                                    corner_rounding: (rounding, rounding, rounding, rounding),
-                                },
-                                fill: Some(cursor_fill),
-                                stroke: None,
-                            },
+                            builder: rect_path((rounding, rounding, rounding, rounding)),
+                            fill: Some(cursor_fill),
+                            stroke: None,
                         }),
                         z_index: 0,
                         gesture_handlers: Vec::new(),
@@ -484,9 +475,9 @@ impl<State> TextField<State> {
             if let Some(fill) = bg_fill {
                 rect_node = rect_node.fill(fill);
             }
-            if let Some((normal, focused, width)) = bg_stroke {
+            if let Some((normal, focused, style)) = bg_stroke {
                 rect_node =
-                    rect_node.stroke(if self.state.editing { focused } else { normal }, width);
+                    rect_node.stroke(if self.state.editing { focused } else { normal }, style);
             }
             rect_node.corner_rounding(bg_rounding).finish(ctx)
         } else {

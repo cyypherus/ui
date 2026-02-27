@@ -1,26 +1,29 @@
+use std::rc::Rc;
+
 use crate::Color;
 use crate::app::{AppContext, DrawItem};
-use crate::shape::{PathData, circle_path};
+use crate::shape::PathData;
 use crate::view::{View, ViewType};
+use backer::{Area, Layout};
+use vello_svg::vello::kurbo::{BezPath, Stroke};
 
-use backer::Layout;
-use vello_svg::vello::kurbo::Stroke;
-
-pub struct Circle {
+pub struct Path {
     id: u64,
+    builder: Rc<dyn Fn(Area) -> BezPath>,
     fill: Option<Color>,
     stroke: Option<(Color, Stroke)>,
 }
 
-pub fn circle(id: u64) -> Circle {
-    Circle {
+pub fn path(id: u64, builder: impl Fn(Area) -> BezPath + 'static) -> Path {
+    Path {
         id,
+        builder: Rc::new(builder),
         fill: None,
         stroke: None,
     }
 }
 
-impl Circle {
+impl Path {
     pub fn fill(mut self, color: Color) -> Self {
         self.fill = Some(color);
         self
@@ -29,17 +32,14 @@ impl Circle {
         self.stroke = Some((color, style));
         self
     }
-    pub(crate) fn into_path_data(self) -> PathData {
-        PathData {
-            id: self.id,
-            builder: circle_path(),
-            fill: self.fill,
-            stroke: self.stroke,
-        }
-    }
     pub fn view<State>(self) -> View<State> {
         View {
-            view_type: ViewType::Path(self.into_path_data()),
+            view_type: ViewType::Path(PathData {
+                id: self.id,
+                builder: self.builder,
+                fill: self.fill,
+                stroke: self.stroke,
+            }),
             z_index: 0,
             gesture_handlers: Vec::new(),
         }
