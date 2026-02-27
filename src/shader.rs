@@ -311,7 +311,6 @@ impl Shader {
     pub fn view<State>(self) -> View<State> {
         View {
             view_type: ViewType::Shader(self),
-            z_index: 0,
             gesture_handlers: Vec::new(),
         }
     }

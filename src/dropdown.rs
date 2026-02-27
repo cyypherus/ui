@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::app::{AppContext, DrawItem};
 use crate::{Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_PURP, app::AppState, rect};
-use crate::{ButtonState, Color, DEFAULT_DARK_GRAY, DEFAULT_FG_COLOR, TRANSPARENT, Text, svg};
+use crate::{Color, DEFAULT_DARK_GRAY, DEFAULT_FG_COLOR, TRANSPARENT, Text, svg};
 use backer::{Align, Layout, nodes::*};
 use vello_svg::vello::kurbo::Stroke;
 
@@ -11,34 +11,17 @@ pub struct DropdownState {
     pub selected: usize,
     pub hovered: Option<usize>,
     pub expanded: bool,
-    pub button: ButtonState,
-}
-
-impl DropdownState {
-    pub fn new(
-        selected: usize,
-        hovered: Option<usize>,
-        expanded: bool,
-        button: ButtonState,
-    ) -> Self {
-        Self {
-            selected,
-            hovered,
-            expanded,
-            button,
-        }
-    }
 }
 
 pub struct DropDown<State> {
     id: u64,
     state: DropdownState,
     binding: Binding<State, DropdownState>,
-    corner_rounding: Option<f32>,
-    fill: Option<Color>,
-    stroke: Option<(Color, Stroke)>,
-    text_fill: Option<Color>,
-    highlight_fill: Option<Color>,
+    corner_rounding: f32,
+    fill: Color,
+    stroke: (Color, Stroke),
+    text_fill: Color,
+    highlight_fill: Color,
     options: Vec<Text>,
     on_select: Option<Rc<dyn Fn(&mut State, &mut AppState<State>, usize)>>,
 }
@@ -52,11 +35,11 @@ pub fn dropdown<State>(
         id,
         state: state.0,
         binding: state.1,
-        corner_rounding: None,
-        fill: None,
-        stroke: None,
-        text_fill: None,
-        highlight_fill: None,
+        corner_rounding: DEFAULT_CORNER_ROUNDING,
+        fill: Color::from_rgb8(50, 50, 50),
+        stroke: (Color::from_rgb8(60, 60, 60), Stroke::new(1.)),
+        text_fill: DEFAULT_FG_COLOR,
+        highlight_fill: DEFAULT_PURP,
         options,
         on_select: None,
     }
@@ -64,27 +47,27 @@ pub fn dropdown<State>(
 
 impl<State> DropDown<State> {
     pub fn corner_rounding(mut self, corner_rounding: f32) -> Self {
-        self.corner_rounding = Some(corner_rounding);
+        self.corner_rounding = corner_rounding;
         self
     }
 
     pub fn fill(mut self, color: Color) -> Self {
-        self.fill = Some(color);
+        self.fill = color;
         self
     }
 
     pub fn stroke(mut self, color: Color, style: Stroke) -> Self {
-        self.stroke = Some((color, style));
+        self.stroke = (color, style);
         self
     }
 
     pub fn text_fill(mut self, color: Color) -> Self {
-        self.text_fill = Some(color);
+        self.text_fill = color;
         self
     }
 
     pub fn highlight_fill(mut self, color: Color) -> Self {
-        self.highlight_fill = Some(color);
+        self.highlight_fill = color;
         self
     }
 
@@ -100,159 +83,117 @@ impl<State> DropDown<State> {
     where
         State: 'static,
     {
-        let state = self.state;
-        let binding = self.binding.clone();
-        let expanded = state.expanded;
-        let hovered = state.hovered;
-        let selected = state.selected;
-        let on_select = self.on_select.clone();
+        let expanded = self.state.expanded;
+        let selected = self.state.selected;
+        let hovered = self.state.hovered;
         let id = self.id;
-        let highlight_fill = self.highlight_fill;
-        let corner_rounding = self.corner_rounding;
-        let text_fill = self.text_fill;
+        let binding = self.binding.clone();
+        let on_select = self.on_select.clone();
         let fill = self.fill;
         let stroke = self.stroke;
+        let corner_rounding = self.corner_rounding;
+        let text_fill = self.text_fill;
+        let highlight_fill = self.highlight_fill;
 
-        let mut option_views = Vec::new();
-        for (index, option) in self.options.clone().into_iter().enumerate() {
-            let binding_clone = binding.clone();
-            let binding_clone2 = binding.clone();
-            let on_select_clone = on_select.clone();
+        let arrow_svg = if expanded {
+            include_str!("../assets/arrow-down.svg")
+        } else {
+            include_str!("../assets/arrow-right.svg")
+        };
 
-            let view = stack_aligned(
-                Align::Leading,
-                vec![
-                    rect(crate::id!(index as u64, id))
-                        .fill(
-                            if let Some(h) = hovered
-                                && h == index
-                                && expanded
-                            {
-                                highlight_fill.unwrap_or(DEFAULT_PURP)
-                            } else {
-                                TRANSPARENT
-                            },
-                        )
-                        .corner_rounding(corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
-                        .view()
-                        .on_hover({
-                            let binding = binding_clone.clone();
-                            move |state: &mut State, _app, h| {
-                                if h && expanded {
-                                    binding.update(state, move |state| {
-                                        state.hovered = Some(index);
-                                    });
-                                }
-                            }
-                        })
-                        .finish(ctx)
-                        .layer(1),
-                    row_spaced(
-                        5.,
-                        vec![
-                            if (index == selected && !expanded) || (index == 0 && expanded) {
-                                svg(
-                                    crate::id!(id),
-                                    if expanded {
-                                        include_str!("../assets/arrow-down.svg")
-                                    } else {
-                                        include_str!("../assets/arrow-right.svg")
-                                    },
-                                )
-                                .fill(text_fill.unwrap_or(DEFAULT_FG_COLOR))
-                                .view()
-                                .z_index(1)
-                                .finish(ctx)
-                                .width(12.)
-                                .height(if expanded {
-                                    12.
-                                } else {
-                                    10.
-                                })
-                            } else {
-                                empty()
-                            },
-                            {
-                                let opt = option
-                                    .fill(if index == selected || expanded {
-                                        text_fill.unwrap_or(DEFAULT_FG_COLOR)
-                                    } else {
-                                        TRANSPARENT
-                                    })
-                                    .view()
-                                    .z_index(1)
-                                    .finish(ctx);
-                                if index == selected || expanded {
-                                    opt
-                                } else {
-                                    opt.width(0.).height(0.)
-                                }
-                            },
-                        ],
-                    )
-                    .pad(5.)
-                    .layer(1),
-                ],
-            )
-            .attach_over(
+        let row = |index: usize,
+                   option: Text,
+                   ctx: &mut AppContext|
+         -> Layout<DrawItem<State>, AppContext> {
+            dbg!(hovered, index);
+            let row_fill = if expanded && selected == index {
+                highlight_fill
+            } else if let Some(hovered) = hovered
+                && hovered == index
+            {
+                DEFAULT_DARK_GRAY
+            } else {
+                TRANSPARENT
+            };
+
+            stack(vec![
                 rect(crate::id!(index as u64, id))
-                    .fill(TRANSPARENT)
+                    .fill(row_fill)
+                    .corner_rounding(corner_rounding)
                     .view()
                     .on_click({
-                        let binding = binding_clone2.clone();
-                        let on_select = on_select_clone.clone();
+                        let binding = binding.clone();
+                        let on_select = on_select.clone();
                         move |state: &mut State, app, click, _pos| {
-                            if matches!(click, ClickState::Completed) {
-                                if expanded {
-                                    if let Some(ref on_select) = on_select {
-                                        on_select(state, app, index);
-                                    }
-                                    binding.update(state, move |state| {
-                                        state.selected = index;
-                                        state.expanded = false;
-                                    });
-                                } else {
-                                    binding.update(state, move |state| {
-                                        state.hovered = Some(0);
-                                        state.expanded = true;
-                                    });
+                            let ClickState::Completed = click else { return };
+                            if expanded {
+                                if let Some(ref on_select) = on_select {
+                                    on_select(state, app, index);
                                 }
+                                binding.update(state, move |s| {
+                                    s.selected = index;
+                                    s.expanded = false;
+                                });
+                            } else {
+                                binding.update(state, |s| s.expanded = true);
                             }
                         }
                     })
-                    .finish(ctx)
-                    .layer(1),
-            );
-
-            option_views.push(view);
-        }
-
-        if expanded {
-            column(option_views).align(Align::Top)
-        } else {
-            stack(option_views).align(Align::Top)
-        }
-        .attach_under(
-            rect(crate::id!(id))
-                .fill(fill.unwrap_or(DEFAULT_DARK_GRAY))
-                .stroke(
-                    stroke.as_ref().map(|s| s.0).unwrap_or(TRANSPARENT),
-                    stroke.unwrap_or((TRANSPARENT, Stroke::new(0.))).1,
+                    .on_hover({
+                        let binding = binding.clone();
+                        move |state: &mut State, _app, hovered| {
+                            binding.update(state, move |s| {
+                                if expanded && hovered {
+                                    s.hovered = Some(index)
+                                }
+                            });
+                        }
+                    })
+                    .finish(ctx),
+                row_spaced(
+                    5.,
+                    vec![
+                        if index == 0 {
+                            svg(crate::id!(id), arrow_svg)
+                                .fill(text_fill)
+                                .finish(ctx)
+                                .width(10.)
+                                .height(10.)
+                        } else {
+                            space().width(10.)
+                        },
+                        option.fill(text_fill).finish(ctx),
+                    ],
                 )
-                .corner_rounding(corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
+                .pad(8.),
+            ])
+        };
+
+        let rows: Vec<_> = if expanded {
+            self.options
+        } else {
+            vec![self.options[selected].clone()]
+        }
+        .into_iter()
+        .enumerate()
+        .map(|(index, option)| row(index, option, ctx))
+        .collect();
+
+        stack(vec![
+            rect(crate::id!(id))
+                .fill(fill)
+                .stroke(stroke.0, stroke.1)
+                .corner_rounding(corner_rounding)
                 .view()
                 .on_click_outside({
                     let binding = binding.clone();
-                    move |state: &mut State, _app, _click, _pos| {
-                        if expanded {
-                            binding.update(state, move |state| {
-                                state.expanded = false;
-                            });
-                        }
+                    move |state: &mut State, _app, click, _pos| {
+                        let ClickState::Completed = click else { return };
+                        binding.update(state, |s| s.expanded = false);
                     }
                 })
-                .finish(ctx)
-                .layer(1),
-        )
+                .finish(ctx),
+            column(rows).align(Align::Top),
+        ])
     }
 }

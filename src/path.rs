@@ -48,7 +48,6 @@ impl Path {
                 fill: self.fill,
                 stroke: self.stroke,
             })),
-            z_index: 0,
             gesture_handlers: Vec::new(),
         }
     }

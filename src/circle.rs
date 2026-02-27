@@ -48,7 +48,6 @@ impl Circle {
     pub fn view<State>(self) -> View<State> {
         View {
             view_type: ViewType::Path(Box::new(self.into_path_data())),
-            z_index: 0,
             gesture_handlers: Vec::new(),
         }
     }

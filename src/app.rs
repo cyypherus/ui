@@ -184,7 +184,7 @@ pub struct AppContext {
 pub struct AppState<State> {
     pub cursor_position: Option<Point>,
     pub(crate) gesture_state: GestureState,
-    pub gesture_handlers: HashMap<i32, Vec<(u64, Area, GestureHandler<State, Self>)>>,
+    pub gesture_handlers: Vec<(u64, Area, GestureHandler<State, Self>)>,
     pub(crate) runtime: Runtime,
     pub(crate) cancellation_token: CancellationToken,
     pub(crate) task_tracker: TaskTracker,
@@ -364,13 +364,7 @@ impl<State: 'static> App<'_, State> {
     }
 
     fn gesture_handlers(&self) -> Vec<(u64, Area, GestureHandler<State, AppState<State>>)> {
-        let mut keys: Vec<_> = self.app_state.gesture_handlers.keys().collect();
-        let mut handlers = self.app_state.gesture_handlers.clone();
-        keys.sort();
-        keys.into_iter()
-            .filter_map(move |key| handlers.remove(key))
-            .flat_map(|vec| vec.into_iter())
-            .collect()
+        self.app_state.gesture_handlers.clone()
     }
 
     fn run(
@@ -441,7 +435,7 @@ impl<State: 'static> App<'_, State> {
             app_state: AppState {
                 cursor_position: None,
                 gesture_state: GestureState::None,
-                gesture_handlers: HashMap::new(),
+                gesture_handlers: Vec::new(),
                 runtime,
                 cancellation_token: CancellationToken::new(),
                 task_tracker: TaskTracker::new(),
@@ -545,8 +539,6 @@ impl<State: 'static> App<'_, State> {
 
                         self.app_state
                             .gesture_handlers
-                            .entry(view.z_index)
-                            .or_default()
                             .extend(
                                 view.gesture_handlers
                                     .clone()
@@ -1083,6 +1075,25 @@ impl<State: 'static> App<'_, State> {
                             );
                         }
                     });
+            }
+            for (_, area, handler) in self
+                .gesture_handlers()
+                .iter()
+                .filter(|(_, _, h)| h.interaction_type.click_outside)
+            {
+                if !area_contains(area, current)
+                    && let Some(ref handler) = handler.interaction_handler
+                {
+                    needs_redraw = true;
+                    handler(
+                        &mut self.state,
+                        &mut self.app_state,
+                        Interaction::ClickOutside(
+                            ClickState::Completed,
+                            ClickLocation::new(current, *area),
+                        ),
+                    );
+                }
             }
         }
         self.app_state.gesture_state = GestureState::None;

@@ -262,7 +262,6 @@ impl<State> TextField<State> {
                             fill: Some(Paint::from_brush(highlight_fill)),
                             stroke: None,
                         })),
-                        z_index: 0,
                         gesture_handlers: Vec::new(),
                     }),
                     area: Area {
@@ -295,7 +294,6 @@ impl<State> TextField<State> {
                             fill: Some(Paint::from_brush(cursor_fill)),
                             stroke: None,
                         })),
-                        z_index: 0,
                         gesture_handlers: Vec::new(),
                     }),
                     area: Area {
@@ -320,7 +318,6 @@ impl<State> TextField<State> {
                 DrawItem::<State>::Draw {
                     view: Box::new(View {
                         view_type: ViewType::Layout(Box::new((layout.clone(), transform))),
-                        z_index: 0,
                         gesture_handlers: Vec::new(),
                     }),
                     area: Area {

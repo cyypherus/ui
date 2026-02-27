@@ -81,7 +81,6 @@ pub fn clipping<State: 'static>(
 
 pub struct View<State> {
     pub(crate) view_type: ViewType,
-    pub(crate) z_index: i32,
     pub(crate) gesture_handlers: Vec<GestureHandler<State, AppState<State>>>,
 }
 
@@ -89,7 +88,6 @@ impl<State> Clone for View<State> {
     fn clone(&self) -> Self {
         Self {
             view_type: self.view_type.clone(),
-            z_index: self.z_index,
             gesture_handlers: self.gesture_handlers.clone(),
         }
     }
@@ -221,10 +219,6 @@ impl<State> View<State> {
                 (f)(state, app_state, scroll);
             })),
         });
-        self
-    }
-    pub fn z_index(mut self, z_index: i32) -> Self {
-        self.z_index = z_index;
         self
     }
     pub(crate) fn id(&self) -> u64 {
