@@ -8,12 +8,43 @@ use vello_svg::vello::peniko::Color;
 
 pub(crate) type PathBuilder = Rc<dyn Fn(Area) -> BezPath>;
 
+pub(crate) enum Paint {
+    Static(Brush),
+    Dynamic(Rc<dyn Fn(Area) -> Brush>),
+}
+
+impl Clone for Paint {
+    fn clone(&self) -> Self {
+        match self {
+            Paint::Static(b) => Paint::Static(b.clone()),
+            Paint::Dynamic(f) => Paint::Dynamic(f.clone()),
+        }
+    }
+}
+
+impl Paint {
+    pub(crate) fn resolve(&self, area: Area) -> Brush {
+        match self {
+            Paint::Static(b) => b.clone(),
+            Paint::Dynamic(f) => f(area),
+        }
+    }
+
+    pub(crate) fn from_brush(brush: impl Into<Brush>) -> Self {
+        Paint::Static(brush.into())
+    }
+
+    pub(crate) fn from_fn(f: impl Fn(Area) -> Brush + 'static) -> Self {
+        Paint::Dynamic(Rc::new(f))
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct PathData {
     pub(crate) id: u64,
     pub(crate) builder: PathBuilder,
-    pub(crate) fill: Option<Color>,
-    pub(crate) stroke: Option<(Color, Stroke)>,
+    pub(crate) fill: Option<Paint>,
+    pub(crate) stroke: Option<(Paint, Stroke)>,
 }
 
 impl PathData {
@@ -25,7 +56,8 @@ impl PathData {
         visible_amount: f32,
     ) {
         let user_path = (self.builder)(area);
-        let path = Affine::scale(scale_factor) * &user_path;
+        let scale = Affine::scale(scale_factor);
+        let path = scale * &user_path;
 
         if self.fill.is_none() && self.stroke.is_none() {
             scene.fill(
@@ -36,24 +68,26 @@ impl PathData {
                 &path,
             )
         } else {
-            if let Some(fill) = self.fill {
+            if let Some(paint) = &self.fill {
+                let brush = paint.resolve(area).multiply_alpha(visible_amount);
                 scene.fill(
                     Fill::EvenOdd,
-                    Affine::IDENTITY,
-                    fill.multiply_alpha(visible_amount),
+                    scale,
+                    &brush,
                     None,
-                    &path,
+                    &user_path,
                 )
             }
-            if let Some((stroke_color, stroke_style)) = &self.stroke {
+            if let Some((paint, stroke_style)) = &self.stroke {
+                let brush = paint.resolve(area).multiply_alpha(visible_amount);
                 let mut scaled = stroke_style.clone();
                 scaled.width *= scale_factor;
                 scene.stroke(
                     &scaled,
-                    Affine::IDENTITY,
-                    &Brush::Solid(stroke_color.multiply_alpha(visible_amount)),
+                    scale,
+                    &brush,
                     None,
-                    &path,
+                    &user_path,
                 );
             }
         }

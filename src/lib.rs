@@ -49,6 +49,7 @@ use vello_svg::vello::peniko::color::AlphaColor;
 use vello_svg::vello::peniko::color::Srgb;
 
 pub use vello_svg::vello::kurbo::{BezPath, Cap, Join, Stroke};
+pub use vello_svg::vello::peniko::{Brush, Gradient};
 
 pub use models::*;
 

@@ -1,14 +1,14 @@
-use crate::Color;
 use crate::app::{AppContext, DrawItem};
-use crate::shape::{PathData, rect_path};
+use crate::shape::{Paint, PathData, rect_path};
 use crate::view::{View, ViewType};
-use backer::Layout;
+use backer::{Area, Layout};
 use vello_svg::vello::kurbo::Stroke;
+use vello_svg::vello::peniko::Brush;
 
 pub struct Rect {
     id: u64,
-    fill: Option<Color>,
-    stroke: Option<(Color, Stroke)>,
+    fill: Option<Paint>,
+    stroke: Option<(Paint, Stroke)>,
     corner_rounding: (f32, f32, f32, f32),
 }
 
@@ -22,8 +22,12 @@ pub fn rect(id: u64) -> Rect {
 }
 
 impl Rect {
-    pub fn fill(mut self, color: Color) -> Self {
-        self.fill = Some(color);
+    pub fn fill(mut self, brush: impl Into<Brush>) -> Self {
+        self.fill = Some(Paint::from_brush(brush));
+        self
+    }
+    pub fn fill_with(mut self, f: impl Fn(Area) -> Brush + 'static) -> Self {
+        self.fill = Some(Paint::from_fn(f));
         self
     }
     pub fn corner_rounding(mut self, radius: f32) -> Self {
@@ -40,8 +44,12 @@ impl Rect {
         self.corner_rounding = (top_left, top_right, bottom_right, bottom_left);
         self
     }
-    pub fn stroke(mut self, color: Color, style: Stroke) -> Self {
-        self.stroke = Some((color, style));
+    pub fn stroke(mut self, brush: impl Into<Brush>, style: Stroke) -> Self {
+        self.stroke = Some((Paint::from_brush(brush), style));
+        self
+    }
+    pub fn stroke_with(mut self, f: impl Fn(Area) -> Brush + 'static, style: Stroke) -> Self {
+        self.stroke = Some((Paint::from_fn(f), style));
         self
     }
     pub(crate) fn into_path_data(self) -> PathData {
@@ -54,7 +62,7 @@ impl Rect {
     }
     pub fn view<State>(self) -> View<State> {
         View {
-            view_type: ViewType::Path(self.into_path_data()),
+            view_type: ViewType::Path(Box::new(self.into_path_data())),
             z_index: 0,
             gesture_handlers: Vec::new(),
         }

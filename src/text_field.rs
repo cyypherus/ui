@@ -1,5 +1,5 @@
 use crate::app::{AppContext, AppState, DrawItem, EditState};
-use crate::shape::{PathData, rect_path};
+use crate::shape::{Paint, PathData, rect_path};
 use crate::view::{View, ViewType};
 use crate::{
     Binding, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE,
@@ -256,12 +256,12 @@ impl<State> TextField<State> {
             for rect in selection_rects.clone() {
                 selection_drawables.push(draw(move |area, _| DrawItem::Draw {
                     view: Box::new(View::<State> {
-                        view_type: ViewType::Path(PathData {
+                        view_type: ViewType::Path(Box::new(PathData {
                             id,
                             builder: rect_path((2., 2., 2., 2.)),
-                            fill: Some(highlight_fill),
+                            fill: Some(Paint::from_brush(highlight_fill)),
                             stroke: None,
-                        }),
+                        })),
                         z_index: 0,
                         gesture_handlers: Vec::new(),
                     }),
@@ -289,12 +289,12 @@ impl<State> TextField<State> {
                 let rounding = (cursor_width * 0.5) as f32;
                 cursor_drawables.push(draw(move |area, _| DrawItem::<State>::Draw {
                     view: Box::new(View {
-                        view_type: ViewType::Path(PathData {
+                        view_type: ViewType::Path(Box::new(PathData {
                             id,
                             builder: rect_path((rounding, rounding, rounding, rounding)),
-                            fill: Some(cursor_fill),
+                            fill: Some(Paint::from_brush(cursor_fill)),
                             stroke: None,
-                        }),
+                        })),
                         z_index: 0,
                         gesture_handlers: Vec::new(),
                     }),

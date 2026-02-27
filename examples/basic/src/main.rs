@@ -1,5 +1,40 @@
 use ui::*;
 
+const CHART_DATA: &[f64] = &[0.1, 0.4, 0.25, 0.8, 0.6, 0.5, 0.9, 0.7, 0.75];
+
+fn chart_line(area: Area, points: &[f64]) -> BezPath {
+    let w = area.width as f64;
+    let h = area.height as f64;
+    let x0 = area.x as f64;
+    let y0 = area.y as f64;
+    let step = w / (points.len() - 1) as f64;
+
+    let px = |i: usize| x0 + step * i as f64;
+    let py = |v: f64| y0 + h * (1.0 - v);
+
+    let mut line = BezPath::new();
+    line.move_to((px(0), py(points[0])));
+    for i in 0..points.len() - 1 {
+        let mid_x = (px(i) + px(i + 1)) / 2.0;
+        line.curve_to(
+            (mid_x, py(points[i])),
+            (mid_x, py(points[i + 1])),
+            (px(i + 1), py(points[i + 1])),
+        );
+    }
+    line
+}
+
+fn chart_fill(area: Area, points: &[f64]) -> BezPath {
+    let mut p = chart_line(area, points);
+    let x0 = area.x as f64;
+    let y0 = area.y as f64;
+    p.line_to((x0 + area.width as f64, y0 + area.height as f64));
+    p.line_to((x0, y0 + area.height as f64));
+    p.close_path();
+    p
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 struct ShaderInputs {
@@ -81,7 +116,6 @@ fn main() {
             dropdown: DropdownState::default(),
         },
         |state, app| {
-
                 column_spaced(
                     20.,
                     vec![
@@ -104,60 +138,17 @@ fn main() {
                         text_field(id!(), binding!(state, State, text_b)).font_size(14).align(parley::Alignment::Left).wrap().finish(app.ctx()),
                         stack(vec![
                             rect(id!()).fill(DEFAULT_DARK_GRAY).corner_rounding(8.).finish(app.ctx()),
-                            path(id!(), |area| {
-                                let points: &[f64] = &[0.1, 0.4, 0.25, 0.8, 0.6, 0.5, 0.9, 0.7, 0.75];
-                                let w = area.width as f64;
-                                let h = area.height as f64;
-                                let x0 = area.x as f64;
-                                let y0 = area.y as f64;
-                                let step = w / (points.len() - 1) as f64;
-
-                                let px = |i: usize| x0 + step * i as f64;
-                                let py = |v: f64| y0 + h * (1.0 - v);
-
-                                let mut line = BezPath::new();
-                                line.move_to((px(0), py(points[0])));
-                                for i in 0..points.len() - 1 {
-                                    let mid_x = (px(i) + px(i + 1)) / 2.0;
-                                    line.curve_to(
-                                        (mid_x, py(points[i])),
-                                        (mid_x, py(points[i + 1])),
-                                        (px(i + 1), py(points[i + 1])),
-                                    );
-                                }
-
-                                let mut fill = line.clone();
-                                fill.line_to((x0 + w, y0 + h));
-                                fill.line_to((x0, y0 + h));
-                                fill.close_path();
-
-                                fill
+                            path(id!(), |area| chart_fill(area, CHART_DATA))
+                            .fill_with(|area| {
+                                Gradient::new_linear(
+                                    (0., area.y as f64),
+                                    (0., area.y as f64 + area.height as f64),
+                                )
+                                .with_stops([DEFAULT_PURP.with_alpha(0.4), DEFAULT_PURP.with_alpha(0.0)])
+                                .into()
                             })
-                            .fill(DEFAULT_PURP.with_alpha(0.15))
                             .finish(app.ctx()),
-                            path(id!(), |area| {
-                                let points: &[f64] = &[0.1, 0.4, 0.25, 0.8, 0.6, 0.5, 0.9, 0.7, 0.75];
-                                let w = area.width as f64;
-                                let h = area.height as f64;
-                                let x0 = area.x as f64;
-                                let y0 = area.y as f64;
-                                let step = w / (points.len() - 1) as f64;
-
-                                let px = |i: usize| x0 + step * i as f64;
-                                let py = |v: f64| y0 + h * (1.0 - v);
-
-                                let mut line = BezPath::new();
-                                line.move_to((px(0), py(points[0])));
-                                for i in 0..points.len() - 1 {
-                                    let mid_x = (px(i) + px(i + 1)) / 2.0;
-                                    line.curve_to(
-                                        (mid_x, py(points[i])),
-                                        (mid_x, py(points[i + 1])),
-                                        (px(i + 1), py(points[i + 1])),
-                                    );
-                                }
-                                line
-                            })
+                            path(id!(), |area| chart_line(area, CHART_DATA))
                             .stroke(DEFAULT_PURP, Stroke::new(2.0).with_caps(Cap::Round).with_join(Join::Round))
                             .finish(app.ctx()),
                         ])

@@ -98,7 +98,7 @@ impl<State> Clone for View<State> {
 pub(crate) enum ViewType {
     Text(Text),
     Layout(Box<(TextLayout<Brush>, Affine)>),
-    Path(PathData),
+    Path(Box<PathData>),
     Svg(Svg),
     Image(Image),
     Shader(Shader),
