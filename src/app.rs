@@ -324,6 +324,10 @@ impl<State> AppState<State> {
     pub fn redraw_trigger(&self) -> RedrawTrigger {
         RedrawTrigger::new(self.redraw.clone())
     }
+
+    pub fn redraw(&self) {
+        let _ = self.redraw.blocking_send(());
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -537,14 +541,12 @@ impl<State: 'static> App<'_, State> {
                         let id = view.id();
                         let draw_area = area;
 
-                        self.app_state
-                            .gesture_handlers
-                            .extend(
-                                view.gesture_handlers
-                                    .clone()
-                                    .drain(..)
-                                    .map(|handler| (id, draw_area, handler)),
-                            );
+                        self.app_state.gesture_handlers.extend(
+                            view.gesture_handlers
+                                .clone()
+                                .drain(..)
+                                .map(|handler| (id, draw_area, handler)),
+                        );
 
                         let visible_amount = if visible { 1.0 } else { 0.0 };
 
@@ -908,7 +910,7 @@ impl<State: 'static> App<'_, State> {
                     .iter()
                     .rev()
                     .filter(|(_, area, handler)| {
-                        handler.interaction_type.click_outside && !area_contains(area, point)
+                        handler.interaction_type.click_outside && !area_contains_padded(area, point, 10.)
                     })
             {
                 if handler.interaction_type.click_outside
@@ -1076,12 +1078,17 @@ impl<State: 'static> App<'_, State> {
                         }
                     });
             }
+            let press_start = match self.app_state.gesture_state {
+                GestureState::Dragging { start, .. } => Some(start),
+                _ => None,
+            };
             for (_, area, handler) in self
                 .gesture_handlers()
                 .iter()
                 .filter(|(_, _, h)| h.interaction_type.click_outside)
             {
-                if !area_contains(area, current)
+                if !area_contains_padded(area, current, 10.)
+                    && press_start.is_some_and(|s| !area_contains_padded(area, s, 10.))
                     && let Some(ref handler) = handler.interaction_handler
                 {
                     needs_redraw = true;

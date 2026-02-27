@@ -105,7 +105,6 @@ impl<State> DropDown<State> {
                    option: Text,
                    ctx: &mut AppContext|
          -> Layout<DrawItem<State>, AppContext> {
-            dbg!(hovered, index);
             let row_fill = if expanded && selected == index {
                 highlight_fill
             } else if let Some(hovered) = hovered
@@ -116,7 +115,24 @@ impl<State> DropDown<State> {
                 TRANSPARENT
             };
 
-            stack(vec![
+            row_spaced(
+                5.,
+                vec![
+                    if index == 0 {
+                        svg(crate::id!(id), arrow_svg)
+                            .fill(text_fill)
+                            .finish(ctx)
+                            .width(10.)
+                            .height(10.)
+                    } else {
+                        empty()
+                    },
+                    option.fill(text_fill).finish(ctx),
+                ],
+            )
+            .expand_x()
+            .pad(8.)
+            .attach_under(
                 rect(crate::id!(index as u64, id))
                     .fill(row_fill)
                     .corner_rounding(corner_rounding)
@@ -149,24 +165,9 @@ impl<State> DropDown<State> {
                             });
                         }
                     })
-                    .finish(ctx),
-                row_spaced(
-                    5.,
-                    vec![
-                        if index == 0 {
-                            svg(crate::id!(id), arrow_svg)
-                                .fill(text_fill)
-                                .finish(ctx)
-                                .width(10.)
-                                .height(10.)
-                        } else {
-                            space().width(10.)
-                        },
-                        option.fill(text_fill).finish(ctx),
-                    ],
-                )
-                .pad(8.),
-            ])
+                    .finish(ctx)
+                    .expand_x(),
+            )
         };
 
         let rows: Vec<_> = if expanded {
@@ -179,7 +180,7 @@ impl<State> DropDown<State> {
         .map(|(index, option)| row(index, option, ctx))
         .collect();
 
-        stack(vec![
+        column(rows).align(Align::Top).attach_under(
             rect(crate::id!(id))
                 .fill(fill)
                 .stroke(stroke.0, stroke.1)
@@ -193,7 +194,6 @@ impl<State> DropDown<State> {
                     }
                 })
                 .finish(ctx),
-            column(rows).align(Align::Top),
-        ])
+        )
     }
 }

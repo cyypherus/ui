@@ -42,11 +42,11 @@ fn main() {
                         .font_size(30)
                         .wrap()
                         .finish(app.ctx()),
-                        // shader(id!(), CAUSTICS_SHADER)
-                        //     .inputs(preset(state))
-                        //     .corner_rounding(12.)
-                        //     .finish(app.ctx())
-                        //     .height(200.),
+                        shader(id!(), CAUSTICS_SHADER)
+                            .inputs(preset(state))
+                            .corner_rounding(12.)
+                            .finish(app.ctx())
+                            .height(200.),
                         text_field(id!(), binding!(state, State, text_a)).wrap().finish(app.ctx()),
                         text_field(id!(), binding!(state, State, text_b)).font_size(14).align(parley::Alignment::Left).wrap().finish(app.ctx()),
                         dropdown(id!(), binding!(state, State, dropdown), vec![
@@ -83,6 +83,8 @@ fn main() {
                 .align(Align::Top)
 
         },
+    ).on_frame(|_, app|
+        app.redraw()
     )
     .inner_size(800, 600)
     // .resizable(false)
