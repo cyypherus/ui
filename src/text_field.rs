@@ -274,17 +274,21 @@ impl<State> TextField<State> {
                 }));
             }
 
+            let has_selection = !selection_rects.is_empty();
+
             let mut cursor_drawables = Vec::new();
-            if let Some(cursor) = if is_empty {
-                Some(vello_svg::vello::kurbo::Rect::new(
-                    -half_cursor_width,
-                    0.,
-                    half_cursor_width,
-                    0.,
-                ))
-            } else {
-                cursor
-            } {
+            if !has_selection
+                && let Some(cursor) = if is_empty {
+                    Some(vello_svg::vello::kurbo::Rect::new(
+                        -half_cursor_width,
+                        0.,
+                        half_cursor_width,
+                        0.,
+                    ))
+                } else {
+                    cursor
+                }
+            {
                 let rounding = (cursor_width * 0.5) as f32;
                 cursor_drawables.push(draw(move |area, _| DrawItem::<State>::Draw {
                     view: Box::new(View {
