@@ -20,7 +20,7 @@ fn main() {
                     vec![
                         text(id!(), "Custom Label Text")
                             .fill(Color::WHITE)
-                            .finish(app.ctx()),
+                            .build(app.ctx()),
                         // toggle(id!(), binding!(state, State, t1))
                         // .finish()
                         // .height(80.),
@@ -33,11 +33,11 @@ fn main() {
                     vec![
                         text(id!(), "Custom Label Text")
                             .fill(Color::WHITE)
-                            .finish(app.ctx()),
+                            .build(app.ctx()),
                         button(id!(), binding!(state, State, b1))
                             .text_label(format!("Click count {}", state.count))
                             .on_click(|s, _| s.count += 1)
-                            .finish(app.ctx()),
+                            .build(app.ctx()),
                     ],
                 )
                 .height(150.)
@@ -47,7 +47,7 @@ fn main() {
                     vec![
                         text(id!(), "Custom Body")
                             .fill(Color::WHITE)
-                            .finish(app.ctx()),
+                            .build(app.ctx()),
                         button(id!(), binding!(state, State, b2))
                             .on_click(|s, _| s.count += 1)
                             .surface(
@@ -60,9 +60,9 @@ fn main() {
                                         }
                                     })
                                     .corner_rounding(40.)
-                                    .finish(app.ctx()),
+                                    .build(app.ctx()),
                             )
-                            .finish(app.ctx()),
+                            .build(app.ctx()),
                     ],
                 )
                 .height(150.)
@@ -70,9 +70,7 @@ fn main() {
                 column_spaced(
                     20.,
                     vec![
-                        text(id!(), "Svg Label")
-                            .fill(Color::WHITE)
-                            .finish(app.ctx()),
+                        text(id!(), "Svg Label").fill(Color::WHITE).build(app.ctx()),
                         button(id!(), binding!(state, State, b3))
                             .on_click(|s, _| s.count += 1)
                             .label(
@@ -85,7 +83,7 @@ fn main() {
                                     .finish(app.ctx())
                                     .pad(15.),
                             )
-                            .finish(app.ctx()),
+                            .build(app.ctx()),
                     ],
                 )
                 .height(150.)

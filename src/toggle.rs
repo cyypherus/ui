@@ -73,7 +73,7 @@ impl<State> Toggle<State> {
         self.knob_fill = fill;
         self
     }
-    pub fn finish(self, _ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
+    pub fn build(self, _ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
     where
         State: 'static,
     {
@@ -89,7 +89,7 @@ impl<State> Toggle<State> {
                         self.off_fill
                     })
                     .corner_rounding(height * 0.5)
-                    .finish(ctx)
+                    .build(ctx)
                     .height(height)
                     .width(width),
                 circle(id!(self.id))

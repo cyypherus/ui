@@ -66,7 +66,7 @@ impl Rect {
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<State: 'static>(
+    pub fn build<State: 'static>(
         self,
         ctx: &mut AppContext,
     ) -> Layout<DrawItem<State>, AppContext> {

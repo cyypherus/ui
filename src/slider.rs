@@ -80,7 +80,7 @@ impl<State> Slider<State> {
         self
     }
 
-    pub fn finish(self, _ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
+    pub fn build(self, _ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
     where
         State: 'static,
     {
@@ -95,20 +95,20 @@ impl<State> Slider<State> {
                 rect(id!(self.id))
                     .fill(self.background_fill)
                     .corner_rounding(height * 0.5)
-                    .finish(ctx)
+                    .build(ctx)
                     .height(height)
                     .width(width),
                 rect(id!(self.id))
                     .fill(self.track_fill)
                     .corner_rounding(height)
-                    .finish(ctx)
+                    .build(ctx)
                     .pad(height * 0.3)
                     .height(height)
                     .width(width),
                 rect(id!(self.id))
                     .fill(self.traveled_track_fill)
                     .corner_rounding(height)
-                    .finish(ctx)
+                    .build(ctx)
                     .pad(height * 0.2)
                     .height(height)
                     .width(slider_width)

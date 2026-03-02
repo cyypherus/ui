@@ -48,7 +48,7 @@ fn main() {
                             .corner_rounding(10.)
                             .stroke(Color::from_rgb8(50, 50, 50), Stroke::new(2.))
                             .fill(Color::from_rgb8(30, 30, 30))
-                            .finish(app.ctx()),
+                            .build(app.ctx()),
                     ),
                     scroller_state,
                     move |index, _id, ctx| {
@@ -63,13 +63,13 @@ fn main() {
                                     rect(id!(index as u64))
                                         .fill(Color::from_rgb8(40, 40, 40))
                                         .corner_rounding(5.)
-                                        .finish(ctx),
+                                        .build(ctx),
                                     row(vec![
                                         text(id!(index as u64), s.clone())
                                             .fill(Color::WHITE)
                                             .align(parley::Alignment::Start)
                                             .wrap()
-                                            .finish(ctx)
+                                            .build(ctx)
                                             .pad(10.),
                                         svg(id!(index as u64), include_str!("../../../assets/tiger.svg"))
                                             .finish(ctx)

@@ -5,6 +5,7 @@ use crate::{Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_PURP, app::App
 use crate::{Color, DEFAULT_DARK_GRAY, DEFAULT_FG_COLOR, DEFAULT_PADDING, TRANSPARENT, Text, svg};
 use backer::{Align, Layout, nodes::*};
 use vello_svg::vello::kurbo::Stroke;
+use vello_svg::vello::peniko::Brush;
 
 #[derive(Debug, Clone, Default)]
 pub struct DropdownState {
@@ -17,9 +18,9 @@ pub struct DropDown<State> {
     id: u64,
     state: DropdownState,
     binding: Binding<State, DropdownState>,
-    corner_rounding: f32,
-    fill: Color,
-    stroke: (Color, Stroke),
+    background_corner_rounding: f32,
+    background_fill: Brush,
+    background_stroke: (Brush, Stroke),
     text_fill: Color,
     highlight_fill: Color,
     background_padding: f32,
@@ -36,9 +37,9 @@ pub fn dropdown<State>(
         id,
         state: state.0,
         binding: state.1,
-        corner_rounding: DEFAULT_CORNER_ROUNDING,
-        fill: Color::from_rgb8(50, 50, 50),
-        stroke: (Color::from_rgb8(60, 60, 60), Stroke::new(1.)),
+        background_corner_rounding: DEFAULT_CORNER_ROUNDING,
+        background_fill: Color::from_rgb8(50, 50, 50).into(),
+        background_stroke: (Color::from_rgb8(60, 60, 60).into(), Stroke::new(1.)),
         text_fill: DEFAULT_FG_COLOR,
         highlight_fill: DEFAULT_PURP,
         background_padding: DEFAULT_PADDING,
@@ -48,16 +49,16 @@ pub fn dropdown<State>(
 }
 
 impl<State> DropDown<State> {
-    pub fn corner_rounding(mut self, corner_rounding: f32) -> Self {
-        self.corner_rounding = corner_rounding;
+    pub fn background_corner_rounding(mut self, corner_rounding: f32) -> Self {
+        self.background_corner_rounding = corner_rounding;
         self
     }
-    pub fn fill(mut self, color: Color) -> Self {
-        self.fill = color;
+    pub fn background_fill(mut self, fill: impl Into<Brush>) -> Self {
+        self.background_fill = fill.into();
         self
     }
-    pub fn stroke(mut self, color: Color, style: Stroke) -> Self {
-        self.stroke = (color, style);
+    pub fn background_stroke(mut self, brush: impl Into<Brush>, style: Stroke) -> Self {
+        self.background_stroke = (brush.into(), style);
         self
     }
     pub fn text_fill(mut self, color: Color) -> Self {
@@ -80,7 +81,7 @@ impl<State> DropDown<State> {
         self
     }
 
-    pub fn finish(self, ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
+    pub fn build(self, ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
     where
         State: 'static,
     {
@@ -90,9 +91,9 @@ impl<State> DropDown<State> {
         let id = self.id;
         let binding = self.binding.clone();
         let on_select = self.on_select.clone();
-        let fill = self.fill;
-        let stroke = self.stroke;
-        let corner_rounding = self.corner_rounding;
+        let fill = self.background_fill;
+        let stroke = self.background_stroke;
+        let corner_rounding = self.background_corner_rounding;
         let text_fill = self.text_fill;
         let highlight_fill = self.highlight_fill;
 
@@ -128,7 +129,7 @@ impl<State> DropDown<State> {
                     } else {
                         empty()
                     },
-                    option.fill(text_fill).finish(ctx),
+                    option.fill(text_fill).build(ctx),
                 ],
             )
             .expand_x()

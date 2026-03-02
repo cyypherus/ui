@@ -105,7 +105,7 @@ impl Text {
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<State>(self, ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
+    pub fn build<State>(self, ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
     where
         State: 'static,
     {

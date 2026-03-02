@@ -123,7 +123,7 @@ fn main() {
                 text(id!(), "Image Loader")
                     .font_size(32)
                     .font_weight(FontWeight::BOLD)
-                    .finish(app.ctx())
+                    .build(app.ctx())
                     .pad(10.),
                 row_spaced(
                     10.,
@@ -142,9 +142,9 @@ fn main() {
                         .pad(10.)
                         .width_range(..200.),
                         button(id!(), binding!(state, State, paste_button))
-                            .label(text(id!(), "Paste").finish(app.ctx()))
+                            .label(text(id!(), "Paste").build(app.ctx()))
                             .on_click(|s, _| s.paste_from_clipboard())
-                            .finish(app.ctx())
+                            .build(app.ctx())
                             .height(40.)
                             .width(80.),
                     ],
@@ -158,7 +158,7 @@ fn main() {
                                 _ => "Load Image",
                             },
                         )
-                        .finish(app.ctx()),
+                        .build(app.ctx()),
                     )
                     .on_click(|s, app| {
                         if matches!(
@@ -169,22 +169,22 @@ fn main() {
                         }
                         s.load_image(app);
                     })
-                    .finish(app.ctx())
+                    .build(app.ctx())
                     .height(50.)
                     .width(200.),
                 match download_state {
                     DownloadState::Idle => text(id!(), "Enter a URL or file path and click Load")
                         .font_size(14)
-                        .finish(app.ctx()),
+                        .build(app.ctx()),
                     DownloadState::Downloading => text(id!(), "Loading image...")
                         .font_size(14)
-                        .finish(app.ctx()),
+                        .build(app.ctx()),
                     DownloadState::Success(ref image_id, ref bytes) => column_spaced(
                         10.,
                         vec![
                             text(id!(), format!("Loaded {} bytes", bytes.len()))
                                 .font_size(14)
-                                .finish(app.ctx()),
+                                .build(app.ctx()),
                             image_from_bytes(id!(), bytes.clone())
                                 .image_id(image_id)
                                 .view()
@@ -196,7 +196,7 @@ fn main() {
                     DownloadState::Error(ref error) => text(id!(), format!("Error: {error}"))
                         .font_size(14)
                         .fill(Color::from_rgb8(255, 0, 0))
-                        .finish(app.ctx()),
+                        .build(app.ctx()),
                 },
             ],
         )

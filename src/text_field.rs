@@ -10,8 +10,8 @@ use parley::{Alignment, FontWeight};
 use std::fmt::Debug;
 use std::rc::Rc;
 use vello_svg::vello::kurbo::{Affine, Rect as KRect, Stroke};
-use vello_svg::vello::peniko::Color;
 use vello_svg::vello::peniko::color::palette::css::TRANSPARENT;
+use vello_svg::vello::peniko::{Brush, Color};
 
 #[derive(Debug, Clone, Default)]
 pub struct TextState {
@@ -39,11 +39,11 @@ pub fn text_field<State>(
         font_size: DEFAULT_FONT_SIZE,
         font_weight: FontWeight::NORMAL,
         font_family: None,
-        fill: DEFAULT_FG_COLOR,
+        text_fill: DEFAULT_FG_COLOR,
         alignment: Alignment::Center,
         editable: true,
         line_height: 1.,
-        background_fill: Some(Color::from_rgb8(50, 50, 50)),
+        background_fill: Some(Color::from_rgb8(50, 50, 50).into()),
         background_stroke: Some((Color::from_rgb8(60, 60, 60), DEFAULT_PURP, Stroke::new(1.))),
         background_corner_rounding: DEFAULT_CORNER_ROUNDING,
         background_padding: DEFAULT_PADDING,
@@ -60,14 +60,14 @@ pub struct TextField<State> {
     pub(crate) id: u64,
     pub(crate) state: TextState,
     pub(crate) binding: Binding<State, TextState>,
-    pub(crate) fill: Color,
+    pub(crate) text_fill: Color,
     pub(crate) font_size: u32,
     pub(crate) font_weight: FontWeight,
     pub(crate) font_family: Option<String>,
     pub(crate) alignment: Alignment,
     pub(crate) editable: bool,
     pub(crate) line_height: f32,
-    pub(crate) background_fill: Option<Color>,
+    pub(crate) background_fill: Option<Brush>,
     pub(crate) background_stroke: Option<(Color, Color, Stroke)>,
     pub(crate) background_corner_rounding: f32,
     pub(crate) background_padding: f32,
@@ -84,7 +84,7 @@ impl<State> Debug for TextField<State> {
         f.debug_struct("Text")
             .field("id", &self.id)
             .field("state", &self.binding)
-            .field("fill", &self.fill)
+            .field("text_fill", &self.text_fill)
             .field("font_size", &self.font_size)
             .field("font_weight", &self.font_weight)
             .field("alignment", &self.alignment)
@@ -111,14 +111,14 @@ impl<State> Clone for TextField<State> {
             id: self.id,
             state: self.state.clone(),
             binding: self.binding.clone(),
-            fill: self.fill,
+            text_fill: self.text_fill,
             font_size: self.font_size,
             font_weight: self.font_weight,
             font_family: self.font_family.clone(),
             alignment: self.alignment,
             editable: self.editable,
             line_height: self.line_height,
-            background_fill: self.background_fill,
+            background_fill: self.background_fill.clone(),
             background_stroke: self.background_stroke.clone(),
             background_corner_rounding: self.background_corner_rounding,
             background_padding: self.background_padding,
@@ -133,8 +133,8 @@ impl<State> Clone for TextField<State> {
 }
 
 impl<State> TextField<State> {
-    pub fn background_fill(mut self, color: Option<Color>) -> Self {
-        self.background_fill = color;
+    pub fn background_fill(mut self, fill: impl Into<Brush>) -> Self {
+        self.background_fill = Some(fill.into());
         self
     }
     pub fn background_stroke(mut self, normal: Color, focused: Color, style: Stroke) -> Self {
@@ -168,8 +168,8 @@ impl<State> TextField<State> {
         self.on_edit = Some(Rc::new(on_edit));
         self
     }
-    pub fn fill(mut self, color: Color) -> Self {
-        self.fill = color;
+    pub fn text_fill(mut self, color: Color) -> Self {
+        self.text_fill = color;
         self
     }
     pub fn font_size(mut self, size: u32) -> Self {
@@ -203,7 +203,7 @@ impl<State> TextField<State> {
 }
 
 impl<State> TextField<State> {
-    pub fn finish(self, ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
+    pub fn build(self, ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
     where
         State: 'static,
     {
@@ -217,7 +217,7 @@ impl<State> TextField<State> {
         let font_size = self.font_size;
         let font_weight = self.font_weight;
         let font_family = self.font_family.clone();
-        let fill = self.fill;
+        let fill = self.text_fill;
         let cursor_fill = self.cursor_fill;
         let highlight_fill = self.highlight_fill;
         let alignment = self.alignment;
@@ -451,7 +451,7 @@ impl<State> TextField<State> {
                                 app.begin_editing(
                                     root_id,
                                     binding.get(state).text,
-                                    self.fill,
+                                    self.text_fill,
                                     font_family
                                         .clone()
                                         .unwrap_or(DEFAULT_FONT_FAMILY.to_string()),
@@ -480,7 +480,7 @@ impl<State> TextField<State> {
                 rect_node =
                     rect_node.stroke(if self.state.editing { focused } else { normal }, style);
             }
-            rect_node.corner_rounding(bg_rounding).finish(ctx)
+            rect_node.corner_rounding(bg_rounding).build(ctx)
         } else {
             space()
         })

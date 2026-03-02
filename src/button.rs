@@ -1,5 +1,5 @@
 use crate::{
-    Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, DEFAULT_PURP,
+    Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, DEFAULT_PADDING, DEFAULT_PURP,
     app::{AppContext, AppState, DrawItem},
     rect,
 };
@@ -7,6 +7,7 @@ use crate::{Color, DEFAULT_FG};
 use backer::{Layout, nodes::stack};
 use std::rc::Rc;
 use vello_svg::vello::kurbo::Stroke;
+use vello_svg::vello::peniko::Brush;
 use vello_svg::vello::peniko::color::palette::css::TRANSPARENT;
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -20,13 +21,19 @@ pub struct Button<State> {
     body: Option<Layout<DrawItem<State>, AppContext>>,
     label: Option<Layout<DrawItem<State>, AppContext>>,
     text_label: Option<String>,
-    corner_rounding: Option<f32>,
+    background_corner_rounding: Option<f32>,
+    background_padding: f32,
     on_click: Option<Rc<dyn Fn(&mut State, &mut AppState<State>)>>,
     state: ButtonState,
     binding: Binding<State, ButtonState>,
-    fill: Option<Color>,
-    stroke: Option<(Color, Stroke)>,
+    background_fill: Option<FillStyle>,
+    background_stroke: Option<(Brush, Stroke)>,
     text_fill: Option<Color>,
+}
+
+enum FillStyle {
+    Auto(Brush),
+    Custom(Rc<dyn Fn(ButtonState) -> Brush>),
 }
 
 pub fn button<State>(id: u64, state: (ButtonState, Binding<State, ButtonState>)) -> Button<State> {
@@ -35,12 +42,13 @@ pub fn button<State>(id: u64, state: (ButtonState, Binding<State, ButtonState>))
         body: None,
         label: None,
         text_label: None,
-        corner_rounding: None,
+        background_corner_rounding: None,
+        background_padding: DEFAULT_PADDING,
         on_click: None,
         state: state.0,
         binding: state.1,
-        fill: None,
-        stroke: None,
+        background_fill: None,
+        background_stroke: None,
         text_fill: None,
     }
 }
@@ -58,8 +66,8 @@ impl<State> Button<State> {
         self.text_label = Some(text_label.as_ref().to_string());
         self
     }
-    pub fn corner_rounding(mut self, corner_rounding: f32) -> Self {
-        self.corner_rounding = Some(corner_rounding);
+    pub fn background_corner_rounding(mut self, corner_rounding: f32) -> Self {
+        self.background_corner_rounding = Some(corner_rounding);
         self
     }
     pub fn on_click(
@@ -69,40 +77,65 @@ impl<State> Button<State> {
         self.on_click = Some(Rc::new(on_click));
         self
     }
-    pub fn fill(mut self, color: Color) -> Self {
-        self.fill = Some(color);
+    pub fn background_fill(mut self, fill: impl Into<Brush>) -> Self {
+        self.background_fill = Some(FillStyle::Auto(fill.into()));
         self
     }
-    pub fn stroke(mut self, color: Color, style: Stroke) -> Self {
-        self.stroke = Some((color, style));
+    pub fn background_fill_with(mut self, f: impl Fn(ButtonState) -> Brush + 'static) -> Self {
+        self.background_fill = Some(FillStyle::Custom(Rc::new(f)));
         self
     }
-    pub fn idle_text_fill(mut self, color: Color) -> Self {
+    pub fn background_stroke(mut self, brush: impl Into<Brush>, style: Stroke) -> Self {
+        self.background_stroke = Some((brush.into(), style));
+        self
+    }
+    pub fn background_padding(mut self, padding: f32) -> Self {
+        self.background_padding = padding;
+        self
+    }
+    pub fn text_fill(mut self, color: Color) -> Self {
         self.text_fill = Some(color);
         self
     }
-    pub fn finish(self, ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
+    pub fn build(self, ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
     where
         State: 'static,
     {
         let btn_state = self.state;
+        let default_fill = FillStyle::Auto(DEFAULT_PURP.into());
+        let bg_fill = self.background_fill.unwrap_or(default_fill);
+        let resolved_fill = match &bg_fill {
+            FillStyle::Auto(brush) => match brush {
+                Brush::Solid(color) => {
+                    let adjusted = match (btn_state.depressed, btn_state.hovered) {
+                        (true, _) => color.map_lightness(|l| l - 0.1),
+                        (false, true) => color.map_lightness(|l| l + 0.1),
+                        (false, false) => *color,
+                    };
+                    Brush::Solid(adjusted)
+                }
+                other => other.clone(),
+            },
+            FillStyle::Custom(f) => f(btn_state),
+        };
+        let bg_stroke = self.background_stroke;
+        let bg_rounding = self
+            .background_corner_rounding
+            .unwrap_or(DEFAULT_CORNER_ROUNDING);
         stack(vec![
             if let Some(body) = self.body {
                 body
             } else {
                 rect(crate::id!(self.id))
-                    .fill(match (btn_state.depressed, btn_state.hovered) {
-                        (true, _) => self.fill.unwrap_or(DEFAULT_PURP).map_lightness(|l| l - 0.1),
-                        (false, true) => {
-                            self.fill.unwrap_or(DEFAULT_PURP).map_lightness(|l| l + 0.1)
-                        }
-                        (false, false) => self.fill.unwrap_or(DEFAULT_PURP),
-                    })
+                    .fill(resolved_fill)
                     .stroke(
-                        self.stroke.as_ref().map(|s| s.0).unwrap_or(TRANSPARENT),
-                        self.stroke.unwrap_or((TRANSPARENT, Stroke::new(0.))).1,
+                        bg_stroke
+                            .as_ref()
+                            .map(|s| s.0.clone())
+                            .unwrap_or(TRANSPARENT.into()),
+                        bg_stroke.map(|s| s.1).unwrap_or(Stroke::new(0.)),
                     )
-                    .corner_rounding(self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
+                    .corner_rounding(bg_rounding)
                     .view()
                     .finish(ctx)
             },
