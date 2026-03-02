@@ -30,7 +30,7 @@ fn main() {
         },
         |state, app| {
                 column_spaced(
-                    20.,
+                    10.,
                     vec![
                         space()
                             .height(30.),
@@ -48,10 +48,10 @@ fn main() {
                             .finish(app.ctx())
                             .height(200.),
                         row_spaced(
-                            20.,
+                            10.,
                             vec![
-                                text_field(id!(), binding!(state, State, text_a)).wrap().finish(app.ctx()),
-                                text_field(id!(), binding!(state, State, text_b)).font_size(14).align(parley::Alignment::Left).wrap().finish(app.ctx()),
+                                text_field(id!(), binding!(state, State, text_a)).wrap().finish(app.ctx()).align(Align::Top),
+                                text_field(id!(), binding!(state, State, text_b)).font_size(14).align(parley::Alignment::Left).wrap().finish(app.ctx()).align(Align::Top),
                             ]
                         ),
                         stack(vec![
@@ -71,22 +71,22 @@ fn main() {
                             .finish(app.ctx()),
                         ])
                         .height(120.),
+                            dropdown(id!(), binding!(state, State, dropdown), vec![
+                                text(id!(), "Luminescent Moss"),
+                                text(id!(), "Crystal Mycelium"),
+                                text(id!(), "Quantum Algae"),
+                                text(id!(), "Floating Gardens"),
+                                text(id!(), "Cerebral Forests"),
+                                text(id!(), "Glass Marrow"),
+                            ]).finish(app.ctx()),
                         row_spaced(
-                            20.,
+                            10.,
                             vec![
-                                dropdown(id!(), binding!(state, State, dropdown), vec![
-                                    text(id!(), "Luminescent Moss"),
-                                    text(id!(), "Crystal Mycelium"),
-                                    text(id!(), "Quantum Algae"),
-                                    text(id!(), "Floating Gardens"),
-                                    text(id!(), "Cerebral Forests"),
-                                    text(id!(), "Glass Marrow"),
-                                ]).finish(app.ctx()),
-                                toggle(id!(), binding!(state, State, toggle)).finish(app.ctx()).height(40.).width(120.),
-                                slider(id!(), binding!(state, State, slider)).finish(app.ctx()).height(40.),
+                                toggle(id!(), binding!(state, State, toggle)).finish(app.ctx()).height(25.).width(50.),
+                                slider(id!(), binding!(state, State, slider)).finish(app.ctx()).height(25.),
                             ]
                         ),
-                        button(id!(), binding!(state, State, button)).text_label("Engage thrusters").finish(app.ctx()).height(50.),
+                        button(id!(), binding!(state, State, button)).text_label("Engage thrusters").finish(app.ctx()).height(30.),
                     ],
                 )
                 .pad(20.)

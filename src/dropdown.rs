@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::app::{AppContext, DrawItem};
 use crate::{Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_PURP, app::AppState, rect};
-use crate::{Color, DEFAULT_DARK_GRAY, DEFAULT_FG_COLOR, TRANSPARENT, Text, svg};
+use crate::{Color, DEFAULT_DARK_GRAY, DEFAULT_FG_COLOR, DEFAULT_PADDING, TRANSPARENT, Text, svg};
 use backer::{Align, Layout, nodes::*};
 use vello_svg::vello::kurbo::Stroke;
 
@@ -22,6 +22,7 @@ pub struct DropDown<State> {
     stroke: (Color, Stroke),
     text_fill: Color,
     highlight_fill: Color,
+    background_padding: f32,
     options: Vec<Text>,
     on_select: Option<Rc<dyn Fn(&mut State, &mut AppState<State>, usize)>>,
 }
@@ -40,6 +41,7 @@ pub fn dropdown<State>(
         stroke: (Color::from_rgb8(60, 60, 60), Stroke::new(1.)),
         text_fill: DEFAULT_FG_COLOR,
         highlight_fill: DEFAULT_PURP,
+        background_padding: DEFAULT_PADDING,
         options,
         on_select: None,
     }
@@ -50,27 +52,26 @@ impl<State> DropDown<State> {
         self.corner_rounding = corner_rounding;
         self
     }
-
     pub fn fill(mut self, color: Color) -> Self {
         self.fill = color;
         self
     }
-
     pub fn stroke(mut self, color: Color, style: Stroke) -> Self {
         self.stroke = (color, style);
         self
     }
-
     pub fn text_fill(mut self, color: Color) -> Self {
         self.text_fill = color;
         self
     }
-
     pub fn highlight_fill(mut self, color: Color) -> Self {
         self.highlight_fill = color;
         self
     }
-
+    pub fn background_padding(mut self, padding: f32) -> Self {
+        self.background_padding = padding;
+        self
+    }
     pub fn on_select(
         mut self,
         on_select: impl Fn(&mut State, &mut AppState<State>, usize) + 'static,
@@ -131,7 +132,7 @@ impl<State> DropDown<State> {
                 ],
             )
             .expand_x()
-            .pad(8.)
+            .pad(self.background_padding)
             .attach_under(
                 rect(crate::id!(index as u64, id))
                     .fill(row_fill)

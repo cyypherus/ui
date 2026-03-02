@@ -57,7 +57,7 @@ pub type Color = AlphaColor<Srgb>;
 
 const RUBIK_FONT: &[u8] = include_bytes!("../assets/Rubik-VariableFont_wght.ttf");
 const DEFAULT_FONT_FAMILY: &str = "Rubik";
-pub const DEFAULT_PADDING: f32 = 10.;
+pub const DEFAULT_PADDING: f32 = 5.;
 pub const DEFAULT_CORNER_ROUNDING: f32 = 6.;
 pub const DEFAULT_FONT_SIZE: u32 = 14;
 pub const DEFAULT_FG_COLOR: Color = AlphaColor::WHITE;
