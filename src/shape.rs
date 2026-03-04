@@ -3,7 +3,8 @@ use std::rc::Rc;
 use backer::Area;
 use vello_svg::vello::Scene;
 use vello_svg::vello::kurbo::{Affine, BezPath, Point, RoundedRect, Shape as _, Stroke};
-use vello_svg::vello::peniko::{Brush, Color, Fill};
+use crate::background_style::BrushSource;
+use vello_svg::vello::peniko::{Color, Fill};
 
 pub(crate) type PathBuilder = Rc<dyn Fn(Area) -> BezPath>;
 
@@ -11,8 +12,8 @@ pub(crate) type PathBuilder = Rc<dyn Fn(Area) -> BezPath>;
 pub(crate) struct PathData {
     pub(crate) id: u64,
     pub(crate) builder: PathBuilder,
-    pub(crate) fill: Option<Brush>,
-    pub(crate) stroke: Option<(Brush, Stroke)>,
+    pub(crate) fill: Option<BrushSource<()>>,
+    pub(crate) stroke: Option<(BrushSource<()>, Stroke)>,
 }
 
 impl PathData {
@@ -36,12 +37,12 @@ impl PathData {
                 &path,
             )
         } else {
-            if let Some(brush) = &self.fill {
-                let brush = brush.clone().multiply_alpha(visible_amount);
+            if let Some(ref brush_source) = self.fill {
+                let brush = brush_source.resolve(area, &()).multiply_alpha(visible_amount);
                 scene.fill(Fill::EvenOdd, scale, &brush, None, &user_path)
             }
-            if let Some((brush, stroke_style)) = &self.stroke {
-                let brush = brush.clone().multiply_alpha(visible_amount);
+            if let Some((ref brush_source, ref stroke_style)) = self.stroke {
+                let brush = brush_source.resolve(area, &()).multiply_alpha(visible_amount);
                 let mut scaled = stroke_style.clone();
                 scaled.width *= scale_factor;
                 scene.stroke(&scaled, scale, &brush, None, &user_path);

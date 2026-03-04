@@ -24,7 +24,7 @@ mod toggle;
 mod view;
 
 pub use app::{App, AppBuilder, AppContext, AppState, RedrawTrigger};
-pub use background_style::BackgroundStylable;
+pub use background_style::{BackgroundStylable, BrushSource};
 pub use backer::{Area, Layout, nodes::*};
 pub use button::*;
 pub use bytemuck;

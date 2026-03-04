@@ -1,4 +1,5 @@
 use crate::app::{AppContext, AppState, DrawItem, LayoutCache};
+use crate::background_style::BrushSource;
 use crate::draw_layout::draw_layout;
 use crate::view::{View, ViewType};
 use crate::{DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE};
@@ -18,7 +19,7 @@ pub fn text(id: u64, text: impl AsRef<str> + 'static) -> Text {
         font_size: DEFAULT_FONT_SIZE,
         font_weight: FontWeight::NORMAL,
         font_family: None,
-        fill: Brush::Solid(DEFAULT_FG_COLOR),
+        fill: BrushSource::Static(Brush::Solid(DEFAULT_FG_COLOR)),
         alignment: Alignment::Center,
         line_height: 1.,
         wrap: false,
@@ -28,7 +29,7 @@ pub fn text(id: u64, text: impl AsRef<str> + 'static) -> Text {
 pub struct Text {
     pub(crate) id: u64,
     pub(crate) string: String,
-    pub(crate) fill: Brush,
+    pub(crate) fill: BrushSource<()>,
     pub(crate) font_size: u32,
     pub(crate) font_weight: FontWeight,
     pub(crate) font_family: Option<String>,
@@ -69,7 +70,7 @@ impl Clone for Text {
 }
 
 impl Text {
-    pub fn fill(mut self, fill: impl Into<Brush>) -> Self {
+    pub fn fill(mut self, fill: impl Into<BrushSource<()>>) -> Self {
         self.fill = fill.into();
         self
     }
@@ -215,7 +216,7 @@ impl Text {
             return;
         }
 
-        let fill = self.fill.clone().multiply_alpha(visible_amount);
+        let fill = self.fill.resolve(area, &()).multiply_alpha(visible_amount);
 
         let layout = app
             .app_context

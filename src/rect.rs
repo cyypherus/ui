@@ -1,14 +1,14 @@
 use crate::app::{AppContext, DrawItem};
+use crate::background_style::BrushSource;
 use crate::shape::{PathData, rect_path};
 use crate::view::{View, ViewType};
 use backer::Layout;
 use vello_svg::vello::kurbo::Stroke;
-use vello_svg::vello::peniko::Brush;
 
 pub struct Rect {
     id: u64,
-    fill: Option<Brush>,
-    stroke: Option<(Brush, Stroke)>,
+    fill: Option<BrushSource<()>>,
+    stroke: Option<(BrushSource<()>, Stroke)>,
     corner_rounding: (f32, f32, f32, f32),
 }
 
@@ -22,7 +22,7 @@ pub fn rect(id: u64) -> Rect {
 }
 
 impl Rect {
-    pub fn fill(mut self, brush: impl Into<Brush>) -> Self {
+    pub fn fill(mut self, brush: impl Into<BrushSource<()>>) -> Self {
         self.fill = Some(brush.into());
         self
     }
@@ -40,7 +40,7 @@ impl Rect {
         self.corner_rounding = (top_left, top_right, bottom_right, bottom_left);
         self
     }
-    pub fn stroke(mut self, brush: impl Into<Brush>, style: impl Into<Stroke>) -> Self {
+    pub fn stroke(mut self, brush: impl Into<BrushSource<()>>, style: impl Into<Stroke>) -> Self {
         self.stroke = Some((brush.into(), style.into()));
         self
     }

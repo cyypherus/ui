@@ -1,17 +1,17 @@
 use std::rc::Rc;
 
 use crate::app::{AppContext, DrawItem};
+use crate::background_style::BrushSource;
 use crate::shape::PathData;
 use crate::view::{View, ViewType};
 use backer::{Area, Layout};
 use vello_svg::vello::kurbo::{BezPath, Stroke};
-use vello_svg::vello::peniko::Brush;
 
 pub struct Path {
     id: u64,
     builder: Rc<dyn Fn(Area) -> BezPath>,
-    fill: Option<Brush>,
-    stroke: Option<(Brush, Stroke)>,
+    fill: Option<BrushSource<()>>,
+    stroke: Option<(BrushSource<()>, Stroke)>,
 }
 
 pub fn path(id: u64, builder: impl Fn(Area) -> BezPath + 'static) -> Path {
@@ -24,11 +24,11 @@ pub fn path(id: u64, builder: impl Fn(Area) -> BezPath + 'static) -> Path {
 }
 
 impl Path {
-    pub fn fill(mut self, brush: impl Into<Brush>) -> Self {
+    pub fn fill(mut self, brush: impl Into<BrushSource<()>>) -> Self {
         self.fill = Some(brush.into());
         self
     }
-    pub fn stroke(mut self, brush: impl Into<Brush>, style: Stroke) -> Self {
+    pub fn stroke(mut self, brush: impl Into<BrushSource<()>>, style: Stroke) -> Self {
         self.stroke = Some((brush.into(), style));
         self
     }

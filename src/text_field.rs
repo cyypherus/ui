@@ -1,5 +1,7 @@
 use crate::app::{AppContext, AppState, DrawItem, EditState};
-use crate::background_style::{BackgroundStyled, BackgroundStylable, BrushSource, StrokeSource, Style};
+use crate::background_style::{
+    BackgroundStylable, BackgroundStyled, BrushSource, StrokeSource, Style,
+};
 use crate::shape::{PathData, rect_path};
 use crate::view::{View, ViewType};
 use crate::{
@@ -244,18 +246,19 @@ impl<State> TextField<State> {
                         height: rect.height() as f32,
                     };
                     DrawItem::Draw {
-                    view: Box::new(View::<State> {
-                        view_type: ViewType::Path(Box::new(PathData {
-                            id,
-                            builder: rect_path((2., 2., 2., 2.)),
-                            fill: Some(highlight.resolve(resolved_area, &ts)),
-                            stroke: None,
-                        })),
-                        gesture_handlers: Vec::new(),
-                    }),
-                    area: resolved_area,
-                    visible: true,
-                }}));
+                        view: Box::new(View::<State> {
+                            view_type: ViewType::Path(Box::new(PathData {
+                                id,
+                                builder: rect_path((2., 2., 2., 2.)),
+                                fill: Some(highlight.resolve(resolved_area, &ts).into()),
+                                stroke: None,
+                            })),
+                            gesture_handlers: Vec::new(),
+                        }),
+                        area: resolved_area,
+                        visible: true,
+                    }
+                }));
             }
 
             let has_selection = !selection_rects.is_empty();
@@ -287,18 +290,19 @@ impl<State> TextField<State> {
                         },
                     };
                     DrawItem::<State>::Draw {
-                    view: Box::new(View {
-                        view_type: ViewType::Path(Box::new(PathData {
-                            id,
-                            builder: rect_path((rounding, rounding, rounding, rounding)),
-                            fill: Some(cursor_fill.resolve(resolved_area, &ts)),
-                            stroke: None,
-                        })),
-                        gesture_handlers: Vec::new(),
-                    }),
-                    area: resolved_area,
-                    visible: true,
-                }}));
+                        view: Box::new(View {
+                            view_type: ViewType::Path(Box::new(PathData {
+                                id,
+                                builder: rect_path((rounding, rounding, rounding, rounding)),
+                                fill: Some(cursor_fill.resolve(resolved_area, &ts).into()),
+                                stroke: None,
+                            })),
+                            gesture_handlers: Vec::new(),
+                        }),
+                        area: resolved_area,
+                        visible: true,
+                    }
+                }));
             }
 
             let mut text_drawables = Vec::new();
@@ -330,7 +334,6 @@ impl<State> TextField<State> {
             .height(height);
             if wrap { stack } else { stack.width(width) }
         } else {
-            let zero_area = Area { x: 0., y: 0., width: 0., height: 0. };
             Text {
                 id: text_id,
                 string: self.state.text.clone(),
@@ -338,9 +341,9 @@ impl<State> TextField<State> {
                 font_weight,
                 font_family: font_family.clone(),
                 fill: if self.state.editing {
-                    Brush::Solid(TRANSPARENT)
+                    BrushSource::Static(Brush::Solid(TRANSPARENT))
                 } else {
-                    fill.resolve(zero_area, &text_state)
+                    fill.resolve_to_stateless(&text_state)
                 },
                 alignment,
                 line_height,
@@ -436,8 +439,17 @@ impl<State> TextField<State> {
                             let editing = binding.get(state).editing;
                             if !editing && app.app_context.editor.is_none() {
                                 binding.update(state, |s| s.editing = true);
-                                let editor_area = app.app_context.editor_areas.get(&root_id).copied()
-                                    .unwrap_or(Area { x: 0., y: 0., width: 0., height: 0. });
+                                let editor_area = app
+                                    .app_context
+                                    .editor_areas
+                                    .get(&root_id)
+                                    .copied()
+                                    .unwrap_or(Area {
+                                        x: 0.,
+                                        y: 0.,
+                                        width: 0.,
+                                        height: 0.,
+                                    });
                                 let ts = binding.get(state);
                                 let text = ts.text.clone();
                                 app.begin_editing(
@@ -477,7 +489,8 @@ impl<State> TextField<State> {
                         rect_node = rect_node.fill(fill.resolve(area, &ts));
                     }
                     if let Some((ref brush, ref stroke)) = bg_style.stroke {
-                        rect_node = rect_node.stroke(brush.resolve(area, &ts), stroke.resolve(area, &ts));
+                        rect_node =
+                            rect_node.stroke(brush.resolve(area, &ts), stroke.resolve(area, &ts));
                     }
                     rect_node.corner_rounding(bg_style.rounding).build(ctx)
                 })
