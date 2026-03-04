@@ -1,6 +1,7 @@
 use crate::app::{AppContext, DrawItem};
-use crate::{Binding, ClickState, app::AppState, id, rect};
-use crate::{Color, DEFAULT_FG, DEFAULT_GRAY, DEFAULT_LIGHT_GRAY, TRANSPARENT, circle};
+use crate::background_style::BrushSource;
+use crate::{Binding, ClickState, adjust_brush, app::AppState, id, rect};
+use crate::{DEFAULT_FG, DEFAULT_GRAY, DEFAULT_LIGHT_GRAY, TRANSPARENT, circle};
 use backer::{
     Layout,
     nodes::{area_reader, stack},
@@ -36,9 +37,9 @@ pub struct Toggle<State> {
     on_toggle: Option<fn(&mut State, &mut AppState<State>, bool)>,
     state: ToggleState,
     binding: Binding<State, ToggleState>,
-    on_fill: Color,
-    off_fill: Color,
-    knob_fill: Color,
+    on_fill: BrushSource<ToggleState>,
+    off_fill: BrushSource<ToggleState>,
+    knob_fill: BrushSource<ToggleState>,
 }
 
 pub fn toggle<State>(id: u64, state: (ToggleState, Binding<State, ToggleState>)) -> Toggle<State> {
@@ -47,9 +48,9 @@ pub fn toggle<State>(id: u64, state: (ToggleState, Binding<State, ToggleState>))
         on_toggle: None,
         state: state.0,
         binding: state.1,
-        on_fill: DEFAULT_LIGHT_GRAY,
-        off_fill: DEFAULT_GRAY,
-        knob_fill: DEFAULT_FG,
+        on_fill: DEFAULT_LIGHT_GRAY.into(),
+        off_fill: DEFAULT_GRAY.into(),
+        knob_fill: DEFAULT_FG.into(),
     }
 }
 
@@ -59,18 +60,18 @@ impl<State> Toggle<State> {
         self
     }
 
-    pub fn on_fill(mut self, fill: Color) -> Self {
-        self.on_fill = fill;
+    pub fn on_fill(mut self, fill: impl Into<BrushSource<ToggleState>>) -> Self {
+        self.on_fill = fill.into();
         self
     }
 
-    pub fn off_fill(mut self, fill: Color) -> Self {
-        self.off_fill = fill;
+    pub fn off_fill(mut self, fill: impl Into<BrushSource<ToggleState>>) -> Self {
+        self.off_fill = fill.into();
         self
     }
 
-    pub fn knob_fill(mut self, fill: Color) -> Self {
-        self.knob_fill = fill;
+    pub fn knob_fill(mut self, fill: impl Into<BrushSource<ToggleState>>) -> Self {
+        self.knob_fill = fill.into();
         self
     }
     pub fn build(self, _ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
@@ -84,35 +85,36 @@ impl<State> Toggle<State> {
             stack(vec![
                 rect(id!(self.id))
                     .fill(if state.on {
-                        self.on_fill
+                        self.on_fill.resolve(area, &state)
                     } else {
-                        self.off_fill
+                        self.off_fill.resolve(area, &state)
                     })
                     .corner_rounding(height * 0.5)
                     .build(ctx)
                     .height(height)
                     .width(width),
-                circle(id!(self.id))
-                    .fill(match (state.depressed, state.hovered) {
-                        (true, _) => self.knob_fill.map_lightness(|l| l - 0.1),
-                        (false, true) => self.knob_fill.map_lightness(|l| l + 0.1),
-                        (false, false) => self.knob_fill,
-                    })
-                    .finish(ctx)
-                    .pad(height * 0.1)
-                    .height(height)
-                    .width(height)
-                    .offset(
-                        {
-                            let button_padding = height - (height * 0.5);
-                            if state.on {
-                                (width * 0.5) - button_padding
-                            } else {
-                                (-width * 0.5) + button_padding
-                            }
-                        },
-                        0.,
-                    ),
+                {
+                    let knob = self.knob_fill.resolve(area, &state);
+                    let depressed = state.depressed;
+                    let hovered = state.hovered;
+                    circle(id!(self.id))
+                        .fill(adjust_brush(&knob, depressed, hovered))
+                        .finish(ctx)
+                        .pad(height * 0.1)
+                        .height(height)
+                        .width(height)
+                        .offset(
+                            {
+                                let button_padding = height - (height * 0.5);
+                                if state.on {
+                                    (width * 0.5) - button_padding
+                                } else {
+                                    (-width * 0.5) + button_padding
+                                }
+                            },
+                            0.,
+                        )
+                },
                 rect(crate::id!(self.id))
                     .fill(TRANSPARENT)
                     .view()

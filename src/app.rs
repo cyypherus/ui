@@ -216,8 +216,8 @@ pub(crate) struct EditState {
     pub(crate) id: u64,
     pub(crate) editor: Editor,
     pub(crate) editing: bool,
-    pub(crate) cursor_color: Color,
-    pub(crate) highlight_color: Color,
+    pub(crate) cursor_color: Brush,
+    pub(crate) highlight_color: Brush,
 }
 
 impl Clone for EditState {
@@ -226,8 +226,8 @@ impl Clone for EditState {
             id: self.id,
             editor: self.editor.clone(),
             editing: self.editing,
-            cursor_color: self.cursor_color,
-            highlight_color: self.highlight_color,
+            cursor_color: self.cursor_color.clone(),
+            highlight_color: self.highlight_color.clone(),
         }
     }
 }
@@ -255,15 +255,15 @@ impl<State> AppState<State> {
         &mut self,
         id: u64,
         text: String,
-        fill: Color,
+        fill: Brush,
         font_family: String,
         font_weight: FontWeight,
         line_height: f32,
         font_size: f32,
         overflow_wrap: OverflowWrap,
         alignment: Alignment,
-        cursor_fill: Color,
-        highlight_fill: Color,
+        cursor_fill: Brush,
+        highlight_fill: Brush,
         wrap: bool,
     ) {
         if self.app_context.editor.is_some() {
@@ -276,7 +276,7 @@ impl<State> AppState<State> {
         editor.set_text(&text);
         let styles = editor.edit_styles();
 
-        styles.insert(parley::StyleProperty::Brush(Brush::Solid(fill)));
+        styles.insert(parley::StyleProperty::Brush(fill));
         styles.insert(parley::FontFamily::Named(font_family.into()).into());
         styles.insert(StyleProperty::FontWeight(font_weight));
         styles.insert(StyleProperty::LineHeight(LineHeight::FontSizeRelative(

@@ -1,9 +1,11 @@
 use crate::{
     Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, DEFAULT_PADDING, DEFAULT_PURP,
+    adjust_brush,
     app::{AppContext, AppState, DrawItem},
     rect,
 };
-use crate::{Color, DEFAULT_FG};
+use crate::background_style::BrushSource;
+use crate::DEFAULT_FG;
 use backer::{Layout, nodes::stack};
 use std::rc::Rc;
 use vello_svg::vello::kurbo::Stroke;
@@ -26,14 +28,9 @@ pub struct Button<State> {
     on_click: Option<Rc<dyn Fn(&mut State, &mut AppState<State>)>>,
     state: ButtonState,
     binding: Binding<State, ButtonState>,
-    background_fill: Option<FillStyle>,
-    background_stroke: Option<(Brush, Stroke)>,
-    text_fill: Option<Color>,
-}
-
-enum FillStyle {
-    Auto(Brush),
-    Custom(Rc<dyn Fn(ButtonState) -> Brush>),
+    background_fill: Option<BrushSource<ButtonState>>,
+    background_stroke: Option<(BrushSource<ButtonState>, Stroke)>,
+    text_fill: Option<Brush>,
 }
 
 pub fn button<State>(id: u64, state: (ButtonState, Binding<State, ButtonState>)) -> Button<State> {
@@ -77,15 +74,11 @@ impl<State> Button<State> {
         self.on_click = Some(Rc::new(on_click));
         self
     }
-    pub fn background_fill(mut self, fill: impl Into<Brush>) -> Self {
-        self.background_fill = Some(FillStyle::Auto(fill.into()));
+    pub fn background_fill(mut self, fill: impl Into<BrushSource<ButtonState>>) -> Self {
+        self.background_fill = Some(fill.into());
         self
     }
-    pub fn background_fill_with(mut self, f: impl Fn(ButtonState) -> Brush + 'static) -> Self {
-        self.background_fill = Some(FillStyle::Custom(Rc::new(f)));
-        self
-    }
-    pub fn background_stroke(mut self, brush: impl Into<Brush>, style: Stroke) -> Self {
+    pub fn background_stroke(mut self, brush: impl Into<BrushSource<ButtonState>>, style: Stroke) -> Self {
         self.background_stroke = Some((brush.into(), style));
         self
     }
@@ -93,8 +86,8 @@ impl<State> Button<State> {
         self.background_padding = padding;
         self
     }
-    pub fn text_fill(mut self, color: Color) -> Self {
-        self.text_fill = Some(color);
+    pub fn text_fill(mut self, fill: impl Into<Brush>) -> Self {
+        self.text_fill = Some(fill.into());
         self
     }
     pub fn build(self, ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
@@ -102,22 +95,7 @@ impl<State> Button<State> {
         State: 'static,
     {
         let btn_state = self.state;
-        let default_fill = FillStyle::Auto(DEFAULT_PURP.into());
-        let bg_fill = self.background_fill.unwrap_or(default_fill);
-        let resolved_fill = match &bg_fill {
-            FillStyle::Auto(brush) => match brush {
-                Brush::Solid(color) => {
-                    let adjusted = match (btn_state.depressed, btn_state.hovered) {
-                        (true, _) => color.map_lightness(|l| l - 0.1),
-                        (false, true) => color.map_lightness(|l| l + 0.1),
-                        (false, false) => *color,
-                    };
-                    Brush::Solid(adjusted)
-                }
-                other => other.clone(),
-            },
-            FillStyle::Custom(f) => f(btn_state),
-        };
+        let bg_fill: BrushSource<ButtonState> = self.background_fill.unwrap_or(DEFAULT_PURP.into());
         let bg_stroke = self.background_stroke;
         let bg_rounding = self
             .background_corner_rounding
@@ -126,18 +104,17 @@ impl<State> Button<State> {
             if let Some(body) = self.body {
                 body
             } else {
-                rect(crate::id!(self.id))
-                    .fill(resolved_fill)
-                    .stroke(
-                        bg_stroke
-                            .as_ref()
-                            .map(|s| s.0.clone())
-                            .unwrap_or(TRANSPARENT.into()),
-                        bg_stroke.map(|s| s.1).unwrap_or(Stroke::new(0.)),
-                    )
-                    .corner_rounding(bg_rounding)
-                    .view()
-                    .finish(ctx)
+                backer::nodes::area_reader(move |area, ctx: &mut AppContext| {
+                    let fill_brush = bg_fill.resolve(area, &btn_state);
+                    let mut r = rect(crate::id!(self.id))
+                        .fill(adjust_brush(&fill_brush, btn_state.depressed, btn_state.hovered));
+                    if let Some((ref stroke_source, ref stroke_style)) = bg_stroke {
+                        let stroke_brush = stroke_source.resolve(area, &btn_state);
+                        r = r.stroke(stroke_brush, stroke_style.clone());
+                    }
+                    r.corner_rounding(bg_rounding)
+                        .build(ctx)
+                })
             },
             if let Some(label) = self.label {
                 label
@@ -146,17 +123,11 @@ impl<State> Button<State> {
                     crate::id!(self.id),
                     self.text_label.clone().unwrap_or_default(),
                 )
-                .fill(match (btn_state.depressed, btn_state.hovered) {
-                    (true, _) => self
-                        .text_fill
-                        .unwrap_or(DEFAULT_FG)
-                        .map_lightness(|l| l - 0.1),
-                    (false, true) => self
-                        .text_fill
-                        .unwrap_or(DEFAULT_FG)
-                        .map_lightness(|l| l + 0.1),
-                    (false, false) => self.text_fill.unwrap_or(DEFAULT_FG),
-                })
+                .fill(adjust_brush(
+                    &self.text_fill.unwrap_or(Brush::Solid(DEFAULT_FG)),
+                    btn_state.depressed,
+                    btn_state.hovered,
+                ))
                 .font_size(DEFAULT_FONT_SIZE)
                 .view()
                 // .transition_duration(0.)

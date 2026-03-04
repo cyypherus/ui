@@ -9,7 +9,7 @@ use parley::{
 };
 use std::fmt::Debug;
 use vello_svg::vello::peniko::Brush;
-use vello_svg::vello::{kurbo::Affine, peniko::Color};
+use vello_svg::vello::kurbo::Affine;
 
 pub fn text(id: u64, text: impl AsRef<str> + 'static) -> Text {
     Text {
@@ -18,7 +18,7 @@ pub fn text(id: u64, text: impl AsRef<str> + 'static) -> Text {
         font_size: DEFAULT_FONT_SIZE,
         font_weight: FontWeight::NORMAL,
         font_family: None,
-        fill: DEFAULT_FG_COLOR,
+        fill: Brush::Solid(DEFAULT_FG_COLOR),
         alignment: Alignment::Center,
         line_height: 1.,
         wrap: false,
@@ -28,7 +28,7 @@ pub fn text(id: u64, text: impl AsRef<str> + 'static) -> Text {
 pub struct Text {
     pub(crate) id: u64,
     pub(crate) string: String,
-    pub(crate) fill: Color,
+    pub(crate) fill: Brush,
     pub(crate) font_size: u32,
     pub(crate) font_weight: FontWeight,
     pub(crate) font_family: Option<String>,
@@ -57,7 +57,7 @@ impl Clone for Text {
         Self {
             id: self.id,
             string: self.string.clone(),
-            fill: self.fill,
+            fill: self.fill.clone(),
             font_size: self.font_size,
             font_weight: self.font_weight,
             font_family: self.font_family.clone(),
@@ -69,8 +69,8 @@ impl Clone for Text {
 }
 
 impl Text {
-    pub fn fill(mut self, color: Color) -> Self {
-        self.fill = color;
+    pub fn fill(mut self, fill: impl Into<Brush>) -> Self {
+        self.fill = fill.into();
         self
     }
     pub fn font_size(mut self, size: u32) -> Self {
@@ -135,7 +135,7 @@ impl TextLayout {
     pub(crate) fn build_layout(
         &mut self,
         text: &Text,
-        current_fill: Color,
+        current_fill: &Brush,
         available_width: f32,
         cache: bool,
     ) -> ParleyLayout<Brush> {
@@ -162,7 +162,7 @@ impl TextLayout {
                 1.,
                 true,
                 &TextStyle {
-                    brush: Brush::Solid(current_fill),
+                    brush: current_fill.clone(),
                     font_stack: FontStack::Single(parley::FontFamily::Named(
                         text.font_family
                             .clone()
@@ -215,12 +215,12 @@ impl Text {
             return;
         }
 
-        let fill = self.fill.multiply_alpha(visible_amount);
+        let fill = self.fill.clone().multiply_alpha(visible_amount);
 
         let layout = app
             .app_context
             .text_layout
-            .build_layout(self, self.fill, area.width, true);
+            .build_layout(self, &fill, area.width, true);
 
         let transform = Affine::translate((animated_area.x as f64, animated_area.y as f64))
             .then_scale(app.app_context.scale_factor);
@@ -240,12 +240,14 @@ impl Text {
     {
         if self.wrap {
             node.dynamic_height(move |w, ctx| {
+                let default_brush = Brush::Solid(crate::DEFAULT_FG_COLOR);
                 ctx.text_layout
-                    .build_layout(&self, self.fill, w, true)
+                    .build_layout(&self, &default_brush, w, true)
                     .height()
             })
         } else {
-            let layout = ctx.text_layout.build_layout(&self, self.fill, 10000., true);
+            let default_brush = Brush::Solid(crate::DEFAULT_FG_COLOR);
+            let layout = ctx.text_layout.build_layout(&self, &default_brush, 10000., true);
             node.height(layout.height()).width(layout.width().max(10.))
         }
     }

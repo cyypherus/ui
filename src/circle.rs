@@ -1,15 +1,15 @@
 use crate::app::{AppContext, DrawItem};
-use crate::shape::{Paint, PathData, circle_path};
+use crate::shape::{PathData, circle_path};
 use crate::view::{View, ViewType};
 
-use backer::{Area, Layout};
+use backer::Layout;
 use vello_svg::vello::kurbo::Stroke;
 use vello_svg::vello::peniko::Brush;
 
 pub struct Circle {
     id: u64,
-    fill: Option<Paint>,
-    stroke: Option<(Paint, Stroke)>,
+    fill: Option<Brush>,
+    stroke: Option<(Brush, Stroke)>,
 }
 
 pub fn circle(id: u64) -> Circle {
@@ -22,19 +22,11 @@ pub fn circle(id: u64) -> Circle {
 
 impl Circle {
     pub fn fill(mut self, brush: impl Into<Brush>) -> Self {
-        self.fill = Some(Paint::from_brush(brush));
-        self
-    }
-    pub fn fill_with(mut self, f: impl Fn(Area) -> Brush + 'static) -> Self {
-        self.fill = Some(Paint::from_fn(f));
+        self.fill = Some(brush.into());
         self
     }
     pub fn stroke(mut self, brush: impl Into<Brush>, style: Stroke) -> Self {
-        self.stroke = Some((Paint::from_brush(brush), style));
-        self
-    }
-    pub fn stroke_with(mut self, f: impl Fn(Area) -> Brush + 'static, style: Stroke) -> Self {
-        self.stroke = Some((Paint::from_fn(f), style));
+        self.stroke = Some((brush.into(), style));
         self
     }
     pub(crate) fn into_path_data(self) -> PathData {

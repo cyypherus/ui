@@ -4,7 +4,7 @@ use crate::view::{View, ViewType};
 
 use backer::{Area, Layout};
 use vello_svg::vello::kurbo::{self, Affine, Vec2};
-use vello_svg::vello::peniko::{Color, Compose, Fill, Mix};
+use vello_svg::vello::peniko::{Brush, Compose, Fill, Mix};
 use vello_svg::vello::{Scene, peniko};
 
 #[derive(Debug, Clone)]
@@ -12,7 +12,7 @@ pub struct Svg {
     pub(crate) id: u64,
     pub(crate) content: String,
     pub(crate) unlocked_aspect_ratio: bool,
-    pub(crate) fill: Option<Color>,
+    pub(crate) fill: Option<Brush>,
 }
 
 pub fn svg(id: u64, content: impl AsRef<str>) -> Svg {
@@ -29,8 +29,8 @@ impl Svg {
         self.unlocked_aspect_ratio = true;
         self
     }
-    pub fn fill(mut self, color: Color) -> Self {
-        self.fill = Some(color);
+    pub fn fill(mut self, fill: impl Into<Brush>) -> Self {
+        self.fill = Some(fill.into());
         self
     }
     pub fn view<State>(self) -> View<State> {
@@ -120,7 +120,7 @@ impl Svg {
                         .then_translate(Vec2::new(dx, dy))
                 }),
             );
-            if let Some(fill) = self.fill {
+            if let Some(ref fill) = self.fill {
                 scene.push_layer(
                     Fill::NonZero,
                     peniko::BlendMode {

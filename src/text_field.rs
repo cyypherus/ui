@@ -1,9 +1,10 @@
 use crate::app::{AppContext, AppState, DrawItem, EditState};
-use crate::shape::{Paint, PathData, rect_path};
+use crate::background_style::{BackgroundStyled, BackgroundStylable, BrushSource, StrokeSource, Style};
+use crate::shape::{PathData, rect_path};
 use crate::view::{View, ViewType};
 use crate::{
     Binding, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE,
-    DEFAULT_PADDING, DEFAULT_PURP, EditInteraction, Key, Text, rect,
+    DEFAULT_PADDING, DEFAULT_PURP, DEFAULT_STROKE_WIDTH, EditInteraction, Key, Text, rect,
 };
 use backer::{Area, Layout, nodes::*};
 use parley::{Alignment, FontWeight};
@@ -39,17 +40,22 @@ pub fn text_field<State>(
         font_size: DEFAULT_FONT_SIZE,
         font_weight: FontWeight::NORMAL,
         font_family: None,
-        text_fill: DEFAULT_FG_COLOR,
+        text_fill: BrushSource::Static(Brush::Solid(DEFAULT_FG_COLOR)),
         alignment: Alignment::Center,
         editable: true,
         line_height: 1.,
-        background_fill: Some(Color::from_rgb8(50, 50, 50).into()),
-        background_stroke: Some((Color::from_rgb8(60, 60, 60), DEFAULT_PURP, Stroke::new(1.))),
-        background_corner_rounding: DEFAULT_CORNER_ROUNDING,
-        background_padding: DEFAULT_PADDING,
+        background_style: Style {
+            fill: Some(Color::from_rgb8(50, 50, 50).into()),
+            stroke: Some((
+                Color::from_rgb8(60, 60, 60).into(),
+                StrokeSource::Static(Stroke::new(DEFAULT_STROKE_WIDTH as f64)),
+            )),
+            rounding: DEFAULT_CORNER_ROUNDING,
+            padding: DEFAULT_PADDING,
+        },
         wrap: false,
-        cursor_fill: DEFAULT_PURP,
-        highlight_fill: DEFAULT_PURP,
+        cursor_fill: BrushSource::Static(Brush::Solid(DEFAULT_PURP)),
+        highlight_fill: BrushSource::Static(Brush::Solid(DEFAULT_PURP)),
         on_edit: None,
         esc_end_editing: false,
         enter_end_editing: false,
@@ -60,24 +66,30 @@ pub struct TextField<State> {
     pub(crate) id: u64,
     pub(crate) state: TextState,
     pub(crate) binding: Binding<State, TextState>,
-    pub(crate) text_fill: Color,
+    pub(crate) text_fill: BrushSource<TextState>,
     pub(crate) font_size: u32,
     pub(crate) font_weight: FontWeight,
     pub(crate) font_family: Option<String>,
     pub(crate) alignment: Alignment,
     pub(crate) editable: bool,
     pub(crate) line_height: f32,
-    pub(crate) background_fill: Option<Brush>,
-    pub(crate) background_stroke: Option<(Color, Color, Stroke)>,
-    pub(crate) background_corner_rounding: f32,
-    pub(crate) background_padding: f32,
+    pub(crate) background_style: Style<TextState>,
     pub(crate) wrap: bool,
     pub(crate) esc_end_editing: bool,
     pub(crate) enter_end_editing: bool,
-    pub(crate) cursor_fill: Color,
-    pub(crate) highlight_fill: Color,
+    pub(crate) cursor_fill: BrushSource<TextState>,
+    pub(crate) highlight_fill: BrushSource<TextState>,
     on_edit: Option<Rc<dyn Fn(&mut State, &mut AppState<State>, EditInteraction)>>,
 }
+
+impl<State> BackgroundStyled for TextField<State> {
+    type V = TextState;
+    fn background(&mut self) -> &mut Style<TextState> {
+        &mut self.background_style
+    }
+}
+
+impl<State> BackgroundStylable for TextField<State> {}
 
 impl<State> Debug for TextField<State> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -90,13 +102,7 @@ impl<State> Debug for TextField<State> {
             .field("alignment", &self.alignment)
             .field("editable", &self.editable)
             .field("line_height", &self.line_height)
-            .field("background_fill", &self.background_fill)
-            .field("background_stroke", &self.background_stroke)
-            .field(
-                "background_corner_rounding",
-                &self.background_corner_rounding,
-            )
-            .field("background_padding", &self.background_padding)
+            .field("background_style", &self.background_style)
             .field("wrap", &self.wrap)
             .field("cursor_fill", &self.cursor_fill)
             .field("highlight_fill", &self.highlight_fill)
@@ -111,20 +117,17 @@ impl<State> Clone for TextField<State> {
             id: self.id,
             state: self.state.clone(),
             binding: self.binding.clone(),
-            text_fill: self.text_fill,
+            text_fill: self.text_fill.clone(),
             font_size: self.font_size,
             font_weight: self.font_weight,
             font_family: self.font_family.clone(),
             alignment: self.alignment,
             editable: self.editable,
             line_height: self.line_height,
-            background_fill: self.background_fill.clone(),
-            background_stroke: self.background_stroke.clone(),
-            background_corner_rounding: self.background_corner_rounding,
-            background_padding: self.background_padding,
+            background_style: self.background_style.clone(),
             wrap: self.wrap,
-            cursor_fill: self.cursor_fill,
-            highlight_fill: self.highlight_fill,
+            cursor_fill: self.cursor_fill.clone(),
+            highlight_fill: self.highlight_fill.clone(),
             on_edit: self.on_edit.clone(),
             esc_end_editing: false,
             enter_end_editing: false,
@@ -133,32 +136,12 @@ impl<State> Clone for TextField<State> {
 }
 
 impl<State> TextField<State> {
-    pub fn background_fill(mut self, fill: impl Into<Brush>) -> Self {
-        self.background_fill = Some(fill.into());
+    pub fn cursor_fill(mut self, fill: impl Into<BrushSource<TextState>>) -> Self {
+        self.cursor_fill = fill.into();
         self
     }
-    pub fn background_stroke(mut self, normal: Color, focused: Color, style: Stroke) -> Self {
-        self.background_stroke = Some((normal, focused, style));
-        self
-    }
-    pub fn no_background_stroke(mut self) -> Self {
-        self.background_stroke = None;
-        self
-    }
-    pub fn background_corner_rounding(mut self, rounding: f32) -> Self {
-        self.background_corner_rounding = rounding;
-        self
-    }
-    pub fn background_padding(mut self, padding: f32) -> Self {
-        self.background_padding = padding;
-        self
-    }
-    pub fn cursor_fill(mut self, color: Color) -> Self {
-        self.cursor_fill = color;
-        self
-    }
-    pub fn highlight_fill(mut self, color: Color) -> Self {
-        self.highlight_fill = color;
+    pub fn highlight_fill(mut self, fill: impl Into<BrushSource<TextState>>) -> Self {
+        self.highlight_fill = fill.into();
         self
     }
     pub fn on_edit(
@@ -168,8 +151,8 @@ impl<State> TextField<State> {
         self.on_edit = Some(Rc::new(on_edit));
         self
     }
-    pub fn text_fill(mut self, color: Color) -> Self {
-        self.text_fill = color;
+    pub fn text_fill(mut self, fill: impl Into<BrushSource<TextState>>) -> Self {
+        self.text_fill = fill.into();
         self
     }
     pub fn font_size(mut self, size: u32) -> Self {
@@ -209,17 +192,14 @@ impl<State> TextField<State> {
     {
         let id = self.id;
         let editable = self.editable;
-        let bg_fill = self.background_fill;
-        let bg_stroke = self.background_stroke;
-        let bg_rounding = self.background_corner_rounding;
-        let bg_padding = self.background_padding;
         let binding = self.binding.clone();
         let font_size = self.font_size;
         let font_weight = self.font_weight;
         let font_family = self.font_family.clone();
-        let fill = self.text_fill;
-        let cursor_fill = self.cursor_fill;
-        let highlight_fill = self.highlight_fill;
+        let text_state = self.state.clone();
+        let fill = self.text_fill.clone();
+        let cursor_fill = self.cursor_fill.clone();
+        let highlight_fill = self.highlight_fill.clone();
         let alignment = self.alignment;
         let line_height = self.line_height;
         let wrap = self.wrap;
@@ -254,24 +234,28 @@ impl<State> TextField<State> {
 
             let mut selection_drawables = Vec::new();
             for rect in selection_rects.clone() {
-                selection_drawables.push(draw(move |area, _| DrawItem::Draw {
-                    view: Box::new(View::<State> {
-                        view_type: ViewType::Path(Box::new(PathData {
-                            id,
-                            builder: rect_path((2., 2., 2., 2.)),
-                            fill: Some(Paint::from_brush(highlight_fill)),
-                            stroke: None,
-                        })),
-                        gesture_handlers: Vec::new(),
-                    }),
-                    area: Area {
+                let highlight = highlight_fill.clone();
+                let ts = text_state.clone();
+                selection_drawables.push(draw(move |area, _| {
+                    let resolved_area = Area {
                         x: area.x + rect.x0 as f32,
                         y: area.y + rect.y0 as f32,
                         width: rect.width() as f32,
                         height: rect.height() as f32,
-                    },
+                    };
+                    DrawItem::Draw {
+                    view: Box::new(View::<State> {
+                        view_type: ViewType::Path(Box::new(PathData {
+                            id,
+                            builder: rect_path((2., 2., 2., 2.)),
+                            fill: Some(highlight.resolve(resolved_area, &ts)),
+                            stroke: None,
+                        })),
+                        gesture_handlers: Vec::new(),
+                    }),
+                    area: resolved_area,
                     visible: true,
-                }));
+                }}));
             }
 
             let has_selection = !selection_rects.is_empty();
@@ -290,17 +274,9 @@ impl<State> TextField<State> {
                 }
             {
                 let rounding = (cursor_width * 0.5) as f32;
-                cursor_drawables.push(draw(move |area, _| DrawItem::<State>::Draw {
-                    view: Box::new(View {
-                        view_type: ViewType::Path(Box::new(PathData {
-                            id,
-                            builder: rect_path((rounding, rounding, rounding, rounding)),
-                            fill: Some(Paint::from_brush(cursor_fill)),
-                            stroke: None,
-                        })),
-                        gesture_handlers: Vec::new(),
-                    }),
-                    area: Area {
+                let ts = text_state.clone();
+                cursor_drawables.push(draw(move |area, _| {
+                    let resolved_area = Area {
                         x: area.x + cursor.x0 as f32,
                         y: area.y + cursor.y0 as f32,
                         width: cursor.width() as f32,
@@ -309,9 +285,20 @@ impl<State> TextField<State> {
                         } else {
                             cursor.height() as f32
                         },
-                    },
+                    };
+                    DrawItem::<State>::Draw {
+                    view: Box::new(View {
+                        view_type: ViewType::Path(Box::new(PathData {
+                            id,
+                            builder: rect_path((rounding, rounding, rounding, rounding)),
+                            fill: Some(cursor_fill.resolve(resolved_area, &ts)),
+                            stroke: None,
+                        })),
+                        gesture_handlers: Vec::new(),
+                    }),
+                    area: resolved_area,
                     visible: true,
-                }));
+                }}));
             }
 
             let mut text_drawables = Vec::new();
@@ -343,16 +330,17 @@ impl<State> TextField<State> {
             .height(height);
             if wrap { stack } else { stack.width(width) }
         } else {
+            let zero_area = Area { x: 0., y: 0., width: 0., height: 0. };
             Text {
                 id: text_id,
-                string: self.state.text,
+                string: self.state.text.clone(),
                 font_size,
                 font_weight,
                 font_family: font_family.clone(),
                 fill: if self.state.editing {
-                    TRANSPARENT
+                    Brush::Solid(TRANSPARENT)
                 } else {
-                    fill
+                    fill.resolve(zero_area, &text_state)
                 },
                 alignment,
                 line_height,
@@ -448,10 +436,14 @@ impl<State> TextField<State> {
                             let editing = binding.get(state).editing;
                             if !editing && app.app_context.editor.is_none() {
                                 binding.update(state, |s| s.editing = true);
+                                let editor_area = app.app_context.editor_areas.get(&root_id).copied()
+                                    .unwrap_or(Area { x: 0., y: 0., width: 0., height: 0. });
+                                let ts = binding.get(state);
+                                let text = ts.text.clone();
                                 app.begin_editing(
                                     root_id,
-                                    binding.get(state).text,
-                                    self.text_fill,
+                                    text,
+                                    self.text_fill.resolve(editor_area, &ts),
                                     font_family
                                         .clone()
                                         .unwrap_or(DEFAULT_FONT_FAMILY.to_string()),
@@ -460,8 +452,8 @@ impl<State> TextField<State> {
                                     self.font_size as f32,
                                     parley::OverflowWrap::Anywhere,
                                     self.alignment,
-                                    self.cursor_fill,
-                                    self.highlight_fill,
+                                    self.cursor_fill.resolve(editor_area, &ts),
+                                    self.highlight_fill.resolve(editor_area, &ts),
                                     self.wrap,
                                 );
                             }
@@ -470,19 +462,28 @@ impl<State> TextField<State> {
                     .finish(ctx),
             ])
         })
-        .pad(if editable { bg_padding } else { 0. })
-        .attach_under(if bg_fill.is_some() || bg_stroke.is_some() {
-            let mut rect_node = rect(crate::id!(id));
-            if let Some(fill) = bg_fill {
-                rect_node = rect_node.fill(fill);
-            }
-            if let Some((normal, focused, style)) = bg_stroke {
-                rect_node =
-                    rect_node.stroke(if self.state.editing { focused } else { normal }, style);
-            }
-            rect_node.corner_rounding(bg_rounding).build(ctx)
+        .pad(if editable {
+            self.background_style.padding
         } else {
-            space()
+            0.
         })
+        .attach_under(
+            if self.background_style.fill.is_some() || self.background_style.stroke.is_some() {
+                let bg_style = self.background_style;
+                let ts = self.state.clone();
+                area_reader(move |area, ctx: &mut AppContext| {
+                    let mut rect_node = rect(crate::id!(id));
+                    if let Some(ref fill) = bg_style.fill {
+                        rect_node = rect_node.fill(fill.resolve(area, &ts));
+                    }
+                    if let Some((ref brush, ref stroke)) = bg_style.stroke {
+                        rect_node = rect_node.stroke(brush.resolve(area, &ts), stroke.resolve(area, &ts));
+                    }
+                    rect_node.corner_rounding(bg_style.rounding).build(ctx)
+                })
+            } else {
+                space()
+            },
+        )
     }
 }

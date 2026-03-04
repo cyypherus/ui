@@ -8,6 +8,7 @@ struct State {
     slider: SliderState,
     button: ButtonState,
     dropdown: DropdownState,
+    style_dropdown: DropdownState,
 }
 
 fn main() {
@@ -27,6 +28,7 @@ fn main() {
             slider: SliderState::default(),
             button: ButtonState::default(),
             dropdown: DropdownState::default(),
+            style_dropdown: DropdownState::default(),
         },
         |state, app| {
                 column_spaced(
@@ -42,30 +44,143 @@ fn main() {
                         .font_size(30)
                         .wrap()
                         .build(app.ctx()),
-                        shader(id!(), CAUSTICS_SHADER)
-                            .inputs(preset(state))
-                            .corner_rounding(12.)
-                            .finish(app.ctx())
-                            .height(200.),
+                        // shader(id!(), CAUSTICS_SHADER)
+                        //     .inputs(preset(state))
+                        //     .corner_rounding(12.)
+                        //     .finish(app.ctx())
+                        //     .height(200.),
                         row_spaced(
                             10.,
                             vec![
-                                text_field(id!(), binding!(state, State, text_a)).wrap().build(app.ctx()).align(Align::Top),
+                                dropdown(id!(), binding!(state, State, style_dropdown), vec![
+                                    text(id!(), "Default"),
+                                    text(id!(), "Ocean"),
+                                    text(id!(), "Sunset"),
+                                    text(id!(), "Neon"),
+                                ]).build(app.ctx()).width(140.).align(Align::Top),
+                                {
+                                    let tf = text_field(id!(), binding!(state, State, text_a)).wrap();
+                                    match state.style_dropdown.selected {
+                                        1 => tf
+                                            .background_fill(|area: Area, _: &TextState| {
+                                                Gradient::new_linear(
+                                                    (area.x as f64, area.y as f64),
+                                                    (area.x as f64 + area.width as f64, area.y as f64),
+                                                )
+                                                .with_stops([
+                                                    Color::from_rgb8(10, 30, 60),
+                                                    Color::from_rgb8(20, 80, 120),
+                                                ])
+                                                .into()
+                                            })
+                                            .text_fill(Color::from_rgb8(140, 210, 255))
+                                            .cursor_fill(Color::from_rgb8(100, 180, 255))
+                                            .highlight_fill(
+                                                |area: Area, _: &TextState| {
+                                                    Gradient::new_linear(
+                                                        (area.x as f64, area.y as f64),
+                                                        (area.x as f64 + area.width as f64, area.y as f64),
+                                                    )
+                                                    .with_stops([
+                                                        Color::from_rgb8(30, 90, 140),
+                                                        Color::from_rgb8(50, 120, 160),
+                                                    ])
+                                                    .into()
+                                                }
+                                            )
+                                            .background_stroke(
+                                                |_area: Area, ts: &TextState| {
+                                                    if ts.editing {
+                                                        Brush::Solid(Color::from_rgb8(0, 0, 255))
+                                                    } else {
+                                                        Brush::Solid(Color::from_rgb8(0, 0, 100))
+                                                    }
+                                                },
+                                                4.
+                                            )
+                                            .background_corner_rounding(12.),
+                                        2 => tf
+                                            .background_fill(|area: Area, _: &TextState| {
+                                                Gradient::new_linear(
+                                                    (area.x as f64, area.y as f64),
+                                                    (area.x as f64 + area.width as f64, area.y as f64 + area.height as f64),
+                                                )
+                                                .with_stops([
+                                                    Color::from_rgb8(80, 20, 10),
+                                                    Color::from_rgb8(140, 80, 10),
+                                                ])
+                                                .into()
+                                            })
+                                            .text_fill(Color::from_rgb8(255, 200, 120))
+                                            .cursor_fill(Color::from_rgb8(255, 160, 60))
+                                            .highlight_fill(Color::from_rgb8(160, 80, 20))
+                                            .background_corner_rounding(2.),
+                                        3 => tf
+                                            .background_fill(|area: Area, _: &TextState| {
+                                                Gradient::new_linear(
+                                                    (area.x as f64, area.y as f64),
+                                                    (area.x as f64, area.y as f64 + area.height as f64),
+                                                )
+                                                .with_stops([
+                                                    Color::from_rgb8(25, 5, 50),
+                                                    Color::from_rgb8(5, 15, 35),
+                                                ])
+                                                .into()
+                                            })
+                                            .text_fill(|area: Area, _: &TextState| {
+                                                Gradient::new_linear(
+                                                    (area.x as f64, 0.),
+                                                    (area.x as f64 + area.width as f64, 0.),
+                                                )
+                                                .with_stops([
+                                                    Color::from_rgb8(255, 50, 200),
+                                                    Color::from_rgb8(50, 200, 255),
+                                                ])
+                                                .into()
+                                            })
+                                            .cursor_fill(|area: Area, _: &TextState| {
+                                                Gradient::new_linear(
+                                                    (0., area.y as f64),
+                                                    (0., area.y as f64 + area.height as f64),
+                                                )
+                                                .with_stops([
+                                                    Color::from_rgb8(255, 50, 200),
+                                                    Color::from_rgb8(50, 200, 255),
+                                                ])
+                                                .into()
+                                            })
+                                            .highlight_fill(|area: Area, _: &TextState| {
+                                                Gradient::new_linear(
+                                                    (area.x as f64, 0.),
+                                                    (area.x as f64 + area.width as f64, 0.),
+                                                )
+                                                .with_stops([
+                                                    Color::from_rgb8(80, 0, 120).with_alpha(0.5),
+                                                    Color::from_rgb8(0, 60, 120).with_alpha(0.5),
+                                                ])
+                                                .into()
+                                            })
+                                            .background_corner_rounding(16.)
+                                            .background_padding(12.),
+                                        _ => tf,
+                                    }.build(app.ctx()).align(Align::Top)
+                                },
                                 text_field(id!(), binding!(state, State, text_b)).font_size(14).align(parley::Alignment::Left).wrap().build(app.ctx()).align(Align::Top),
                             ]
                         ),
                         stack(vec![
                             rect(id!()).fill(DEFAULT_DARK_GRAY).corner_rounding(8.).build(app.ctx()),
-                            path(id!(), |area| chart_fill(area, CHART_DATA))
-                                .fill_with(|area| {
-                                    Gradient::new_linear(
-                                        (0., area.y as f64),
-                                        (0., area.y as f64 + area.height as f64),
+                            area_reader(|area, ctx: &mut AppContext| {
+                                path(id!(), |area| chart_fill(area, CHART_DATA))
+                                    .fill(
+                                        Gradient::new_linear(
+                                            (0., area.y as f64),
+                                            (0., area.y as f64 + area.height as f64),
+                                        )
+                                        .with_stops([DEFAULT_PURP.with_alpha(0.4), DEFAULT_PURP.with_alpha(0.0)])
                                     )
-                                    .with_stops([DEFAULT_PURP.with_alpha(0.4), DEFAULT_PURP.with_alpha(0.0)])
-                                    .into()
-                                })
-                                .build(app.ctx()),
+                                    .build(ctx)
+                            }),
                             path(id!(), |area| chart_line(area, CHART_DATA))
                                 .stroke(DEFAULT_PURP, Stroke::new(2.0).with_caps(Cap::Round).with_join(Join::Round))
                                 .build(app.ctx()),
@@ -86,7 +201,13 @@ fn main() {
                                 slider(id!(), binding!(state, State, slider)).build(app.ctx()).height(25.),
                             ]
                         ),
-                        button(id!(), binding!(state, State, button)).text_label("Engage thrusters").build(app.ctx()).height(30.),
+                        button(id!(), binding!(state, State, button))
+                            .text_label("Engage thrusters")
+                            .background_fill(
+                                Gradient::new_linear((0., 0.), (200., 0.))
+                                    .with_stops([DEFAULT_PURP, Color::from_rgb8(200, 50, 180)])
+                            )
+                            .build(app.ctx()).height(30.),
                     ],
                 )
                 .pad(20.)

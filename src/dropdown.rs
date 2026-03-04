@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use crate::app::{AppContext, DrawItem};
+use crate::background_style::BrushSource;
 use crate::{Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_PURP, app::AppState, rect};
 use crate::{Color, DEFAULT_DARK_GRAY, DEFAULT_FG_COLOR, DEFAULT_PADDING, TRANSPARENT, Text, svg};
 use backer::{Align, Layout, nodes::*};
@@ -19,10 +20,10 @@ pub struct DropDown<State> {
     state: DropdownState,
     binding: Binding<State, DropdownState>,
     background_corner_rounding: f32,
-    background_fill: Brush,
-    background_stroke: (Brush, Stroke),
-    text_fill: Color,
-    highlight_fill: Color,
+    background_fill: BrushSource<DropdownState>,
+    background_stroke: (BrushSource<DropdownState>, Stroke),
+    text_fill: Brush,
+    highlight_fill: Brush,
     background_padding: f32,
     options: Vec<Text>,
     on_select: Option<Rc<dyn Fn(&mut State, &mut AppState<State>, usize)>>,
@@ -40,8 +41,8 @@ pub fn dropdown<State>(
         background_corner_rounding: DEFAULT_CORNER_ROUNDING,
         background_fill: Color::from_rgb8(50, 50, 50).into(),
         background_stroke: (Color::from_rgb8(60, 60, 60).into(), Stroke::new(1.)),
-        text_fill: DEFAULT_FG_COLOR,
-        highlight_fill: DEFAULT_PURP,
+        text_fill: Brush::Solid(DEFAULT_FG_COLOR),
+        highlight_fill: Brush::Solid(DEFAULT_PURP),
         background_padding: DEFAULT_PADDING,
         options,
         on_select: None,
@@ -53,20 +54,20 @@ impl<State> DropDown<State> {
         self.background_corner_rounding = corner_rounding;
         self
     }
-    pub fn background_fill(mut self, fill: impl Into<Brush>) -> Self {
+    pub fn background_fill(mut self, fill: impl Into<BrushSource<DropdownState>>) -> Self {
         self.background_fill = fill.into();
         self
     }
-    pub fn background_stroke(mut self, brush: impl Into<Brush>, style: Stroke) -> Self {
+    pub fn background_stroke(mut self, brush: impl Into<BrushSource<DropdownState>>, style: Stroke) -> Self {
         self.background_stroke = (brush.into(), style);
         self
     }
-    pub fn text_fill(mut self, color: Color) -> Self {
-        self.text_fill = color;
+    pub fn text_fill(mut self, fill: impl Into<Brush>) -> Self {
+        self.text_fill = fill.into();
         self
     }
-    pub fn highlight_fill(mut self, color: Color) -> Self {
-        self.highlight_fill = color;
+    pub fn highlight_fill(mut self, fill: impl Into<Brush>) -> Self {
+        self.highlight_fill = fill.into();
         self
     }
     pub fn background_padding(mut self, padding: f32) -> Self {
@@ -107,14 +108,14 @@ impl<State> DropDown<State> {
                    option: Text,
                    ctx: &mut AppContext|
          -> Layout<DrawItem<State>, AppContext> {
-            let row_fill = if expanded && selected == index {
-                highlight_fill
+            let row_fill: Brush = if expanded && selected == index {
+                highlight_fill.clone()
             } else if let Some(hovered) = hovered
                 && hovered == index
             {
-                DEFAULT_DARK_GRAY
+                DEFAULT_DARK_GRAY.into()
             } else {
-                TRANSPARENT
+                TRANSPARENT.into()
             };
 
             row_spaced(
@@ -122,14 +123,14 @@ impl<State> DropDown<State> {
                 vec![
                     if index == 0 {
                         svg(crate::id!(id), arrow_svg)
-                            .fill(text_fill)
+                            .fill(text_fill.clone())
                             .finish(ctx)
                             .width(10.)
                             .height(10.)
                     } else {
                         empty()
                     },
-                    option.fill(text_fill).build(ctx),
+                    option.fill(text_fill.clone()).build(ctx),
                 ],
             )
             .expand_x()
@@ -172,6 +173,7 @@ impl<State> DropDown<State> {
             )
         };
 
+        let dd_state = self.state.clone();
         let rows: Vec<_> = if expanded {
             self.options
         } else {
@@ -183,29 +185,31 @@ impl<State> DropDown<State> {
         .collect();
 
         column(rows).align(Align::Top).attach_under(
-            rect(crate::id!(id))
-                .fill(fill)
-                .stroke(stroke.0, stroke.1)
-                .corner_rounding(corner_rounding)
-                .view()
-                .on_click_outside({
-                    let binding = binding.clone();
-                    move |state: &mut State, _app, click, _pos| {
-                        let ClickState::Completed = click else { return };
-                        binding.update(state, |s| s.expanded = false);
-                    }
-                })
-                .on_hover({
-                    let binding = binding.clone();
-                    move |state: &mut State, _app, hovered| {
-                        binding.update(state, move |s| {
-                            if !hovered {
-                                s.hovered = None
-                            }
-                        });
-                    }
-                })
-                .finish(ctx),
+            area_reader(move |area, ctx: &mut AppContext| {
+                rect(crate::id!(id))
+                    .fill(fill.resolve(area, &dd_state))
+                    .stroke(stroke.0.resolve(area, &dd_state), stroke.1.clone())
+                    .corner_rounding(corner_rounding)
+                    .view()
+                    .on_click_outside({
+                        let binding = binding.clone();
+                        move |state: &mut State, _app, click, _pos| {
+                            let ClickState::Completed = click else { return };
+                            binding.update(state, |s| s.expanded = false);
+                        }
+                    })
+                    .on_hover({
+                        let binding = binding.clone();
+                        move |state: &mut State, _app, hovered| {
+                            binding.update(state, move |s| {
+                                if !hovered {
+                                    s.hovered = None
+                                }
+                            });
+                        }
+                    })
+                    .finish(ctx)
+            }),
         )
     }
 }

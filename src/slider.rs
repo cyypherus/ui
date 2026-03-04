@@ -1,9 +1,10 @@
 use crate::{
-    Binding, Color, DEFAULT_DARK_GRAY, DEFAULT_FG, DEFAULT_GRAY, DEFAULT_PURP, DragState,
-    TRANSPARENT,
+    Binding, DEFAULT_DARK_GRAY, DEFAULT_FG, DEFAULT_GRAY, DEFAULT_PURP, DragState,
+    TRANSPARENT, adjust_brush,
     app::{AppContext, AppState, DrawItem},
     circle, id, rect,
 };
+use crate::background_style::BrushSource;
 use backer::{
     Layout,
     nodes::{area_reader, stack},
@@ -24,10 +25,10 @@ pub struct Slider<State> {
     min: f32,
     max: f32,
     on_change: Option<Rc<dyn Fn(&mut State, &mut AppState<State>, f32)>>,
-    knob_fill: Color,
-    background_fill: Color,
-    track_fill: Color,
-    traveled_track_fill: Color,
+    knob_fill: BrushSource<SliderState>,
+    background_fill: BrushSource<SliderState>,
+    track_fill: BrushSource<SliderState>,
+    traveled_track_fill: BrushSource<SliderState>,
 }
 
 pub fn slider<State>(id: u64, state: (SliderState, Binding<State, SliderState>)) -> Slider<State> {
@@ -38,10 +39,10 @@ pub fn slider<State>(id: u64, state: (SliderState, Binding<State, SliderState>))
         min: 0.0,
         max: 1.0,
         on_change: None,
-        knob_fill: DEFAULT_FG,
-        background_fill: DEFAULT_GRAY,
-        track_fill: DEFAULT_DARK_GRAY,
-        traveled_track_fill: DEFAULT_PURP,
+        knob_fill: DEFAULT_FG.into(),
+        background_fill: DEFAULT_GRAY.into(),
+        track_fill: DEFAULT_DARK_GRAY.into(),
+        traveled_track_fill: DEFAULT_PURP.into(),
     }
 }
 
@@ -60,23 +61,23 @@ impl<State> Slider<State> {
         self
     }
 
-    pub fn knob_fill(mut self, fill: Color) -> Self {
-        self.knob_fill = fill;
+    pub fn knob_fill(mut self, fill: impl Into<BrushSource<SliderState>>) -> Self {
+        self.knob_fill = fill.into();
         self
     }
 
-    pub fn background_fill(mut self, fill: Color) -> Self {
-        self.background_fill = fill;
+    pub fn background_fill(mut self, fill: impl Into<BrushSource<SliderState>>) -> Self {
+        self.background_fill = fill.into();
         self
     }
 
-    pub fn track_fill(mut self, fill: Color) -> Self {
-        self.track_fill = fill;
+    pub fn track_fill(mut self, fill: impl Into<BrushSource<SliderState>>) -> Self {
+        self.track_fill = fill.into();
         self
     }
 
-    pub fn traveled_track_fill(mut self, fill: Color) -> Self {
-        self.traveled_track_fill = fill;
+    pub fn traveled_track_fill(mut self, fill: impl Into<BrushSource<SliderState>>) -> Self {
+        self.traveled_track_fill = fill.into();
         self
     }
 
@@ -93,37 +94,38 @@ impl<State> Slider<State> {
 
             stack(vec![
                 rect(id!(self.id))
-                    .fill(self.background_fill)
+                    .fill(self.background_fill.resolve(area, &state))
                     .corner_rounding(height * 0.5)
                     .build(ctx)
                     .height(height)
                     .width(width),
                 rect(id!(self.id))
-                    .fill(self.track_fill)
+                    .fill(self.track_fill.resolve(area, &state))
                     .corner_rounding(height)
                     .build(ctx)
                     .pad(height * 0.3)
                     .height(height)
                     .width(width),
                 rect(id!(self.id))
-                    .fill(self.traveled_track_fill)
+                    .fill(self.traveled_track_fill.resolve(area, &state))
                     .corner_rounding(height)
                     .build(ctx)
                     .pad(height * 0.2)
                     .height(height)
                     .width(slider_width)
                     .offset((-width * 0.5) + (slider_width * 0.5), 0.),
-                circle(id!(self.id))
-                    .fill(match (state.dragging, state.hovered) {
-                        (true, _) => self.knob_fill.map_lightness(|l| l - 0.1),
-                        (false, true) => self.knob_fill.map_lightness(|l| l + 0.1),
-                        (false, false) => self.knob_fill,
-                    })
-                    .finish(ctx)
-                    .pad(height * 0.1)
-                    .height(if state.dragging { height * 1.1 } else { height })
-                    .width(height)
-                    .offset((-width * 0.5) + slider_width - (height * 0.5), 0.),
+                {
+                    let knob = self.knob_fill.resolve(area, &state);
+                    let dragging = state.dragging;
+                    let hovered = state.hovered;
+                    circle(id!(self.id))
+                        .fill(adjust_brush(&knob, dragging, hovered))
+                        .finish(ctx)
+                        .pad(height * 0.1)
+                        .height(if state.dragging { height * 1.1 } else { height })
+                        .width(height)
+                        .offset((-width * 0.5) + slider_width - (height * 0.5), 0.)
+                },
                 rect(id!(self.id))
                     .fill(TRANSPARENT)
                     .view()

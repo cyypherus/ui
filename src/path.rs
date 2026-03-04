@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::app::{AppContext, DrawItem};
-use crate::shape::{Paint, PathData};
+use crate::shape::PathData;
 use crate::view::{View, ViewType};
 use backer::{Area, Layout};
 use vello_svg::vello::kurbo::{BezPath, Stroke};
@@ -10,8 +10,8 @@ use vello_svg::vello::peniko::Brush;
 pub struct Path {
     id: u64,
     builder: Rc<dyn Fn(Area) -> BezPath>,
-    fill: Option<Paint>,
-    stroke: Option<(Paint, Stroke)>,
+    fill: Option<Brush>,
+    stroke: Option<(Brush, Stroke)>,
 }
 
 pub fn path(id: u64, builder: impl Fn(Area) -> BezPath + 'static) -> Path {
@@ -25,19 +25,11 @@ pub fn path(id: u64, builder: impl Fn(Area) -> BezPath + 'static) -> Path {
 
 impl Path {
     pub fn fill(mut self, brush: impl Into<Brush>) -> Self {
-        self.fill = Some(Paint::from_brush(brush));
-        self
-    }
-    pub fn fill_with(mut self, f: impl Fn(Area) -> Brush + 'static) -> Self {
-        self.fill = Some(Paint::from_fn(f));
+        self.fill = Some(brush.into());
         self
     }
     pub fn stroke(mut self, brush: impl Into<Brush>, style: Stroke) -> Self {
-        self.stroke = Some((Paint::from_brush(brush), style));
-        self
-    }
-    pub fn stroke_with(mut self, f: impl Fn(Area) -> Brush + 'static, style: Stroke) -> Self {
-        self.stroke = Some((Paint::from_fn(f), style));
+        self.stroke = Some((brush.into(), style));
         self
     }
     pub fn view<State>(self) -> View<State> {
