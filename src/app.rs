@@ -199,14 +199,8 @@ pub struct AppState<State> {
 }
 
 pub enum DrawItem<State> {
-    Draw {
-        view: Box<View<State>>,
-        area: Area,
-        visible: bool,
-    },
-    PushClip {
-        path: BezPath,
-    },
+    Draw { view: Box<View<State>>, area: Area },
+    PushClip { path: BezPath },
     PopClip,
     EditorArea(u64, Area),
     Empty,
@@ -533,11 +527,7 @@ impl<State: 'static> App<'_, State> {
                     DrawItem::EditorArea(id, area) => {
                         self.app_state.app_context.editor_areas.insert(id, area);
                     }
-                    DrawItem::Draw {
-                        mut view,
-                        area,
-                        visible,
-                    } => {
+                    DrawItem::Draw { mut view, area } => {
                         let id = view.id();
                         let draw_area = area;
 
@@ -548,44 +538,19 @@ impl<State: 'static> App<'_, State> {
                                 .map(|handler| (id, draw_area, handler)),
                         );
 
-                        let visible_amount = if visible { 1.0 } else { 0.0 };
-
                         match &mut view.view_type {
-                            ViewType::Text(v) => v.draw(
-                                draw_area,
-                                area,
-                                &mut self.app_state,
-                                visible,
-                                visible_amount,
-                            ),
+                            ViewType::Text(v) => v.draw(draw_area, area, &mut self.app_state),
                             ViewType::Layout(boxed) => {
                                 let (layout, transform) = boxed.as_mut();
                                 draw_layout(None, *transform, layout, &mut self.app_state.scene)
                             }
-                            ViewType::Path(v) => {
-                                if visible || visible_amount > 0. {
-                                    v.draw(
-                                        &mut self.app_state.scene,
-                                        draw_area,
-                                        self.app_state.app_context.scale_factor,
-                                        visible_amount,
-                                    )
-                                }
-                            }
-                            ViewType::Svg(v) => v.draw(
+                            ViewType::Path(v) => v.draw(
+                                &mut self.app_state.scene,
                                 draw_area,
-                                &mut self.state,
-                                &mut self.app_state,
-                                visible,
-                                visible_amount,
+                                self.app_state.app_context.scale_factor,
                             ),
-                            ViewType::Image(v) => v.draw(
-                                draw_area,
-                                &mut self.state,
-                                &mut self.app_state,
-                                visible,
-                                visible_amount,
-                            ),
+                            ViewType::Svg(v) => v.draw(draw_area, &mut self.app_state),
+                            ViewType::Image(v) => v.draw(draw_area, &mut self.app_state),
                             ViewType::Shader(v) => v.draw(
                                 draw_area,
                                 &mut self.app_state,

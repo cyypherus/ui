@@ -217,7 +217,6 @@ fn main() {
         app.redraw()
     )
     .inner_size(800, 600)
-    // .resizable(false)
     .start()
 }
 

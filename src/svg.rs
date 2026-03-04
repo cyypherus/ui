@@ -48,18 +48,7 @@ impl Svg {
 }
 
 impl Svg {
-    pub(crate) fn draw<State>(
-        &mut self,
-        area: Area,
-        _state: &mut State,
-        app: &mut AppState<State>,
-        visible: bool,
-        visible_amount: f32,
-    ) {
-        if !visible && visible_amount == 0. {
-            return;
-        }
-        #[allow(clippy::map_entry)]
+    pub(crate) fn draw<State>(&mut self, area: Area, app: &mut AppState<State>) {
         if !app.svg_scenes.contains_key(&self.content) {
             match vello_svg::usvg::Tree::from_data(
                 self.content.as_bytes(),

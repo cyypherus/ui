@@ -256,7 +256,6 @@ impl<State> TextField<State> {
                             gesture_handlers: Vec::new(),
                         }),
                         area: resolved_area,
-                        visible: true,
                     }
                 }));
             }
@@ -300,7 +299,6 @@ impl<State> TextField<State> {
                             gesture_handlers: Vec::new(),
                         }),
                         area: resolved_area,
-                        visible: true,
                     }
                 }));
             }
@@ -321,7 +319,6 @@ impl<State> TextField<State> {
                         width: area.width,
                         height: area.height,
                     },
-                    visible: true,
                 }
             }));
 

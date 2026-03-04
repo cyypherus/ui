@@ -243,7 +243,6 @@ impl<State> View<State> {
         let node = draw(move |area, _| DrawItem::Draw {
             view: Box::new(self.clone()),
             area,
-            visible: true,
         });
 
         if let ViewType::Text(text_view) = view_type {

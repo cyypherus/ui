@@ -9,8 +9,8 @@ use parley::{
     LayoutContext, LineHeight, TextStyle,
 };
 use std::fmt::Debug;
-use vello_svg::vello::peniko::Brush;
 use vello_svg::vello::kurbo::Affine;
+use vello_svg::vello::peniko::Brush;
 
 pub fn text(id: u64, text: impl AsRef<str> + 'static) -> Text {
     Text {
@@ -209,14 +209,8 @@ impl Text {
         animated_area: Area,
         area: Area,
         app: &mut AppState<State>,
-        visible: bool,
-        visible_amount: f32,
     ) {
-        if !visible && visible_amount == 0. {
-            return;
-        }
-
-        let fill = self.fill.resolve(area, &()).multiply_alpha(visible_amount);
+        let fill = self.fill.resolve(area, &());
 
         let layout = app
             .app_context
@@ -248,7 +242,9 @@ impl Text {
             })
         } else {
             let default_brush = Brush::Solid(crate::DEFAULT_FG_COLOR);
-            let layout = ctx.text_layout.build_layout(&self, &default_brush, 10000., true);
+            let layout = ctx
+                .text_layout
+                .build_layout(&self, &default_brush, 10000., true);
             node.height(layout.height()).width(layout.width().max(10.))
         }
     }

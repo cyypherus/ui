@@ -96,18 +96,7 @@ impl Image {
 }
 
 impl Image {
-    pub(crate) fn draw<State>(
-        &mut self,
-        area: Area,
-        _state: &mut State,
-        app: &mut AppState<State>,
-        visible: bool,
-        visible_amount: f32,
-    ) {
-        if !visible && visible_amount == 0. {
-            return;
-        }
-
+    pub(crate) fn draw<State>(&mut self, area: Area, app: &mut AppState<State>) {
         let cache_key = if let Some(ref image_id) = self.image_id {
             use std::collections::hash_map::DefaultHasher;
             use std::hash::{Hash, Hasher};
