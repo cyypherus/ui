@@ -1,7 +1,7 @@
-use crate::app::{AppContext, AppState, DrawItem, LayoutCache};
+use crate::app::{AppCtx, AppState, LayoutCache, View};
 use crate::background_style::BrushSource;
 use crate::draw_layout::draw_layout;
-use crate::view::{View, ViewType};
+use crate::view::{Drawable, DrawableType};
 use crate::{DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE};
 use backer::{Area, Layout};
 use parley::{
@@ -97,16 +97,16 @@ impl Text {
 }
 
 impl Text {
-    pub fn view<State>(self) -> View<State>
+    pub fn view<State>(self) -> Drawable<State>
     where
         State: 'static,
     {
-        View {
-            view_type: ViewType::Text(self),
+        Drawable {
+            view_type: DrawableType::Text(self),
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn build<State>(self, ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
+    pub fn build<State>(self, ctx: &mut AppCtx) -> Layout<View<State>, AppCtx>
     where
         State: 'static,
     {
@@ -227,9 +227,9 @@ impl Text {
 impl Text {
     pub(crate) fn with_text_constraints<State>(
         self,
-        ctx: &mut AppContext,
-        node: Layout<DrawItem<State>, AppContext>,
-    ) -> Layout<DrawItem<State>, AppContext>
+        ctx: &mut AppCtx,
+        node: Layout<View<State>, AppCtx>,
+    ) -> Layout<View<State>, AppCtx>
     where
         State: 'static,
     {

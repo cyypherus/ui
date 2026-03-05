@@ -1,4 +1,4 @@
-use crate::app::{AppContext, AppState, DrawItem};
+use crate::app::{AppCtx, AppState, View};
 use crate::gestures::{ClickLocation, Interaction, InteractionType, ScrollDelta};
 use crate::image::Image;
 use crate::shader::Shader;
@@ -70,21 +70,21 @@ macro_rules! binding {
 
 pub fn clipping<State: 'static>(
     path: fn(Area) -> BezPath,
-    content: Layout<DrawItem<State>, AppContext>,
-) -> Layout<DrawItem<State>, AppContext> {
+    content: Layout<View<State>, AppCtx>,
+) -> Layout<View<State>, AppCtx> {
     stack(vec![
-        draw(move |area, _| DrawItem::PushClip { path: path(area) }),
+        draw(move |area, _| View::PushClip { path: path(area) }),
         content,
-        draw(|_, _| DrawItem::PopClip),
+        draw(|_, _| View::PopClip),
     ])
 }
 
-pub struct View<State> {
-    pub(crate) view_type: ViewType,
+pub struct Drawable<State> {
+    pub(crate) view_type: DrawableType,
     pub(crate) gesture_handlers: Vec<GestureHandler<State, AppState<State>>>,
 }
 
-impl<State> Clone for View<State> {
+impl<State> Clone for Drawable<State> {
     fn clone(&self) -> Self {
         Self {
             view_type: self.view_type.clone(),
@@ -93,7 +93,7 @@ impl<State> Clone for View<State> {
     }
 }
 
-pub(crate) enum ViewType {
+pub(crate) enum DrawableType {
     Text(Text),
     Layout(Box<(TextLayout<Brush>, Affine)>),
     Path(Box<PathData>),
@@ -102,20 +102,20 @@ pub(crate) enum ViewType {
     Shader(Shader),
 }
 
-impl Clone for ViewType {
+impl Clone for DrawableType {
     fn clone(&self) -> Self {
         match self {
-            ViewType::Text(text) => ViewType::Text(text.clone()),
-            ViewType::Layout(boxed) => ViewType::Layout(boxed.clone()),
-            ViewType::Path(path) => ViewType::Path(path.clone()),
-            ViewType::Svg(svg) => ViewType::Svg(svg.clone()),
-            ViewType::Image(image) => ViewType::Image(image.clone()),
-            ViewType::Shader(shader) => ViewType::Shader(shader.clone()),
+            DrawableType::Text(text) => DrawableType::Text(text.clone()),
+            DrawableType::Layout(boxed) => DrawableType::Layout(boxed.clone()),
+            DrawableType::Path(path) => DrawableType::Path(path.clone()),
+            DrawableType::Svg(svg) => DrawableType::Svg(svg.clone()),
+            DrawableType::Image(image) => DrawableType::Image(image.clone()),
+            DrawableType::Shader(shader) => DrawableType::Shader(shader.clone()),
         }
     }
 }
 
-impl<State> View<State> {
+impl<State> Drawable<State> {
     pub fn on_click(
         mut self,
         f: impl Fn(&mut State, &mut AppState<State>, ClickState, ClickLocation) + 'static,
@@ -223,29 +223,29 @@ impl<State> View<State> {
     }
     pub(crate) fn id(&self) -> u64 {
         match &self.view_type {
-            ViewType::Text(view) => view.id,
-            ViewType::Layout(_) => 0,
-            ViewType::Path(view) => view.id,
-            ViewType::Svg(view) => view.id,
-            ViewType::Image(view) => view.id,
-            ViewType::Shader(view) => view.id,
+            DrawableType::Text(view) => view.id,
+            DrawableType::Layout(_) => 0,
+            DrawableType::Path(view) => view.id,
+            DrawableType::Svg(view) => view.id,
+            DrawableType::Image(view) => view.id,
+            DrawableType::Shader(view) => view.id,
         }
     }
 }
 
-impl<State> View<State> {
-    pub fn finish(self, ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
+impl<State> Drawable<State> {
+    pub fn finish(self, ctx: &mut AppCtx) -> Layout<View<State>, AppCtx>
     where
         State: 'static,
     {
         let view_type = self.view_type.clone();
 
-        let node = draw(move |area, _| DrawItem::Draw {
+        let node = draw(move |area, _| View::Draw {
             view: Box::new(self.clone()),
             area,
         });
 
-        if let ViewType::Text(text_view) = view_type {
+        if let DrawableType::Text(text_view) = view_type {
             text_view.with_text_constraints(ctx, node)
         } else {
             node

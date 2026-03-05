@@ -1,5 +1,5 @@
-use crate::app::{AppContext, AppState, DrawItem};
-use crate::view::{View, ViewType};
+use crate::app::{AppCtx, AppState, View};
+use crate::view::{Drawable, DrawableType};
 use backer::{Area, Layout};
 use bytemuck::{NoUninit, Pod, Zeroable};
 use std::collections::HashMap;
@@ -308,17 +308,14 @@ impl Shader {
         self
     }
 
-    pub fn view<State>(self) -> View<State> {
-        View {
-            view_type: ViewType::Shader(self),
+    pub fn view<State>(self) -> Drawable<State> {
+        Drawable {
+            view_type: DrawableType::Shader(self),
             gesture_handlers: Vec::new(),
         }
     }
 
-    pub fn finish<State: 'static>(
-        self,
-        ctx: &mut AppContext,
-    ) -> Layout<DrawItem<State>, AppContext> {
+    pub fn finish<State: 'static>(self, ctx: &mut AppCtx) -> Layout<View<State>, AppCtx> {
         self.view().finish(ctx)
     }
 

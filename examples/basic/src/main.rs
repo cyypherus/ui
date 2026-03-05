@@ -2,25 +2,19 @@ use ui::*;
 
 #[derive(Debug, Clone, Default)]
 struct State {
-    text_a: TextState,
-    text_b: TextState,
+    text: TextState,
     toggle: ToggleState,
     slider: SliderState,
     button: ButtonState,
-    dropdown: DropdownState,
-    style_dropdown: DropdownState,
+    dropdown: DropdownState<Biome>,
+    style_dropdown: DropdownState<Style>,
 }
 
 fn main() {
     App::builder(
         State {
-            text_a: TextState {
-                text: "Bio-luminescenct moss carpets power floating gardens while crystal-infused mycelium networks whisper data through the canopy above"
-                    .to_string(),
-                editing: false,
-            },
-            text_b: TextState {
-                text: "With reverent whispers the fauna lift their gaze to the shafts of light piercing the deep green"
+            text: TextState {
+                text: "Bio-luminescenct moss carpets power floating gardens while crystal-infused mycelium networks whisper data through the canopy above. With reverent whispers the fauna lift their gaze to the shafts of light piercing the deep green"
                     .to_string(),
                 editing: false,
             },
@@ -44,133 +38,18 @@ fn main() {
                         .font_size(30)
                         .wrap()
                         .build(app.ctx()),
-                        // shader(id!(), CAUSTICS_SHADER)
-                        //     .inputs(preset(state))
-                        //     .corner_rounding(12.)
-                        //     .finish(app.ctx())
-                        //     .height(200.),
+                        shader(id!(), CAUSTICS_SHADER)
+                            .inputs(preset(state))
+                            .corner_rounding(12.)
+                            .finish(app.ctx())
+                            .height(200.),
                         row_spaced(
                             10.,
-                            vec![
-                                dropdown(id!(), binding!(state, State, style_dropdown), vec![
-                                    text(id!(), "Default"),
-                                    text(id!(), "Ocean"),
-                                    text(id!(), "Sunset"),
-                                    text(id!(), "Neon"),
-                                ]).build(app.ctx()).width(140.).align(Align::Top),
-                                {
-                                    let tf = text_field(id!(), binding!(state, State, text_a)).wrap();
-                                    match state.style_dropdown.selected {
-                                        1 => tf
-                                            .background_fill(|area: Area, _: &TextState| {
-                                                Gradient::new_linear(
-                                                    (area.x as f64, area.y as f64),
-                                                    (area.x as f64 + area.width as f64, area.y as f64),
-                                                )
-                                                .with_stops([
-                                                    Color::from_rgb8(10, 30, 60),
-                                                    Color::from_rgb8(20, 80, 120),
-                                                ])
-                                                .into()
-                                            })
-                                            .text_fill(Color::from_rgb8(140, 210, 255))
-                                            .cursor_fill(Color::from_rgb8(100, 180, 255))
-                                            .highlight_fill(
-                                                |area: Area, _: &TextState| {
-                                                    Gradient::new_linear(
-                                                        (area.x as f64, area.y as f64),
-                                                        (area.x as f64 + area.width as f64, area.y as f64),
-                                                    )
-                                                    .with_stops([
-                                                        Color::from_rgb8(30, 90, 140),
-                                                        Color::from_rgb8(50, 120, 160),
-                                                    ])
-                                                    .into()
-                                                }
-                                            )
-                                            .background_stroke(
-                                                |_area: Area, ts: &TextState| {
-                                                    if ts.editing {
-                                                        Brush::Solid(Color::from_rgb8(0, 0, 255))
-                                                    } else {
-                                                        Brush::Solid(Color::from_rgb8(0, 0, 100))
-                                                    }
-                                                },
-                                                4.
-                                            )
-                                            .background_corner_rounding(12.),
-                                        2 => tf
-                                            .background_fill(|area: Area, _: &TextState| {
-                                                Gradient::new_linear(
-                                                    (area.x as f64, area.y as f64),
-                                                    (area.x as f64 + area.width as f64, area.y as f64 + area.height as f64),
-                                                )
-                                                .with_stops([
-                                                    Color::from_rgb8(80, 20, 10),
-                                                    Color::from_rgb8(140, 80, 10),
-                                                ])
-                                                .into()
-                                            })
-                                            .text_fill(Color::from_rgb8(255, 200, 120))
-                                            .cursor_fill(Color::from_rgb8(255, 160, 60))
-                                            .highlight_fill(Color::from_rgb8(160, 80, 20))
-                                            .background_corner_rounding(2.),
-                                        3 => tf
-                                            .background_fill(|area: Area, _: &TextState| {
-                                                Gradient::new_linear(
-                                                    (area.x as f64, area.y as f64),
-                                                    (area.x as f64, area.y as f64 + area.height as f64),
-                                                )
-                                                .with_stops([
-                                                    Color::from_rgb8(25, 5, 50),
-                                                    Color::from_rgb8(5, 15, 35),
-                                                ])
-                                                .into()
-                                            })
-                                            .text_fill(|area: Area, _: &TextState| {
-                                                Gradient::new_linear(
-                                                    (area.x as f64, 0.),
-                                                    (area.x as f64 + area.width as f64, 0.),
-                                                )
-                                                .with_stops([
-                                                    Color::from_rgb8(255, 50, 200),
-                                                    Color::from_rgb8(50, 200, 255),
-                                                ])
-                                                .into()
-                                            })
-                                            .cursor_fill(|area: Area, _: &TextState| {
-                                                Gradient::new_linear(
-                                                    (0., area.y as f64),
-                                                    (0., area.y as f64 + area.height as f64),
-                                                )
-                                                .with_stops([
-                                                    Color::from_rgb8(255, 50, 200),
-                                                    Color::from_rgb8(50, 200, 255),
-                                                ])
-                                                .into()
-                                            })
-                                            .highlight_fill(|area: Area, _: &TextState| {
-                                                Gradient::new_linear(
-                                                    (area.x as f64, 0.),
-                                                    (area.x as f64 + area.width as f64, 0.),
-                                                )
-                                                .with_stops([
-                                                    Color::from_rgb8(80, 0, 120).with_alpha(0.5),
-                                                    Color::from_rgb8(0, 60, 120).with_alpha(0.5),
-                                                ])
-                                                .into()
-                                            })
-                                            .background_corner_rounding(16.)
-                                            .background_padding(12.),
-                                        _ => tf,
-                                    }.build(app.ctx()).align(Align::Top)
-                                },
-                                text_field(id!(), binding!(state, State, text_b)).font_size(14).align(parley::Alignment::Left).wrap().build(app.ctx()).align(Align::Top),
-                            ]
+                            dropdown_and_text(state, app)
                         ),
                         stack(vec![
                             rect(id!()).fill(DEFAULT_DARK_GRAY).corner_rounding(8.).build(app.ctx()),
-                            area_reader(|area, ctx: &mut AppContext| {
+                            area_reader(|area, ctx: &mut AppCtx| {
                                 path(id!(), |area| chart_fill(area, CHART_DATA))
                                     .fill(
                                         Gradient::new_linear(
@@ -186,14 +65,9 @@ fn main() {
                                 .build(app.ctx()),
                         ])
                         .height(120.),
-                            dropdown(id!(), binding!(state, State, dropdown), vec![
-                                text(id!(), "Luminescent Moss"),
-                                text(id!(), "Crystal Mycelium"),
-                                text(id!(), "Quantum Algae"),
-                                text(id!(), "Floating Gardens"),
-                                text(id!(), "Cerebral Forests"),
-                                text(id!(), "Glass Marrow"),
-                            ]).build(app.ctx()),
+                            dropdown(id!(), binding!(state, State, dropdown), Biome::ALL.to_vec(), |_index, biome, ctx| {
+                                text(id!(), biome.label()).build(ctx)
+                            }).build(app.ctx()),
                         row_spaced(
                             10.,
                             vec![
@@ -220,6 +94,179 @@ fn main() {
     .start()
 }
 
+fn dropdown_and_text(
+    state: &mut State,
+    app: &mut AppState<State>,
+) -> Vec<Layout<View<State>, AppCtx>> {
+    vec![
+        dropdown(
+            id!(),
+            binding!(state, State, style_dropdown),
+            Style::ALL.to_vec(),
+            |_index, style, ctx| text(id!(), style.label()).build(ctx),
+        )
+        .build(app.ctx())
+        .width(140.)
+        .align(Align::Top),
+        {
+            let tf = text_field(id!(), binding!(state, State, text)).wrap();
+            match state.style_dropdown.selected {
+                Style::Ocean => tf
+                    .background_fill(|area: Area, _: &TextState| {
+                        Gradient::new_linear(
+                            (area.x as f64, area.y as f64),
+                            (area.x as f64 + area.width as f64, area.y as f64),
+                        )
+                        .with_stops([Color::from_rgb8(10, 30, 60), Color::from_rgb8(20, 80, 120)])
+                        .into()
+                    })
+                    .text_fill(Color::from_rgb8(140, 210, 255))
+                    .cursor_fill(Color::from_rgb8(100, 180, 255))
+                    .highlight_fill(|area: Area, _: &TextState| {
+                        Gradient::new_linear(
+                            (area.x as f64, area.y as f64),
+                            (area.x as f64 + area.width as f64, area.y as f64),
+                        )
+                        .with_stops([
+                            Color::from_rgb8(30, 90, 140),
+                            Color::from_rgb8(50, 120, 160),
+                        ])
+                        .into()
+                    })
+                    .background_stroke(
+                        |_area: Area, ts: &TextState| {
+                            if ts.editing {
+                                Brush::Solid(Color::from_rgb8(0, 0, 255))
+                            } else {
+                                Brush::Solid(Color::from_rgb8(0, 0, 100))
+                            }
+                        },
+                        4.,
+                    )
+                    .background_corner_rounding(12.),
+                Style::Sunset => tf
+                    .background_fill(|area: Area, _: &TextState| {
+                        Gradient::new_linear(
+                            (area.x as f64, area.y as f64),
+                            (
+                                area.x as f64 + area.width as f64,
+                                area.y as f64 + area.height as f64,
+                            ),
+                        )
+                        .with_stops([Color::from_rgb8(80, 20, 10), Color::from_rgb8(140, 80, 10)])
+                        .into()
+                    })
+                    .text_fill(Color::from_rgb8(255, 200, 120))
+                    .cursor_fill(Color::from_rgb8(255, 160, 60))
+                    .highlight_fill(Color::from_rgb8(160, 80, 20))
+                    .background_corner_rounding(2.),
+                Style::Neon => tf
+                    .background_fill(|area: Area, _: &TextState| {
+                        Gradient::new_linear(
+                            (area.x as f64, area.y as f64),
+                            (area.x as f64, area.y as f64 + area.height as f64),
+                        )
+                        .with_stops([Color::from_rgb8(25, 5, 50), Color::from_rgb8(5, 15, 35)])
+                        .into()
+                    })
+                    .text_fill(|area: Area, _: &TextState| {
+                        Gradient::new_linear(
+                            (area.x as f64, 0.),
+                            (area.x as f64 + area.width as f64, 0.),
+                        )
+                        .with_stops([
+                            Color::from_rgb8(255, 50, 200),
+                            Color::from_rgb8(50, 200, 255),
+                        ])
+                        .into()
+                    })
+                    .cursor_fill(|area: Area, _: &TextState| {
+                        Gradient::new_linear(
+                            (0., area.y as f64),
+                            (0., area.y as f64 + area.height as f64),
+                        )
+                        .with_stops([
+                            Color::from_rgb8(255, 50, 200),
+                            Color::from_rgb8(50, 200, 255),
+                        ])
+                        .into()
+                    })
+                    .highlight_fill(|area: Area, _: &TextState| {
+                        Gradient::new_linear(
+                            (area.x as f64, 0.),
+                            (area.x as f64 + area.width as f64, 0.),
+                        )
+                        .with_stops([
+                            Color::from_rgb8(80, 0, 120).with_alpha(0.5),
+                            Color::from_rgb8(0, 60, 120).with_alpha(0.5),
+                        ])
+                        .into()
+                    })
+                    .background_corner_rounding(16.)
+                    .background_padding(12.),
+                _ => tf,
+            }
+            .build(app.ctx())
+            .align(Align::Top)
+        },
+    ]
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+enum Style {
+    #[default]
+    Default,
+    Ocean,
+    Sunset,
+    Neon,
+}
+
+impl Style {
+    const ALL: &[Style] = &[Style::Default, Style::Ocean, Style::Sunset, Style::Neon];
+
+    fn label(&self) -> &'static str {
+        match self {
+            Style::Default => "Default",
+            Style::Ocean => "Ocean",
+            Style::Sunset => "Sunset",
+            Style::Neon => "Neon",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+enum Biome {
+    #[default]
+    LuminescentMoss,
+    CrystalMycelium,
+    QuantumAlgae,
+    FloatingGardens,
+    CerebralForests,
+    GlassMarrow,
+}
+
+impl Biome {
+    const ALL: &[Biome] = &[
+        Biome::LuminescentMoss,
+        Biome::CrystalMycelium,
+        Biome::QuantumAlgae,
+        Biome::FloatingGardens,
+        Biome::CerebralForests,
+        Biome::GlassMarrow,
+    ];
+
+    fn label(&self) -> &'static str {
+        match self {
+            Biome::LuminescentMoss => "Luminescent Moss",
+            Biome::CrystalMycelium => "Crystal Mycelium",
+            Biome::QuantumAlgae => "Quantum Algae",
+            Biome::FloatingGardens => "Floating Gardens",
+            Biome::CerebralForests => "Cerebral Forests",
+            Biome::GlassMarrow => "Glass Marrow",
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 struct ShaderInputs {
@@ -233,31 +280,31 @@ const CAUSTICS_SHADER: &str = include_str!("../shaders/caustics.wgsl");
 
 fn preset(state: &State) -> ShaderInputs {
     match state.dropdown.selected {
-        1 => ShaderInputs {
+        Biome::CrystalMycelium => ShaderInputs {
             brightness: 0.8,
             color_speed: 0.1,
             wave_amp: 0.9,
             color_base: 2.0,
         },
-        2 => ShaderInputs {
+        Biome::QuantumAlgae => ShaderInputs {
             brightness: 1.5,
             color_speed: 0.8,
             wave_amp: 0.3,
             color_base: 1.0,
         },
-        3 => ShaderInputs {
+        Biome::FloatingGardens => ShaderInputs {
             brightness: 1.0,
             color_speed: 0.5,
             wave_amp: 1.2,
             color_base: 1.2,
         },
-        4 => ShaderInputs {
+        Biome::CerebralForests => ShaderInputs {
             brightness: 0.6,
             color_speed: 0.2,
             wave_amp: 0.4,
             color_base: 2.5,
         },
-        5 => ShaderInputs {
+        Biome::GlassMarrow => ShaderInputs {
             brightness: 2.0,
             color_speed: 1.0,
             wave_amp: 0.8,

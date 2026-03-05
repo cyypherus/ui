@@ -1,7 +1,7 @@
-use crate::app::{AppContext, DrawItem};
+use crate::app::{AppCtx, View};
 use crate::background_style::BrushSource;
 use crate::shape::{PathData, rect_path};
-use crate::view::{View, ViewType};
+use crate::view::{Drawable, DrawableType};
 use backer::Layout;
 use vello_svg::vello::kurbo::Stroke;
 
@@ -52,16 +52,13 @@ impl Rect {
             stroke: self.stroke,
         }
     }
-    pub fn view<State>(self) -> View<State> {
-        View {
-            view_type: ViewType::Path(Box::new(self.into_path_data())),
+    pub fn view<State>(self) -> Drawable<State> {
+        Drawable {
+            view_type: DrawableType::Path(Box::new(self.into_path_data())),
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn build<State: 'static>(
-        self,
-        ctx: &mut AppContext,
-    ) -> Layout<DrawItem<State>, AppContext> {
+    pub fn build<State: 'static>(self, ctx: &mut AppCtx) -> Layout<View<State>, AppCtx> {
         self.view().finish(ctx)
     }
 }

@@ -1,9 +1,9 @@
-use crate::app::{AppContext, AppState, DrawItem, EditState};
+use crate::app::{AppCtx, AppState, EditState, View};
 use crate::background_style::{
     BackgroundStylable, BackgroundStyled, BrushSource, StrokeSource, Style,
 };
 use crate::shape::{PathData, rect_path};
-use crate::view::{View, ViewType};
+use crate::view::{Drawable, DrawableType};
 use crate::{
     Binding, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE,
     DEFAULT_PADDING, DEFAULT_PURP, DEFAULT_STROKE_WIDTH, EditInteraction, Key, Text, rect,
@@ -188,7 +188,7 @@ impl<State> TextField<State> {
 }
 
 impl<State> TextField<State> {
-    pub fn build(self, ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
+    pub fn build(self, ctx: &mut AppCtx) -> Layout<View<State>, AppCtx>
     where
         State: 'static,
     {
@@ -245,9 +245,9 @@ impl<State> TextField<State> {
                         width: rect.width() as f32,
                         height: rect.height() as f32,
                     };
-                    DrawItem::Draw {
-                        view: Box::new(View::<State> {
-                            view_type: ViewType::Path(Box::new(PathData {
+                    View::Draw {
+                        view: Box::new(Drawable::<State> {
+                            view_type: DrawableType::Path(Box::new(PathData {
                                 id,
                                 builder: rect_path((2., 2., 2., 2.)),
                                 fill: Some(highlight.resolve(resolved_area, &ts).into()),
@@ -288,9 +288,9 @@ impl<State> TextField<State> {
                             cursor.height() as f32
                         },
                     };
-                    DrawItem::<State>::Draw {
-                        view: Box::new(View {
-                            view_type: ViewType::Path(Box::new(PathData {
+                    View::<State>::Draw {
+                        view: Box::new(Drawable {
+                            view_type: DrawableType::Path(Box::new(PathData {
                                 id,
                                 builder: rect_path((rounding, rounding, rounding, rounding)),
                                 fill: Some(cursor_fill.resolve(resolved_area, &ts).into()),
@@ -308,9 +308,9 @@ impl<State> TextField<State> {
             text_drawables.push(draw(move |area, _| {
                 let transform =
                     Affine::translate((area.x as f64, area.y as f64)).then_scale(scale_factor);
-                DrawItem::<State>::Draw {
-                    view: Box::new(View {
-                        view_type: ViewType::Layout(Box::new((layout.clone(), transform))),
+                View::<State>::Draw {
+                    view: Box::new(Drawable {
+                        view_type: DrawableType::Layout(Box::new((layout.clone(), transform))),
                         gesture_handlers: Vec::new(),
                     }),
                     area: Area {
@@ -354,7 +354,7 @@ impl<State> TextField<State> {
             let font_family = self.font_family.clone();
             let on_edit = self.on_edit.clone();
             stack(vec![
-                draw(move |area, _| DrawItem::EditorArea(root_id, area)),
+                draw(move |area, _| View::EditorArea(root_id, area)),
                 rect(root_id)
                     .fill(TRANSPARENT)
                     .view()
@@ -376,7 +376,7 @@ impl<State> TextField<State> {
                             };
                             if let AppState {
                                 app_context:
-                                    AppContext {
+                                    AppCtx {
                                         editor: Some(EditState { editor, id, .. }),
                                         layout_cx,
                                         font_cx,
@@ -413,7 +413,7 @@ impl<State> TextField<State> {
                         move |state: &mut State, app, _, _| {
                             if let AppState {
                                 app_context:
-                                    AppContext {
+                                    AppCtx {
                                         editor: Some(EditState { id, .. }),
                                         ..
                                     },
@@ -480,7 +480,7 @@ impl<State> TextField<State> {
             if self.background_style.fill.is_some() || self.background_style.stroke.is_some() {
                 let bg_style = self.background_style;
                 let ts = self.state.clone();
-                area_reader(move |area, ctx: &mut AppContext| {
+                area_reader(move |area, ctx: &mut AppCtx| {
                     let mut rect_node = rect(crate::id!(id));
                     if let Some(ref fill) = bg_style.fill {
                         rect_node = rect_node.fill(fill.resolve(area, &ts));

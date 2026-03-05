@@ -1,11 +1,11 @@
+use crate::DEFAULT_FG;
+use crate::background_style::BrushSource;
 use crate::{
     Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, DEFAULT_PADDING, DEFAULT_PURP,
     adjust_brush,
-    app::{AppContext, AppState, DrawItem},
+    app::{AppCtx, AppState, View},
     rect,
 };
-use crate::background_style::BrushSource;
-use crate::DEFAULT_FG;
 use backer::{Layout, nodes::stack};
 use std::rc::Rc;
 use vello_svg::vello::kurbo::Stroke;
@@ -20,8 +20,8 @@ pub struct ButtonState {
 
 pub struct Button<State> {
     id: u64,
-    body: Option<Layout<DrawItem<State>, AppContext>>,
-    label: Option<Layout<DrawItem<State>, AppContext>>,
+    body: Option<Layout<View<State>, AppCtx>>,
+    label: Option<Layout<View<State>, AppCtx>>,
     text_label: Option<String>,
     background_corner_rounding: Option<f32>,
     background_padding: f32,
@@ -51,11 +51,11 @@ pub fn button<State>(id: u64, state: (ButtonState, Binding<State, ButtonState>))
 }
 
 impl<State> Button<State> {
-    pub fn surface(mut self, body: Layout<DrawItem<State>, AppContext>) -> Self {
+    pub fn surface(mut self, body: Layout<View<State>, AppCtx>) -> Self {
         self.body = Some(body);
         self
     }
-    pub fn label(mut self, label: Layout<DrawItem<State>, AppContext>) -> Self {
+    pub fn label(mut self, label: Layout<View<State>, AppCtx>) -> Self {
         self.label = Some(label);
         self
     }
@@ -78,7 +78,11 @@ impl<State> Button<State> {
         self.background_fill = Some(fill.into());
         self
     }
-    pub fn background_stroke(mut self, brush: impl Into<BrushSource<ButtonState>>, style: Stroke) -> Self {
+    pub fn background_stroke(
+        mut self,
+        brush: impl Into<BrushSource<ButtonState>>,
+        style: Stroke,
+    ) -> Self {
         self.background_stroke = Some((brush.into(), style));
         self
     }
@@ -90,7 +94,7 @@ impl<State> Button<State> {
         self.text_fill = Some(fill.into());
         self
     }
-    pub fn build(self, ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
+    pub fn build(self, ctx: &mut AppCtx) -> Layout<View<State>, AppCtx>
     where
         State: 'static,
     {
@@ -104,16 +108,18 @@ impl<State> Button<State> {
             if let Some(body) = self.body {
                 body
             } else {
-                backer::nodes::area_reader(move |area, ctx: &mut AppContext| {
+                backer::nodes::area_reader(move |area, ctx: &mut AppCtx| {
                     let fill_brush = bg_fill.resolve(area, &btn_state);
-                    let mut r = rect(crate::id!(self.id))
-                        .fill(adjust_brush(&fill_brush, btn_state.depressed, btn_state.hovered));
+                    let mut r = rect(crate::id!(self.id)).fill(adjust_brush(
+                        &fill_brush,
+                        btn_state.depressed,
+                        btn_state.hovered,
+                    ));
                     if let Some((ref stroke_source, ref stroke_style)) = bg_stroke {
                         let stroke_brush = stroke_source.resolve(area, &btn_state);
                         r = r.stroke(stroke_brush, stroke_style.clone());
                     }
-                    r.corner_rounding(bg_rounding)
-                        .build(ctx)
+                    r.corner_rounding(bg_rounding).build(ctx)
                 })
             },
             if let Some(label) = self.label {

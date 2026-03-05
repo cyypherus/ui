@@ -1,10 +1,10 @@
+use crate::background_style::BrushSource;
 use crate::{
-    Binding, DEFAULT_DARK_GRAY, DEFAULT_FG, DEFAULT_GRAY, DEFAULT_PURP, DragState,
-    TRANSPARENT, adjust_brush,
-    app::{AppContext, AppState, DrawItem},
+    Binding, DEFAULT_DARK_GRAY, DEFAULT_FG, DEFAULT_GRAY, DEFAULT_PURP, DragState, TRANSPARENT,
+    adjust_brush,
+    app::{AppCtx, AppState, View},
     circle, id, rect,
 };
-use crate::background_style::BrushSource;
 use backer::{
     Layout,
     nodes::{area_reader, stack},
@@ -81,12 +81,12 @@ impl<State> Slider<State> {
         self
     }
 
-    pub fn build(self, _ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
+    pub fn build(self, _ctx: &mut AppCtx) -> Layout<View<State>, AppCtx>
     where
         State: 'static,
     {
         let state = self.state;
-        area_reader(move |area, ctx: &mut AppContext| {
+        area_reader(move |area, ctx: &mut AppCtx| {
             let width = area.width;
             let height = area.height;
             let normalized_value = (state.value - self.min) / (self.max - self.min);

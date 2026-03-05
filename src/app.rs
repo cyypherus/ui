@@ -2,7 +2,7 @@ use crate::draw_layout::draw_layout;
 use crate::gestures::{ClickLocation, Interaction, ScrollDelta};
 use crate::shader::ShaderCache;
 use crate::text::TextLayout;
-use crate::view::{View, ViewType};
+use crate::view::{Drawable, DrawableType};
 use crate::{ClickState, DragState, Editor, GestureHandler, Point, area_contains};
 use crate::{GestureState, RUBIK_FONT, area_contains_padded, event};
 use backer::{Area, Layout};
@@ -39,7 +39,7 @@ type FontEntry = (Arc<Vec<u8>>, Option<String>);
 
 pub struct AppBuilder<State> {
     state: State,
-    view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>, AppContext>,
+    view: fn(&mut State, &mut AppState<State>) -> Layout<View<State>, AppCtx>,
     on_frame: fn(&mut State, &mut AppState<State>) -> (),
     on_start: fn(&mut State, &mut AppState<State>) -> (),
     on_exit: fn(&mut State, &mut AppState<State>) -> (),
@@ -53,7 +53,7 @@ pub struct AppBuilder<State> {
 impl<State: 'static> AppBuilder<State> {
     pub fn new(
         state: State,
-        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>, AppContext>,
+        view: fn(&mut State, &mut AppState<State>) -> Layout<View<State>, AppCtx>,
     ) -> Self {
         Self {
             state,
@@ -153,7 +153,7 @@ pub struct App<'s, State> {
     pub(crate) window_icon: Option<Icon>,
     pub(crate) app_state: AppState<State>,
     pub state: State,
-    pub(crate) view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>, AppContext>,
+    pub(crate) view: fn(&mut State, &mut AppState<State>) -> Layout<View<State>, AppCtx>,
     pub(crate) on_frame: fn(&mut State, &mut AppState<State>) -> (),
     pub(crate) on_start: fn(&mut State, &mut AppState<State>) -> (),
     pub(crate) on_exit: fn(&mut State, &mut AppState<State>) -> (),
@@ -172,7 +172,7 @@ pub(crate) struct RenderState<'surface> {
 
 pub(crate) type LayoutCache = HashMap<u64, Vec<(String, f32, parley::Layout<Brush>)>>;
 
-pub struct AppContext {
+pub struct AppCtx {
     pub(crate) text_layout: TextLayout,
     pub(crate) font_cx: FontContext,
     pub(crate) layout_cx: LayoutContext<Brush>,
@@ -189,7 +189,7 @@ pub struct AppState<State> {
     pub(crate) cancellation_token: CancellationToken,
     pub(crate) task_tracker: TaskTracker,
     pub(crate) scene: Scene,
-    pub(crate) app_context: AppContext,
+    pub(crate) app_context: AppCtx,
     pub(crate) layout_cache: LayoutCache,
     pub(crate) svg_scenes: HashMap<String, (Scene, f32, f32)>,
     pub(crate) image_scenes: HashMap<u64, (Scene, f32, f32)>,
@@ -198,9 +198,14 @@ pub struct AppState<State> {
     pub(crate) fullscreen_requested: bool,
 }
 
-pub enum DrawItem<State> {
-    Draw { view: Box<View<State>>, area: Area },
-    PushClip { path: BezPath },
+pub enum View<State> {
+    Draw {
+        view: Box<Drawable<State>>,
+        area: Area,
+    },
+    PushClip {
+        path: BezPath,
+    },
     PopClip,
     EditorArea(u64, Area),
     Empty,
@@ -227,7 +232,7 @@ impl Clone for EditState {
 }
 
 impl<State> AppState<State> {
-    pub fn ctx(&mut self) -> &mut AppContext {
+    pub fn ctx(&mut self) -> &mut AppCtx {
         &mut self.app_context
     }
 
@@ -342,14 +347,14 @@ impl RedrawTrigger {
 impl<State: 'static> App<'_, State> {
     pub fn start(
         state: State,
-        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>, AppContext>,
+        view: fn(&mut State, &mut AppState<State>) -> Layout<View<State>, AppCtx>,
     ) {
         AppBuilder::new(state, view).start();
     }
 
     pub fn builder(
         state: State,
-        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>, AppContext>,
+        view: fn(&mut State, &mut AppState<State>) -> Layout<View<State>, AppCtx>,
     ) -> AppBuilder<State> {
         AppBuilder::new(state, view)
     }
@@ -370,7 +375,7 @@ impl<State: 'static> App<'_, State> {
         event_loop: EventLoop<AppEvent>,
         render_cx: RenderContext,
         #[cfg(target_arch = "wasm32")] render_state: RenderState,
-        view: fn(&mut State, &mut AppState<State>) -> Layout<DrawItem<State>, AppContext>,
+        view: fn(&mut State, &mut AppState<State>) -> Layout<View<State>, AppCtx>,
         on_frame: fn(&mut State, &mut AppState<State>) -> (),
         on_start: fn(&mut State, &mut AppState<State>) -> (),
         on_exit: fn(&mut State, &mut AppState<State>) -> (),
@@ -438,7 +443,7 @@ impl<State: 'static> App<'_, State> {
                 cancellation_token: CancellationToken::new(),
                 task_tracker: TaskTracker::new(),
                 scene: Scene::new(),
-                app_context: AppContext {
+                app_context: AppCtx {
                     text_layout: TextLayout::new(layout_cache, font_cx_inner, layout_cx),
                     font_cx: FontContext::new(),
                     layout_cx: LayoutContext::new(),
@@ -512,7 +517,7 @@ impl<State: 'static> App<'_, State> {
             let mut shader_commands: Vec<wgpu::CommandBuffer> = Vec::new();
             for item in draw_items {
                 match item {
-                    DrawItem::PushClip { path } => {
+                    View::PushClip { path } => {
                         self.app_state.scene.push_layer(
                             Fill::NonZero,
                             Mix::Normal,
@@ -521,13 +526,13 @@ impl<State: 'static> App<'_, State> {
                             &path,
                         );
                     }
-                    DrawItem::PopClip => {
+                    View::PopClip => {
                         self.app_state.scene.pop_layer();
                     }
-                    DrawItem::EditorArea(id, area) => {
+                    View::EditorArea(id, area) => {
                         self.app_state.app_context.editor_areas.insert(id, area);
                     }
-                    DrawItem::Draw { mut view, area } => {
+                    View::Draw { mut view, area } => {
                         let id = view.id();
                         let draw_area = area;
 
@@ -539,19 +544,19 @@ impl<State: 'static> App<'_, State> {
                         );
 
                         match &mut view.view_type {
-                            ViewType::Text(v) => v.draw(draw_area, area, &mut self.app_state),
-                            ViewType::Layout(boxed) => {
+                            DrawableType::Text(v) => v.draw(draw_area, area, &mut self.app_state),
+                            DrawableType::Layout(boxed) => {
                                 let (layout, transform) = boxed.as_mut();
                                 draw_layout(None, *transform, layout, &mut self.app_state.scene)
                             }
-                            ViewType::Path(v) => v.draw(
+                            DrawableType::Path(v) => v.draw(
                                 &mut self.app_state.scene,
                                 draw_area,
                                 self.app_state.app_context.scale_factor,
                             ),
-                            ViewType::Svg(v) => v.draw(draw_area, &mut self.app_state),
-                            ViewType::Image(v) => v.draw(draw_area, &mut self.app_state),
-                            ViewType::Shader(v) => v.draw(
+                            DrawableType::Svg(v) => v.draw(draw_area, &mut self.app_state),
+                            DrawableType::Image(v) => v.draw(draw_area, &mut self.app_state),
+                            DrawableType::Shader(v) => v.draw(
                                 draw_area,
                                 &mut self.app_state,
                                 &self.context,
@@ -563,7 +568,7 @@ impl<State: 'static> App<'_, State> {
                             ),
                         }
                     }
-                    DrawItem::Empty => (),
+                    View::Empty => (),
                 }
             }
 

@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
-use crate::app::{AppContext, DrawItem};
+use crate::app::{AppCtx, View};
 use crate::background_style::BrushSource;
 use crate::shape::PathData;
-use crate::view::{View, ViewType};
+use crate::view::{Drawable, DrawableType};
 use backer::{Area, Layout};
 use vello_svg::vello::kurbo::{BezPath, Stroke};
 
@@ -32,9 +32,9 @@ impl Path {
         self.stroke = Some((brush.into(), style));
         self
     }
-    pub fn view<State>(self) -> View<State> {
-        View {
-            view_type: ViewType::Path(Box::new(PathData {
+    pub fn view<State>(self) -> Drawable<State> {
+        Drawable {
+            view_type: DrawableType::Path(Box::new(PathData {
                 id: self.id,
                 builder: self.builder,
                 fill: self.fill,
@@ -43,10 +43,7 @@ impl Path {
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn build<State: 'static>(
-        self,
-        ctx: &mut AppContext,
-    ) -> Layout<DrawItem<State>, AppContext> {
+    pub fn build<State: 'static>(self, ctx: &mut AppCtx) -> Layout<View<State>, AppCtx> {
         self.view().finish(ctx)
     }
 }

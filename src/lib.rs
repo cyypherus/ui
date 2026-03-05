@@ -23,9 +23,9 @@ mod text_field;
 mod toggle;
 mod view;
 
-pub use app::{App, AppBuilder, AppContext, AppState, RedrawTrigger};
-pub use background_style::{BackgroundStylable, BrushSource};
+pub use app::{App, AppBuilder, AppCtx, AppState, RedrawTrigger, View};
 pub use backer::{Area, Layout, nodes::*};
+pub use background_style::{BackgroundStylable, BrushSource};
 pub use button::*;
 pub use bytemuck;
 pub use circle::circle;

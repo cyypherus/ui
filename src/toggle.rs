@@ -1,4 +1,4 @@
-use crate::app::{AppContext, DrawItem};
+use crate::app::{AppCtx, View};
 use crate::background_style::BrushSource;
 use crate::{Binding, ClickState, adjust_brush, app::AppState, id, rect};
 use crate::{DEFAULT_FG, DEFAULT_GRAY, DEFAULT_LIGHT_GRAY, TRANSPARENT, circle};
@@ -74,12 +74,12 @@ impl<State> Toggle<State> {
         self.knob_fill = fill.into();
         self
     }
-    pub fn build(self, _ctx: &mut AppContext) -> Layout<DrawItem<State>, AppContext>
+    pub fn build(self, _ctx: &mut AppCtx) -> Layout<View<State>, AppCtx>
     where
         State: 'static,
     {
         let state = self.state;
-        area_reader(move |area, ctx: &mut AppContext| {
+        area_reader(move |area, ctx: &mut AppCtx| {
             let width = area.width;
             let height = area.height;
             stack(vec![

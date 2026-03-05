@@ -1,6 +1,6 @@
 use crate::{
     DEFAULT_CORNER_ROUNDING, TRANSPARENT,
-    app::{AppContext, AppState, DrawItem},
+    app::{AppCtx, AppState, View},
     rect,
     view::clipping,
 };
@@ -29,10 +29,10 @@ struct Element {
 impl ScrollerState {
     fn fill_forwards<State>(
         &mut self,
-        ctx: &mut AppContext,
+        ctx: &mut AppCtx,
         available_area: Area,
         id: u64,
-        cell: &dyn Fn(usize, u64, &mut AppContext) -> Option<Layout<DrawItem<State>, AppContext>>,
+        cell: &dyn Fn(usize, u64, &mut AppCtx) -> Option<Layout<View<State>, AppCtx>>,
     ) {
         let mut current_height = self.visible_window.iter().fold(0., |acc, e| acc + e.height);
         let mut index = self.visible_window.last().map(|l| l.index).unwrap_or(0)
@@ -54,9 +54,9 @@ impl ScrollerState {
     fn update<State>(
         &mut self,
         available_area: Area,
-        ctx: &mut AppContext,
+        ctx: &mut AppCtx,
         id: u64,
-        cell: &dyn Fn(usize, u64, &mut AppContext) -> Option<Layout<DrawItem<State>, AppContext>>,
+        cell: &dyn Fn(usize, u64, &mut AppCtx) -> Option<Layout<View<State>, AppCtx>>,
     ) {
         if self.area != available_area && self.visible_window.len() > 1 {
             self.visible_window.drain(1..);
@@ -132,22 +132,22 @@ impl ScrollerState {
 }
 
 fn cell_height<State>(
-    ctx: &mut AppContext,
+    ctx: &mut AppCtx,
     index: usize,
     id: u64,
     available_area: Area,
-    cell: &dyn Fn(usize, u64, &mut AppContext) -> Option<Layout<DrawItem<State>, AppContext>>,
+    cell: &dyn Fn(usize, u64, &mut AppCtx) -> Option<Layout<View<State>, AppCtx>>,
 ) -> Option<f32> {
     cell(index, id, ctx).and_then(|mut layout| layout.min_height(available_area, ctx))
 }
 
 pub fn scroller<State: 'static>(
     id: u64,
-    backing: Option<Layout<DrawItem<State>, AppContext>>,
+    backing: Option<Layout<View<State>, AppCtx>>,
     state: Rc<RefCell<ScrollerState>>,
-    cell: impl Fn(usize, u64, &mut AppContext) -> Option<Layout<DrawItem<State>, AppContext>> + 'static,
-    ctx: &mut AppContext,
-) -> Layout<DrawItem<State>, AppContext> {
+    cell: impl Fn(usize, u64, &mut AppCtx) -> Option<Layout<View<State>, AppCtx>> + 'static,
+    ctx: &mut AppCtx,
+) -> Layout<View<State>, AppCtx> {
     let scroll_state = state.clone();
     stack(vec![
         backing.unwrap_or(empty()),
@@ -166,7 +166,7 @@ pub fn scroller<State: 'static>(
             },
             area_reader({
                 let state = state.clone();
-                move |area, ctx: &mut AppContext| {
+                move |area, ctx: &mut AppCtx| {
                     let mut s = state.borrow_mut();
                     s.update::<State>(area, ctx, id, &cell);
                     let mut cells = Vec::new();
