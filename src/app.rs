@@ -39,10 +39,10 @@ type FontEntry = (Arc<Vec<u8>>, Option<String>);
 
 pub struct AppBuilder<State> {
     state: State,
-    view: fn(&mut State, &mut AppState<State>) -> Layout<View<State>, AppCtx>,
-    on_frame: fn(&mut State, &mut AppState<State>) -> (),
-    on_start: fn(&mut State, &mut AppState<State>) -> (),
-    on_exit: fn(&mut State, &mut AppState<State>) -> (),
+    view: fn(&mut State, &mut AppState) -> Layout<View<State>, AppCtx>,
+    on_frame: fn(&mut State, &mut AppState) -> (),
+    on_start: fn(&mut State, &mut AppState) -> (),
+    on_exit: fn(&mut State, &mut AppState) -> (),
     inner_size: Option<(u32, u32)>,
     resizable: Option<bool>,
     title: Option<String>,
@@ -53,7 +53,7 @@ pub struct AppBuilder<State> {
 impl<State: 'static> AppBuilder<State> {
     pub fn new(
         state: State,
-        view: fn(&mut State, &mut AppState<State>) -> Layout<View<State>, AppCtx>,
+        view: fn(&mut State, &mut AppState) -> Layout<View<State>, AppCtx>,
     ) -> Self {
         Self {
             state,
@@ -84,17 +84,17 @@ impl<State: 'static> AppBuilder<State> {
         self
     }
 
-    pub fn on_frame(mut self, on_frame: fn(&mut State, &mut AppState<State>) -> ()) -> Self {
+    pub fn on_frame(mut self, on_frame: fn(&mut State, &mut AppState) -> ()) -> Self {
         self.on_frame = on_frame;
         self
     }
 
-    pub fn on_start(mut self, on_start: fn(&mut State, &mut AppState<State>) -> ()) -> Self {
+    pub fn on_start(mut self, on_start: fn(&mut State, &mut AppState) -> ()) -> Self {
         self.on_start = on_start;
         self
     }
 
-    pub fn on_exit(mut self, on_exit: fn(&mut State, &mut AppState<State>) -> ()) -> Self {
+    pub fn on_exit(mut self, on_exit: fn(&mut State, &mut AppState) -> ()) -> Self {
         self.on_exit = on_exit;
         self
     }
@@ -151,12 +151,13 @@ pub struct App<'s, State> {
     pub(crate) window_resizable: Option<bool>,
     pub(crate) window_title: Option<String>,
     pub(crate) window_icon: Option<Icon>,
-    pub(crate) app_state: AppState<State>,
+    pub(crate) app_state: AppState,
+    pub(crate) gesture_handlers: Vec<(u64, Area, GestureHandler<State, AppState>)>,
     pub state: State,
-    pub(crate) view: fn(&mut State, &mut AppState<State>) -> Layout<View<State>, AppCtx>,
-    pub(crate) on_frame: fn(&mut State, &mut AppState<State>) -> (),
-    pub(crate) on_start: fn(&mut State, &mut AppState<State>) -> (),
-    pub(crate) on_exit: fn(&mut State, &mut AppState<State>) -> (),
+    pub(crate) view: fn(&mut State, &mut AppState) -> Layout<View<State>, AppCtx>,
+    pub(crate) on_frame: fn(&mut State, &mut AppState) -> (),
+    pub(crate) on_start: fn(&mut State, &mut AppState) -> (),
+    pub(crate) on_exit: fn(&mut State, &mut AppState) -> (),
     pub(crate) started: bool,
     pub(crate) last_window_size: Option<winit::dpi::PhysicalSize<u32>>,
     pub(crate) shader_cache: ShaderCache,
@@ -181,10 +182,9 @@ pub struct AppCtx {
     pub(crate) editor_areas: HashMap<u64, Area>,
 }
 
-pub struct AppState<State> {
+pub struct AppState {
     pub cursor_position: Option<Point>,
     pub(crate) gesture_state: GestureState,
-    pub gesture_handlers: Vec<(u64, Area, GestureHandler<State, Self>)>,
     pub(crate) runtime: Runtime,
     pub(crate) cancellation_token: CancellationToken,
     pub(crate) task_tracker: TaskTracker,
@@ -231,7 +231,7 @@ impl Clone for EditState {
     }
 }
 
-impl<State> AppState<State> {
+impl AppState {
     pub fn ctx(&mut self) -> &mut AppCtx {
         &mut self.app_context
     }
@@ -347,14 +347,14 @@ impl RedrawTrigger {
 impl<State: 'static> App<'_, State> {
     pub fn start(
         state: State,
-        view: fn(&mut State, &mut AppState<State>) -> Layout<View<State>, AppCtx>,
+        view: fn(&mut State, &mut AppState) -> Layout<View<State>, AppCtx>,
     ) {
         AppBuilder::new(state, view).start();
     }
 
     pub fn builder(
         state: State,
-        view: fn(&mut State, &mut AppState<State>) -> Layout<View<State>, AppCtx>,
+        view: fn(&mut State, &mut AppState) -> Layout<View<State>, AppCtx>,
     ) -> AppBuilder<State> {
         AppBuilder::new(state, view)
     }
@@ -366,8 +366,8 @@ impl<State: 'static> App<'_, State> {
         window.request_redraw();
     }
 
-    fn gesture_handlers(&self) -> Vec<(u64, Area, GestureHandler<State, AppState<State>>)> {
-        self.app_state.gesture_handlers.clone()
+    fn gesture_handlers(&self) -> Vec<(u64, Area, GestureHandler<State, AppState>)> {
+        self.gesture_handlers.clone()
     }
 
     fn run(
@@ -375,10 +375,10 @@ impl<State: 'static> App<'_, State> {
         event_loop: EventLoop<AppEvent>,
         render_cx: RenderContext,
         #[cfg(target_arch = "wasm32")] render_state: RenderState,
-        view: fn(&mut State, &mut AppState<State>) -> Layout<View<State>, AppCtx>,
-        on_frame: fn(&mut State, &mut AppState<State>) -> (),
-        on_start: fn(&mut State, &mut AppState<State>) -> (),
-        on_exit: fn(&mut State, &mut AppState<State>) -> (),
+        view: fn(&mut State, &mut AppState) -> Layout<View<State>, AppCtx>,
+        on_frame: fn(&mut State, &mut AppState) -> (),
+        on_start: fn(&mut State, &mut AppState) -> (),
+        on_exit: fn(&mut State, &mut AppState) -> (),
         inner_size: Option<(u32, u32)>,
         resizable: Option<bool>,
         title: Option<String>,
@@ -434,11 +434,11 @@ impl<State: 'static> App<'_, State> {
             window_icon: icon,
             state,
             view,
+            gesture_handlers: Vec::new(),
 
             app_state: AppState {
                 cursor_position: None,
                 gesture_state: GestureState::None,
-                gesture_handlers: Vec::new(),
                 runtime,
                 cancellation_token: CancellationToken::new(),
                 task_tracker: TaskTracker::new(),
@@ -485,7 +485,7 @@ impl<State: 'static> App<'_, State> {
             (self.on_start)(&mut self.state, &mut self.app_state);
         }
 
-        self.app_state.gesture_handlers.clear();
+        self.gesture_handlers.clear();
         if let Self {
             context,
             render_state: Some(RenderState { surface, window }),
@@ -536,7 +536,7 @@ impl<State: 'static> App<'_, State> {
                         let id = view.id();
                         let draw_area = area;
 
-                        self.app_state.gesture_handlers.extend(
+                        self.gesture_handlers.extend(
                             view.gesture_handlers
                                 .clone()
                                 .drain(..)

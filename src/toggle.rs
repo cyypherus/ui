@@ -34,7 +34,7 @@ impl ToggleState {
 
 pub struct Toggle<State> {
     id: u64,
-    on_toggle: Option<fn(&mut State, &mut AppState<State>, bool)>,
+    on_toggle: Option<fn(&mut State, &mut AppState, bool)>,
     state: ToggleState,
     binding: Binding<State, ToggleState>,
     on_fill: BrushSource<ToggleState>,
@@ -55,7 +55,7 @@ pub fn toggle<State>(id: u64, state: (ToggleState, Binding<State, ToggleState>))
 }
 
 impl<State> Toggle<State> {
-    pub fn on_toggle(mut self, on_toggle: fn(&mut State, &mut AppState<State>, bool)) -> Self {
+    pub fn on_toggle(mut self, on_toggle: fn(&mut State, &mut AppState, bool)) -> Self {
         self.on_toggle = Some(on_toggle);
         self
     }
@@ -120,13 +120,13 @@ impl<State> Toggle<State> {
                     .view()
                     .on_hover({
                         let binding = self.binding.clone();
-                        move |state: &mut State, _app: &mut AppState<State>, h| {
+                        move |state: &mut State, _app: &mut AppState, h| {
                             binding.update(state, |s| s.hovered = h)
                         }
                     })
                     .on_click({
                         let binding = self.binding.clone();
-                        move |state: &mut State, app: &mut AppState<State>, click_state, _| {
+                        move |state: &mut State, app: &mut AppState, click_state, _| {
                             match click_state {
                                 ClickState::Started => {
                                     binding.update(state, |s| s.depressed = true)

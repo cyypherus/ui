@@ -45,7 +45,7 @@ impl Svg {
 }
 
 impl Svg {
-    pub(crate) fn draw<State>(&mut self, area: Area, app: &mut AppState<State>) {
+    pub(crate) fn draw(&mut self, area: Area, app: &mut AppState) {
         if !app.svg_scenes.contains_key(&self.content) {
             match vello_svg::usvg::Tree::from_data(
                 self.content.as_bytes(),

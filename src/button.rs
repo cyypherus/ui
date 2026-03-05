@@ -25,7 +25,7 @@ pub struct Button<State> {
     text_label: Option<String>,
     background_corner_rounding: Option<f32>,
     background_padding: f32,
-    on_click: Option<Rc<dyn Fn(&mut State, &mut AppState<State>)>>,
+    on_click: Option<Rc<dyn Fn(&mut State, &mut AppState)>>,
     state: ButtonState,
     binding: Binding<State, ButtonState>,
     background_fill: Option<BrushSource<ButtonState>>,
@@ -69,7 +69,7 @@ impl<State> Button<State> {
     }
     pub fn on_click(
         mut self,
-        on_click: impl Fn(&mut State, &mut AppState<State>) + 'static,
+        on_click: impl Fn(&mut State, &mut AppState) + 'static,
     ) -> Self {
         self.on_click = Some(Rc::new(on_click));
         self
@@ -146,14 +146,14 @@ impl<State> Button<State> {
                 .view()
                 .on_hover({
                     let binding = self.binding.clone();
-                    move |state, _app: &mut AppState<State>, h| {
+                    move |state, _app: &mut AppState, h| {
                         binding.update(state, |s| s.hovered = h)
                     }
                 })
                 .on_click({
                     let binding = self.binding.clone();
                     let on_click = self.on_click.clone();
-                    move |state: &mut State, app: &mut AppState<State>, click_state, _| {
+                    move |state: &mut State, app: &mut AppState, click_state, _| {
                         match click_state {
                             ClickState::Started => binding.update(state, |s| s.depressed = true),
                             ClickState::Cancelled => binding.update(state, |s| s.depressed = false),

@@ -187,7 +187,7 @@ pub fn scroller<State: 'static>(
             .fill(TRANSPARENT)
             .view()
             .on_scroll({
-                move |_s: &mut State, _app: &mut AppState<State>, dt| {
+                move |_s: &mut State, _app: &mut AppState, dt| {
                     let mut state = scroll_state.borrow_mut();
                     state.dt += dt.y;
                 }

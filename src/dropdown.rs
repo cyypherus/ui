@@ -37,7 +37,7 @@ pub struct DropDown<State, T> {
     background_padding: f32,
     options: Vec<T>,
     view_fn: Rc<dyn Fn(usize, &T, &mut AppCtx) -> Layout<View<State>, AppCtx>>,
-    on_select: Option<Rc<dyn Fn(&mut State, &mut AppState<State>, &T)>>,
+    on_select: Option<Rc<dyn Fn(&mut State, &mut AppState, &T)>>,
 }
 
 pub fn dropdown<State, T: Clone + PartialEq + 'static>(
@@ -93,7 +93,7 @@ impl<State, T: Clone + PartialEq + 'static> DropDown<State, T> {
     }
     pub fn on_select(
         mut self,
-        on_select: impl Fn(&mut State, &mut AppState<State>, &T) + 'static,
+        on_select: impl Fn(&mut State, &mut AppState, &T) + 'static,
     ) -> Self {
         self.on_select = Some(Rc::new(on_select));
         self

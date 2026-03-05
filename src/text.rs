@@ -204,11 +204,11 @@ impl TextLayout {
 }
 
 impl Text {
-    pub(crate) fn draw<State>(
+    pub(crate) fn draw(
         &mut self,
         animated_area: Area,
         area: Area,
-        app: &mut AppState<State>,
+        app: &mut AppState,
     ) {
         let fill = self.fill.resolve(area, &());
 

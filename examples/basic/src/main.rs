@@ -96,7 +96,7 @@ fn main() {
 
 fn dropdown_and_text(
     state: &mut State,
-    app: &mut AppState<State>,
+    app: &mut AppState,
 ) -> Vec<Layout<View<State>, AppCtx>> {
     vec![
         dropdown(

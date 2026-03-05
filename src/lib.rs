@@ -43,7 +43,7 @@ pub use svg::svg;
 pub use text::*;
 pub use text_field::*;
 pub use toggle::*;
-pub use view::{clipping, const_hash};
+pub use view::{clipping, const_hash, scope};
 pub use winit::keyboard::NamedKey;
 
 use vello_svg::vello::kurbo::*;

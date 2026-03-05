@@ -5,7 +5,7 @@ use crate::shader::Shader;
 use crate::shape::PathData;
 use crate::svg::Svg;
 use crate::text::Text;
-use crate::{ClickState, DragState, GestureHandler, Key};
+use crate::{Binding, ClickState, DragState, GestureHandler, Key};
 use backer::{Area, Layout, nodes::*};
 use parley::Layout as TextLayout;
 use std::rc::Rc;
@@ -81,7 +81,7 @@ pub fn clipping<State: 'static>(
 
 pub struct Drawable<State> {
     pub(crate) view_type: DrawableType,
-    pub(crate) gesture_handlers: Vec<GestureHandler<State, AppState<State>>>,
+    pub(crate) gesture_handlers: Vec<GestureHandler<State, AppState>>,
 }
 
 impl<State> Clone for Drawable<State> {
@@ -118,7 +118,7 @@ impl Clone for DrawableType {
 impl<State> Drawable<State> {
     pub fn on_click(
         mut self,
-        f: impl Fn(&mut State, &mut AppState<State>, ClickState, ClickLocation) + 'static,
+        f: impl Fn(&mut State, &mut AppState, ClickState, ClickLocation) + 'static,
     ) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
@@ -136,7 +136,7 @@ impl<State> Drawable<State> {
     }
     pub fn on_click_outside(
         mut self,
-        f: impl Fn(&mut State, &mut AppState<State>, ClickState, ClickLocation) + 'static,
+        f: impl Fn(&mut State, &mut AppState, ClickState, ClickLocation) + 'static,
     ) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
@@ -154,7 +154,7 @@ impl<State> Drawable<State> {
     }
     pub fn on_drag(
         mut self,
-        f: impl Fn(&mut State, &mut AppState<State>, DragState) + 'static,
+        f: impl Fn(&mut State, &mut AppState, DragState) + 'static,
     ) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
@@ -172,7 +172,7 @@ impl<State> Drawable<State> {
     }
     pub fn on_hover(
         mut self,
-        f: impl Fn(&mut State, &mut AppState<State>, bool) + 'static,
+        f: impl Fn(&mut State, &mut AppState, bool) + 'static,
     ) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
@@ -188,7 +188,7 @@ impl<State> Drawable<State> {
         });
         self
     }
-    pub fn on_key(mut self, f: impl Fn(&mut State, &mut AppState<State>, Key) + 'static) -> Self {
+    pub fn on_key(mut self, f: impl Fn(&mut State, &mut AppState, Key) + 'static) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
                 key: true,
@@ -205,7 +205,7 @@ impl<State> Drawable<State> {
     }
     pub fn on_scroll(
         mut self,
-        f: impl Fn(&mut State, &mut AppState<State>, ScrollDelta) + 'static,
+        f: impl Fn(&mut State, &mut AppState, ScrollDelta) + 'static,
     ) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
@@ -251,4 +251,41 @@ impl<State> Drawable<State> {
             node
         }
     }
+}
+
+pub fn scope<Root: 'static, Sub: 'static>(
+    layout: Layout<View<Sub>, AppCtx>,
+    binding: Binding<Root, Sub>,
+) -> Layout<View<Root>, AppCtx> {
+    let binding = Rc::new(binding);
+    layout.map(move |view| match view {
+        View::Draw { view, area } => View::Draw {
+            view: Box::new(Drawable {
+                view_type: view.view_type,
+                gesture_handlers: view
+                    .gesture_handlers
+                    .into_iter()
+                    .map(|gh| {
+                        let handler = gh.interaction_handler.map(|h| {
+                            let binding = binding.clone();
+                            Rc::new(move |root: &mut Root, app: &mut AppState, interaction: Interaction| {
+                                let mut sub = binding.get(root);
+                                h(&mut sub, app, interaction);
+                                binding.set(root, sub);
+                            }) as Rc<dyn Fn(&mut Root, &mut AppState, Interaction)>
+                        });
+                        GestureHandler {
+                            interaction_type: gh.interaction_type,
+                            interaction_handler: handler,
+                        }
+                    })
+                    .collect(),
+            }),
+            area,
+        },
+        View::PushClip { path } => View::PushClip { path },
+        View::PopClip => View::PopClip,
+        View::EditorArea(id, area) => View::EditorArea(id, area),
+        View::Empty => View::Empty,
+    })
 }

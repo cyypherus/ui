@@ -81,7 +81,7 @@ pub struct TextField<State> {
     pub(crate) enter_end_editing: bool,
     pub(crate) cursor_fill: BrushSource<TextState>,
     pub(crate) highlight_fill: BrushSource<TextState>,
-    on_edit: Option<Rc<dyn Fn(&mut State, &mut AppState<State>, EditInteraction)>>,
+    on_edit: Option<Rc<dyn Fn(&mut State, &mut AppState, EditInteraction)>>,
 }
 
 impl<State> BackgroundStyled for TextField<State> {
@@ -148,7 +148,7 @@ impl<State> TextField<State> {
     }
     pub fn on_edit(
         mut self,
-        on_edit: impl Fn(&mut State, &mut AppState<State>, EditInteraction) + 'static,
+        on_edit: impl Fn(&mut State, &mut AppState, EditInteraction) + 'static,
     ) -> Self {
         self.on_edit = Some(Rc::new(on_edit));
         self

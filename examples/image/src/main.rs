@@ -29,7 +29,7 @@ impl State {
         }
     }
 
-    fn load_image(&mut self, app: &mut AppState<State>) {
+    fn load_image(&mut self, app: &mut AppState) {
         let input = self.input.trim().to_string();
         if input.is_empty() {
             return;

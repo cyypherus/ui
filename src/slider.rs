@@ -24,7 +24,7 @@ pub struct Slider<State> {
     binding: Binding<State, SliderState>,
     min: f32,
     max: f32,
-    on_change: Option<Rc<dyn Fn(&mut State, &mut AppState<State>, f32)>>,
+    on_change: Option<Rc<dyn Fn(&mut State, &mut AppState, f32)>>,
     knob_fill: BrushSource<SliderState>,
     background_fill: BrushSource<SliderState>,
     track_fill: BrushSource<SliderState>,
@@ -55,7 +55,7 @@ impl<State> Slider<State> {
 
     pub fn on_change(
         mut self,
-        on_change: impl Fn(&mut State, &mut AppState<State>, f32) + 'static,
+        on_change: impl Fn(&mut State, &mut AppState, f32) + 'static,
     ) -> Self {
         self.on_change = Some(Rc::new(on_change));
         self
@@ -131,7 +131,7 @@ impl<State> Slider<State> {
                     .view()
                     .on_hover({
                         let binding = self.binding.clone();
-                        move |state: &mut State, _app: &mut AppState<State>, h| {
+                        move |state: &mut State, _app: &mut AppState, h| {
                             binding.update(state, |s| s.hovered = h)
                         }
                     })
@@ -140,7 +140,7 @@ impl<State> Slider<State> {
                         let min = self.min;
                         let max = self.max;
                         let on_change = self.on_change.clone();
-                        move |state: &mut State, app: &mut AppState<State>, drag_state| {
+                        move |state: &mut State, app: &mut AppState, drag_state| {
                             let gesture_padding = height / width;
                             let update_value = |x: f64| {
                                 let padded_start = gesture_padding * width;

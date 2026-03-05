@@ -319,10 +319,10 @@ impl Shader {
         self.view().finish(ctx)
     }
 
-    pub(crate) fn draw<State>(
+    pub(crate) fn draw(
         &self,
         area: Area,
-        app_state: &mut AppState<State>,
+        app_state: &mut AppState,
         context: &RenderContext,
         renderers: &mut [Option<vello_svg::vello::Renderer>],
         shader_cache: &mut ShaderCache,
