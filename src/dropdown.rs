@@ -118,6 +118,7 @@ impl<State, T: Clone + PartialEq + 'static> DropDown<State, T> {
         let corner_rounding = self.background_corner_rounding;
         let arrow_fill = self.arrow_fill;
         let highlight_fill = self.highlight_fill;
+        dbg!(&highlight_fill);
 
         let arrow_svg = if expanded {
             include_str!("../assets/arrow-down.svg")
@@ -125,80 +126,81 @@ impl<State, T: Clone + PartialEq + 'static> DropDown<State, T> {
             include_str!("../assets/arrow-right.svg")
         };
 
-        let row = |index: usize, option: &T, ctx: &mut AppCtx| -> Layout<'static, View<State>, AppCtx> {
-            let row_fill: Brush = if expanded && selected_index == index {
-                highlight_fill.clone()
-            } else if let Some(hovered) = hovered
-                && hovered == index
-            {
-                DEFAULT_DARK_GRAY.into()
-            } else {
-                TRANSPARENT.into()
-            };
-
-            let content = (self.view_fn)(index, option, ctx);
-
-            stack(vec![
+        let row =
+            |index: usize, option: &T, ctx: &mut AppCtx| -> Layout<'static, View<State>, AppCtx> {
+                let row_fill: Brush = if expanded && selected_index == index {
+                    highlight_fill.clone()
+                } else if let Some(hovered) = hovered
+                    && hovered == index
                 {
-                    let option = option.clone();
-                    rect(crate::id!(index as u64, id))
-                        .fill(row_fill)
-                        .corner_rounding(corner_rounding)
-                        .view()
-                        .on_click({
-                            let binding = binding.clone();
-                            let on_select = on_select.clone();
-                            move |state: &mut State, app, click, _pos| {
-                                let ClickState::Completed = click else { return };
-                                if expanded {
-                                    if let Some(ref on_select) = on_select {
-                                        on_select(state, app, &option);
+                    DEFAULT_DARK_GRAY.into()
+                } else {
+                    TRANSPARENT.into()
+                };
+
+                let content = (self.view_fn)(index, option, ctx);
+
+                stack(vec![
+                    {
+                        let option = option.clone();
+                        rect(crate::id!(index as u64, id))
+                            .fill(row_fill)
+                            .corner_rounding(corner_rounding)
+                            .view()
+                            .on_click({
+                                let binding = binding.clone();
+                                let on_select = on_select.clone();
+                                move |state: &mut State, app, click, _pos| {
+                                    let ClickState::Completed = click else { return };
+                                    if expanded {
+                                        if let Some(ref on_select) = on_select {
+                                            on_select(state, app, &option);
+                                        }
+                                        binding.update(state, {
+                                            let option = option.clone();
+                                            move |s| {
+                                                s.selected = option.clone();
+                                                s.expanded = false;
+                                            }
+                                        });
+                                    } else {
+                                        binding.update(state, |s| s.expanded = true);
                                     }
-                                    binding.update(state, {
-                                        let option = option.clone();
-                                        move |s| {
-                                            s.selected = option.clone();
-                                            s.expanded = false;
+                                }
+                            })
+                            .on_hover({
+                                let binding = binding.clone();
+                                move |state: &mut State, _app, hovered| {
+                                    binding.update(state, move |s| {
+                                        if expanded && hovered {
+                                            s.hovered = Some(index)
                                         }
                                     });
-                                } else {
-                                    binding.update(state, |s| s.expanded = true);
                                 }
-                            }
-                        })
-                        .on_hover({
-                            let binding = binding.clone();
-                            move |state: &mut State, _app, hovered| {
-                                binding.update(state, move |s| {
-                                    if expanded && hovered {
-                                        s.hovered = Some(index)
-                                    }
-                                });
-                            }
-                        })
-                        .finish(ctx)
-                        .expand_x()
-                }
-                .inert(),
-                row_spaced(
-                    5.,
-                    vec![
-                        if index == 0 {
-                            svg(crate::id!(id), arrow_svg)
-                                .fill(arrow_fill.clone())
-                                .finish(ctx)
-                                .width(10.)
-                                .height(10.)
-                        } else {
-                            empty()
-                        },
-                        content,
-                    ],
-                )
-                .expand_x()
-                .pad(self.background_padding),
-            ])
-        };
+                            })
+                            .finish(ctx)
+                            .expand_x()
+                    }
+                    .inert(),
+                    row_spaced(
+                        5.,
+                        vec![
+                            if index == 0 {
+                                svg(crate::id!(id), arrow_svg)
+                                    .fill(arrow_fill.clone())
+                                    .finish(ctx)
+                                    .width(10.)
+                                    .height(10.)
+                            } else {
+                                empty()
+                            },
+                            content,
+                        ],
+                    )
+                    .expand_x()
+                    .pad(self.background_padding),
+                ])
+            };
 
         let dd_state = self.state.clone();
         let visible: Vec<_> = if expanded {

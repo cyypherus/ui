@@ -41,14 +41,12 @@ pub use svg::svg;
 pub use text::*;
 pub use text_field::*;
 pub use toggle::*;
+use vello_svg::vello::peniko::color::AlphaColor;
+use vello_svg::vello::peniko::color::Srgb;
 pub use view::{clipping, const_hash, scope};
 pub use winit::keyboard::NamedKey;
 
-use vello_svg::vello::kurbo::*;
-use vello_svg::vello::peniko::color::AlphaColor;
-use vello_svg::vello::peniko::color::Srgb;
-
-pub use vello_svg::vello::kurbo::{BezPath, Cap, Join, Stroke};
+pub use vello_svg::vello::kurbo::{BezPath, Cap, Join, Point, Stroke};
 pub use vello_svg::vello::peniko::{Brush, Gradient};
 
 pub use models::*;
