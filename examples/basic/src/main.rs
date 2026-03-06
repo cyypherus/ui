@@ -41,7 +41,7 @@ fn main() {
                         ),
                         stack(vec![
                             rect(id!()).fill(DEFAULT_DARK_GRAY).corner_rounding(8.).build(app.ctx()),
-                            multi_draw(|area, ctx: &mut AppCtx| {
+                            draw(|area, ctx: &mut AppCtx| {
                                 path(id!(), |area| chart_fill(area, CHART_DATA))
                                     .fill(
                                         Gradient::new_linear(

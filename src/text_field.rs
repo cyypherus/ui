@@ -207,7 +207,7 @@ impl<State> TextField<State> {
         let wrap = self.wrap;
         let root_id = crate::id!(id);
         let text_id = crate::id!(id);
-        if self.state.editing
+        let text_content = if self.state.editing
             && let Some(ref mut edit_state) = ctx.editor
         {
             let cursor_width = 2f64;
@@ -245,7 +245,7 @@ impl<State> TextField<State> {
                         width: rect.width() as f32,
                         height: rect.height() as f32,
                     };
-                    View::Draw {
+                    vec![View::Draw {
                         view: Box::new(DrawableType::Path(Box::new(PathData {
                             id,
                             builder: rect_path((2., 2., 2., 2.)),
@@ -254,7 +254,7 @@ impl<State> TextField<State> {
                         }))),
                         gesture_handlers: Vec::new(),
                         area: resolved_area,
-                    }
+                    }]
                 }));
             }
 
@@ -286,7 +286,7 @@ impl<State> TextField<State> {
                             cursor.height() as f32
                         },
                     };
-                    View::<State>::Draw {
+                    vec![View::<State>::Draw {
                         view: Box::new(DrawableType::Path(Box::new(PathData {
                             id,
                             builder: rect_path((rounding, rounding, rounding, rounding)),
@@ -295,7 +295,7 @@ impl<State> TextField<State> {
                         }))),
                         gesture_handlers: Vec::new(),
                         area: resolved_area,
-                    }
+                    }]
                 }));
             }
 
@@ -304,7 +304,7 @@ impl<State> TextField<State> {
             text_drawables.push(draw(move |area, _| {
                 let transform =
                     Affine::translate((area.x as f64, area.y as f64)).then_scale(scale_factor);
-                View::<State>::Draw {
+                vec![View::<State>::Draw {
                     view: Box::new(DrawableType::Layout(Box::new((layout.clone(), transform)))),
                     gesture_handlers: Vec::new(),
                     area: Area {
@@ -313,7 +313,7 @@ impl<State> TextField<State> {
                         width: area.width,
                         height: area.height,
                     },
-                }
+                }]
             }));
 
             let stack = stack(
@@ -342,17 +342,18 @@ impl<State> TextField<State> {
             }
             .view()
             .finish(ctx)
-        }
-        .attach_under({
-            let binding = binding.clone();
-            let font_family = self.font_family.clone();
-            let on_edit = self.on_edit.clone();
-            stack(vec![
-                draw(move |area, _| View::EditorArea(root_id, area)),
-                rect(root_id)
-                    .fill(TRANSPARENT)
-                    .view()
-                    .on_key({
+        };
+        let padded_content = stack(vec![
+            {
+                let binding = binding.clone();
+                let font_family = self.font_family.clone();
+                let on_edit = self.on_edit.clone();
+                stack(vec![
+                    draw(move |area, _| vec![View::EditorArea(root_id, area)]),
+                    rect(root_id)
+                        .fill(TRANSPARENT)
+                        .view()
+                        .on_key({
                         let on_edit = on_edit.clone();
                         let binding = binding.clone();
                         move |state, app, key| {
@@ -464,17 +465,20 @@ impl<State> TextField<State> {
                     })
                     .finish(ctx),
             ])
-        })
+            }
+            .inert(),
+            text_content,
+        ])
         .pad(if editable {
             self.background_style.padding
         } else {
             0.
-        })
-        .attach_under(
+        });
+        stack(vec![
             if self.background_style.fill.is_some() || self.background_style.stroke.is_some() {
                 let bg_style = self.background_style;
                 let ts = self.state.clone();
-                multi_draw(move |area, ctx: &mut AppCtx| {
+                draw(move |area, ctx: &mut AppCtx| {
                     let mut rect_node = rect(crate::id!(id));
                     if let Some(ref fill) = bg_style.fill {
                         rect_node = rect_node.fill(fill.resolve(area, &ts));
@@ -490,7 +494,9 @@ impl<State> TextField<State> {
                 })
             } else {
                 space()
-            },
-        )
+            }
+            .inert(),
+            padded_content,
+        ])
     }
 }

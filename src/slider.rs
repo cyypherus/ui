@@ -7,7 +7,7 @@ use crate::{
 };
 use backer::{
     Layout,
-    nodes::{multi_draw, stack},
+    nodes::{draw, stack},
 };
 use std::rc::Rc;
 
@@ -86,7 +86,7 @@ impl<State> Slider<State> {
         State: 'static,
     {
         let state = self.state;
-        multi_draw(move |area, ctx: &mut AppCtx| {
+        draw(move |area, ctx: &mut AppCtx| {
             let width = area.width;
             let height = area.height;
             let normalized_value = (state.value - self.min) / (self.max - self.min);

@@ -6,7 +6,10 @@ use crate::{
     app::{AppCtx, AppState, View},
     rect,
 };
-use backer::{Layout, nodes::{multi_draw, stack}};
+use backer::{
+    Layout,
+    nodes::{draw, stack},
+};
 use std::rc::Rc;
 use vello_svg::vello::kurbo::Stroke;
 use vello_svg::vello::peniko::Brush;
@@ -67,10 +70,7 @@ impl<State> Button<State> {
         self.background_corner_rounding = Some(corner_rounding);
         self
     }
-    pub fn on_click(
-        mut self,
-        on_click: impl Fn(&mut State, &mut AppState) + 'static,
-    ) -> Self {
+    pub fn on_click(mut self, on_click: impl Fn(&mut State, &mut AppState) + 'static) -> Self {
         self.on_click = Some(Rc::new(on_click));
         self
     }
@@ -108,7 +108,7 @@ impl<State> Button<State> {
             if let Some(body) = self.body {
                 body
             } else {
-                multi_draw(move |area, ctx: &mut AppCtx| {
+                draw(move |area, ctx: &mut AppCtx| {
                     let fill_brush = bg_fill.resolve(area, &btn_state);
                     let mut r = rect(crate::id!(self.id)).fill(adjust_brush(
                         &fill_brush,
@@ -139,34 +139,29 @@ impl<State> Button<State> {
                 // .transition_duration(0.)
                 .finish(ctx)
             },
-        ])
-        .attach_over(
             rect(crate::id!(self.id))
                 .fill(TRANSPARENT)
                 .view()
                 .on_hover({
                     let binding = self.binding.clone();
-                    move |state, _app: &mut AppState, h| {
-                        binding.update(state, |s| s.hovered = h)
-                    }
+                    move |state, _app: &mut AppState, h| binding.update(state, |s| s.hovered = h)
                 })
                 .on_click({
                     let binding = self.binding.clone();
                     let on_click = self.on_click.clone();
-                    move |state: &mut State, app: &mut AppState, click_state, _| {
-                        match click_state {
-                            ClickState::Started => binding.update(state, |s| s.depressed = true),
-                            ClickState::Cancelled => binding.update(state, |s| s.depressed = false),
-                            ClickState::Completed => {
-                                if let Some(f) = &on_click {
-                                    f(state, app);
-                                }
-                                binding.update(state, |s| s.depressed = false)
+                    move |state: &mut State, app: &mut AppState, click_state, _| match click_state {
+                        ClickState::Started => binding.update(state, |s| s.depressed = true),
+                        ClickState::Cancelled => binding.update(state, |s| s.depressed = false),
+                        ClickState::Completed => {
+                            if let Some(f) = &on_click {
+                                f(state, app);
                             }
+                            binding.update(state, |s| s.depressed = false)
                         }
                     }
                 })
-                .finish(ctx),
-        )
+                .finish(ctx)
+                .inert(),
+        ])
     }
 }

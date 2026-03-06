@@ -138,63 +138,66 @@ impl<State, T: Clone + PartialEq + 'static> DropDown<State, T> {
 
             let content = (self.view_fn)(index, option, ctx);
 
-            row_spaced(
-                5.,
-                vec![
-                    if index == 0 {
-                        svg(crate::id!(id), arrow_svg)
-                            .fill(arrow_fill.clone())
-                            .finish(ctx)
-                            .width(10.)
-                            .height(10.)
-                    } else {
-                        empty()
-                    },
-                    content,
-                ],
-            )
-            .expand_x()
-            .pad(self.background_padding)
-            .attach_under({
-                let option = option.clone();
-                rect(crate::id!(index as u64, id))
-                    .fill(row_fill)
-                    .corner_rounding(corner_rounding)
-                    .view()
-                    .on_click({
-                        let binding = binding.clone();
-                        let on_select = on_select.clone();
-                        move |state: &mut State, app, click, _pos| {
-                            let ClickState::Completed = click else { return };
-                            if expanded {
-                                if let Some(ref on_select) = on_select {
-                                    on_select(state, app, &option);
+            stack(vec![
+                {
+                    let option = option.clone();
+                    rect(crate::id!(index as u64, id))
+                        .fill(row_fill)
+                        .corner_rounding(corner_rounding)
+                        .view()
+                        .on_click({
+                            let binding = binding.clone();
+                            let on_select = on_select.clone();
+                            move |state: &mut State, app, click, _pos| {
+                                let ClickState::Completed = click else { return };
+                                if expanded {
+                                    if let Some(ref on_select) = on_select {
+                                        on_select(state, app, &option);
+                                    }
+                                    binding.update(state, {
+                                        let option = option.clone();
+                                        move |s| {
+                                            s.selected = option.clone();
+                                            s.expanded = false;
+                                        }
+                                    });
+                                } else {
+                                    binding.update(state, |s| s.expanded = true);
                                 }
-                                binding.update(state, {
-                                    let option = option.clone();
-                                    move |s| {
-                                        s.selected = option.clone();
-                                        s.expanded = false;
+                            }
+                        })
+                        .on_hover({
+                            let binding = binding.clone();
+                            move |state: &mut State, _app, hovered| {
+                                binding.update(state, move |s| {
+                                    if expanded && hovered {
+                                        s.hovered = Some(index)
                                     }
                                 });
-                            } else {
-                                binding.update(state, |s| s.expanded = true);
                             }
-                        }
-                    })
-                    .on_hover({
-                        let binding = binding.clone();
-                        move |state: &mut State, _app, hovered| {
-                            binding.update(state, move |s| {
-                                if expanded && hovered {
-                                    s.hovered = Some(index)
-                                }
-                            });
-                        }
-                    })
-                    .finish(ctx)
-                    .expand_x()
-            })
+                        })
+                        .finish(ctx)
+                        .expand_x()
+                }
+                .inert(),
+                row_spaced(
+                    5.,
+                    vec![
+                        if index == 0 {
+                            svg(crate::id!(id), arrow_svg)
+                                .fill(arrow_fill.clone())
+                                .finish(ctx)
+                                .width(10.)
+                                .height(10.)
+                        } else {
+                            empty()
+                        },
+                        content,
+                    ],
+                )
+                .expand_x()
+                .pad(self.background_padding),
+            ])
         };
 
         let dd_state = self.state.clone();
@@ -208,9 +211,8 @@ impl<State, T: Clone + PartialEq + 'static> DropDown<State, T> {
             .map(|(index, option)| row(index, option, ctx))
             .collect();
 
-        column(rows)
-            .align(Align::Top)
-            .attach_under(multi_draw(move |area, ctx: &mut AppCtx| {
+        stack(vec![
+            draw(move |area, ctx: &mut AppCtx| {
                 rect(crate::id!(id))
                     .fill(fill.resolve(area, &dd_state))
                     .stroke(stroke.0.resolve(area, &dd_state), stroke.1.clone())
@@ -235,6 +237,9 @@ impl<State, T: Clone + PartialEq + 'static> DropDown<State, T> {
                     })
                     .finish(ctx)
                     .draw(area, ctx)
-            }))
+            })
+            .inert(),
+            column(rows).align(Align::Top),
+        ])
     }
 }

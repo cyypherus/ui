@@ -6,7 +6,7 @@ use crate::{
 };
 use backer::{
     Area, Layout,
-    nodes::{multi_draw, column, empty, stack},
+    nodes::{draw, column, empty, stack},
 };
 use std::{cell::RefCell, rc::Rc};
 use vello_svg::vello::kurbo::{RoundedRect, Shape as _};
@@ -164,7 +164,7 @@ pub fn scroller<State: 'static>(
                 )
                 .to_path(0.1)
             },
-            multi_draw({
+            draw({
                 let state = state.clone();
                 move |area, ctx: &mut AppCtx| {
                     let mut s = state.borrow_mut();

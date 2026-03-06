@@ -91,9 +91,9 @@ pub fn clipping<State: 'static>(
     content: Layout<'static, View<State>, AppCtx>,
 ) -> Layout<'static, View<State>, AppCtx> {
     stack(vec![
-        draw(move |area, _| View::PushClip { path: path(area) }),
+        draw(move |area, _| vec![View::PushClip { path: path(area) }]),
         content,
-        draw(|_, _| View::PopClip),
+        draw(|_, _| vec![View::PopClip]),
     ])
 }
 
@@ -247,11 +247,11 @@ impl<State> Drawable<State> {
             None
         };
 
-        let node = draw(move |area, _| View::Draw {
+        let node = draw(move |area, _| vec![View::Draw {
             view: Box::new(self.view_type),
             gesture_handlers: self.gesture_handlers,
             area,
-        });
+        }]);
 
         if let Some(text_view) = text_clone {
             text_view.with_text_constraints(ctx, node)
