@@ -1,9 +1,8 @@
-use std::rc::Rc;
-
 use crate::app::{AppCtx, View};
 use crate::{Binding, ClickState, DEFAULT_CORNER_ROUNDING, app::AppState, rect};
-use crate::{Color, DEFAULT_PADDING, TRANSPARENT};
-use backer::{Align, Area, Layout, nodes::*};
+use crate::{Color, TRANSPARENT};
+use backer::{Align, Layout, nodes::*};
+use std::rc::Rc;
 use vello_svg::vello::kurbo::Stroke;
 
 #[derive(Debug, Clone)]
@@ -31,30 +30,23 @@ pub struct DropdownItemCtx<'a, T> {
     pub expanded: bool,
 }
 
-pub struct DropDown<State, T> {
+pub struct DropDown<'a, State, T> {
     id: u64,
     state: DropdownState<T>,
     binding: Binding<State, DropdownState<T>>,
     options: Vec<T>,
-    view_fn: Rc<dyn Fn(DropdownItemCtx<T>, &mut AppCtx) -> Layout<'static, View<State>, AppCtx>>,
-    background: Option<
-        Rc<
-            dyn Fn(
-                &DropdownState<T>,
-                Area,
-                &mut AppCtx,
-            ) -> Layout<'static, View<State>, AppCtx>,
-        >,
-    >,
+    view_fn: Rc<dyn Fn(DropdownItemCtx<T>, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a>,
+    background:
+        Option<Rc<dyn Fn(&DropdownState<T>, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a>>,
     on_select: Option<Rc<dyn Fn(&mut State, &mut AppState, &T)>>,
 }
 
-pub fn dropdown<State, T: Clone + PartialEq + 'static>(
+pub fn dropdown<'a, State, T: Clone + PartialEq + 'static>(
     id: u64,
     state: (DropdownState<T>, Binding<State, DropdownState<T>>),
     options: Vec<T>,
-    view_fn: impl Fn(DropdownItemCtx<T>, &mut AppCtx) -> Layout<'static, View<State>, AppCtx> + 'static,
-) -> DropDown<State, T> {
+    view_fn: impl Fn(DropdownItemCtx<T>, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a,
+) -> DropDown<'a, State, T> {
     DropDown {
         id,
         state: state.0,
@@ -66,10 +58,10 @@ pub fn dropdown<State, T: Clone + PartialEq + 'static>(
     }
 }
 
-impl<State, T: Clone + PartialEq + 'static> DropDown<State, T> {
+impl<'a, State, T: Clone + PartialEq + 'static> DropDown<'a, State, T> {
     pub fn background(
         mut self,
-        f: impl Fn(&DropdownState<T>, Area, &mut AppCtx) -> Layout<'static, View<State>, AppCtx> + 'static,
+        f: impl Fn(&DropdownState<T>, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a,
     ) -> Self {
         self.background = Some(Rc::new(f));
         self
@@ -83,7 +75,7 @@ impl<State, T: Clone + PartialEq + 'static> DropDown<State, T> {
         self
     }
 
-    pub fn build(self, ctx: &mut AppCtx) -> Layout<'static, View<State>, AppCtx>
+    pub fn build(self, ctx: &mut AppCtx) -> Layout<'a, View<State>, AppCtx>
     where
         State: 'static,
     {
@@ -100,61 +92,60 @@ impl<State, T: Clone + PartialEq + 'static> DropDown<State, T> {
         let background_fn = self.background;
         let dd_state = self.state.clone();
 
-        let row =
-            |index: usize, option: &T, ctx: &mut AppCtx| -> Layout<'static, View<State>, AppCtx> {
-                let item_ctx = DropdownItemCtx {
-                    index,
-                    value: option,
-                    selected: selected_index == index,
-                    hovered: hovered == Some(index),
-                    expanded,
-                };
-                let content = (self.view_fn)(item_ctx, ctx);
+        let row = |index: usize, option: &T, ctx: &mut AppCtx| -> Layout<'a, View<State>, AppCtx> {
+            let item_ctx = DropdownItemCtx {
+                index,
+                value: option,
+                selected: selected_index == index,
+                hovered: hovered == Some(index),
+                expanded,
+            };
+            let content = (self.view_fn)(item_ctx, ctx);
 
-                stack(vec![
-                    {
-                        let option = option.clone();
-                        rect(crate::id!(index as u64, id))
-                            .fill(TRANSPARENT)
-                            .view()
-                            .on_click({
-                                let binding = binding.clone();
-                                let on_select = on_select.clone();
-                                move |state: &mut State, app, click, _pos| {
-                                    let ClickState::Completed = click else { return };
-                                    if expanded {
-                                        if let Some(ref on_select) = on_select {
-                                            on_select(state, app, &option);
-                                        }
-                                        binding.update(state, {
-                                            let option = option.clone();
-                                            move |s| {
-                                                s.selected = option.clone();
-                                                s.expanded = false;
-                                            }
-                                        });
-                                    } else {
-                                        binding.update(state, |s| s.expanded = true);
+            stack(vec![
+                {
+                    let option = option.clone();
+                    rect(crate::id!(index as u64, id))
+                        .fill(TRANSPARENT)
+                        .view()
+                        .on_click({
+                            let binding = binding.clone();
+                            let on_select = on_select.clone();
+                            move |state: &mut State, app, click, _pos| {
+                                let ClickState::Completed = click else { return };
+                                if expanded {
+                                    if let Some(ref on_select) = on_select {
+                                        on_select(state, app, &option);
                                     }
-                                }
-                            })
-                            .on_hover({
-                                let binding = binding.clone();
-                                move |state: &mut State, _app, hovered| {
-                                    binding.update(state, move |s| {
-                                        if expanded && hovered {
-                                            s.hovered = Some(index)
+                                    binding.update(state, {
+                                        let option = option.clone();
+                                        move |s| {
+                                            s.selected = option.clone();
+                                            s.expanded = false;
                                         }
                                     });
+                                } else {
+                                    binding.update(state, |s| s.expanded = true);
                                 }
-                            })
-                            .finish(ctx)
-                            .expand_x()
-                    }
-                    .inert(),
-                    content.pad(DEFAULT_PADDING),
-                ])
-            };
+                            }
+                        })
+                        .on_hover({
+                            let binding = binding.clone();
+                            move |state: &mut State, _app, hovered| {
+                                binding.update(state, move |s| {
+                                    if expanded && hovered {
+                                        s.hovered = Some(index)
+                                    }
+                                });
+                            }
+                        })
+                        .finish(ctx)
+                }
+                .inert(),
+                content,
+            ])
+            .expand_x()
+        };
 
         let visible: Vec<_> = if expanded {
             self.options.iter().enumerate().collect()
@@ -169,9 +160,7 @@ impl<State, T: Clone + PartialEq + 'static> DropDown<State, T> {
         let bg = {
             let binding = binding.clone();
             if let Some(f) = background_fn {
-                draw(move |area, ctx: &mut AppCtx| {
-                    f(&dd_state, area, ctx).draw(area, ctx)
-                })
+                f(&dd_state, ctx)
             } else {
                 draw(move |area, ctx: &mut AppCtx| {
                     rect(crate::id!(id))
@@ -202,9 +191,6 @@ impl<State, T: Clone + PartialEq + 'static> DropDown<State, T> {
             }
         };
 
-        stack(vec![
-            bg.inert(),
-            column(rows).align(Align::Top),
-        ])
+        stack(vec![bg.inert(), column(rows).align(Align::Top)])
     }
 }

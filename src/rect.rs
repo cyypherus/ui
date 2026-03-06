@@ -1,9 +1,12 @@
+use crate::DEFAULT_CORNER_ROUNDING;
 use crate::app::{AppCtx, View};
 use crate::background_style::BrushSource;
 use crate::shape::{PathData, rect_path};
 use crate::view::{Drawable, DrawableType};
 use backer::Layout;
 use vello_svg::vello::kurbo::Stroke;
+use vello_svg::vello::peniko::Brush;
+use vello_svg::vello::peniko::color::palette::css::BLACK;
 
 pub struct Rect {
     id: u64,
@@ -15,9 +18,14 @@ pub struct Rect {
 pub fn rect(id: u64) -> Rect {
     Rect {
         id,
-        fill: None,
+        fill: Some(BrushSource::Static(Brush::Solid(BLACK))),
         stroke: None,
-        corner_rounding: (0., 0., 0., 0.),
+        corner_rounding: (
+            DEFAULT_CORNER_ROUNDING,
+            DEFAULT_CORNER_ROUNDING,
+            DEFAULT_CORNER_ROUNDING,
+            DEFAULT_CORNER_ROUNDING,
+        ),
     }
 }
 

@@ -29,10 +29,10 @@ impl TextState {
     }
 }
 
-pub fn text_field<State>(
+pub fn text_field<'a, State>(
     id: u64,
     state: (TextState, Binding<State, TextState>),
-) -> TextField<State> {
+) -> TextField<'a, State> {
     TextField {
         id,
         state: state.0,
@@ -55,15 +55,16 @@ pub fn text_field<State>(
     }
 }
 
-type BgViewFn<State> = Rc<
+type BgViewFn<'a, State> = Rc<
     dyn Fn(
         &TextState,
         Area,
         &mut AppCtx,
-    ) -> Layout<'static, View<State>, AppCtx>,
+    ) -> Layout<'a, View<State>, AppCtx>
+        + 'a,
 >;
 
-pub struct TextField<State> {
+pub struct TextField<'a, State> {
     pub(crate) id: u64,
     pub(crate) state: TextState,
     pub(crate) binding: Binding<State, TextState>,
@@ -74,7 +75,7 @@ pub struct TextField<State> {
     pub(crate) alignment: Alignment,
     pub(crate) editable: bool,
     pub(crate) line_height: f32,
-    pub(crate) background: Option<BgViewFn<State>>,
+    pub(crate) background: Option<BgViewFn<'a, State>>,
     pub(crate) padding: f32,
     pub(crate) wrap: bool,
     pub(crate) esc_end_editing: bool,
@@ -84,7 +85,7 @@ pub struct TextField<State> {
     on_edit: Option<Rc<dyn Fn(&mut State, &mut AppState, EditInteraction)>>,
 }
 
-impl<State> Debug for TextField<State> {
+impl<State> Debug for TextField<'_, State> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Text")
             .field("id", &self.id)
@@ -104,7 +105,7 @@ impl<State> Debug for TextField<State> {
     }
 }
 
-impl<State> Clone for TextField<State> {
+impl<State> Clone for TextField<'_, State> {
     fn clone(&self) -> Self {
         Self {
             id: self.id,
@@ -129,7 +130,7 @@ impl<State> Clone for TextField<State> {
     }
 }
 
-impl<State> TextField<State> {
+impl<'a, State> TextField<'a, State> {
     pub fn cursor_fill(mut self, fill: impl Into<BrushSource<TextState>>) -> Self {
         self.cursor_fill = fill.into();
         self
@@ -171,8 +172,8 @@ impl<State> TextField<State> {
             &TextState,
             Area,
             &mut AppCtx,
-        ) -> Layout<'static, View<State>, AppCtx>
-        + 'static,
+        ) -> Layout<'a, View<State>, AppCtx>
+        + 'a,
     ) -> Self {
         self.background = Some(Rc::new(f));
         self
@@ -195,8 +196,8 @@ impl<State> TextField<State> {
     }
 }
 
-impl<State> TextField<State> {
-    pub fn build(self, ctx: &mut AppCtx) -> Layout<'static, View<State>, AppCtx>
+impl<'a, State> TextField<'a, State> {
+    pub fn build(self, ctx: &mut AppCtx) -> Layout<'a, View<State>, AppCtx>
     where
         State: 'static,
     {

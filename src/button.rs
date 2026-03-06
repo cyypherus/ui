@@ -1,7 +1,6 @@
 use crate::DEFAULT_FG;
 use crate::{
-    Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, DEFAULT_PADDING, DEFAULT_PURP,
-    adjust_brush,
+    Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, DEFAULT_PURP, adjust_brush,
     app::{AppCtx, AppState, View},
     rect,
 };
@@ -19,25 +18,23 @@ pub struct ButtonState {
     pub depressed: bool,
 }
 
-type ViewFn<State> = Rc<
-    dyn Fn(
-        ButtonState,
-        Area,
-        &mut AppCtx,
-    ) -> Layout<'static, View<State>, AppCtx>,
->;
+type ViewFn<'a, State> =
+    Rc<dyn Fn(ButtonState, Area, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a>;
 
-pub struct Button<State> {
+pub struct Button<'a, State> {
     id: u64,
-    surface: Option<ViewFn<State>>,
-    label: Option<ViewFn<State>>,
+    surface: Option<ViewFn<'a, State>>,
+    label: Option<ViewFn<'a, State>>,
     text_label: Option<String>,
     on_click: Option<Rc<dyn Fn(&mut State, &mut AppState)>>,
     state: ButtonState,
     binding: Binding<State, ButtonState>,
 }
 
-pub fn button<State>(id: u64, state: (ButtonState, Binding<State, ButtonState>)) -> Button<State> {
+pub fn button<'a, State>(
+    id: u64,
+    state: (ButtonState, Binding<State, ButtonState>),
+) -> Button<'a, State> {
     Button {
         id,
         surface: None,
@@ -49,17 +46,17 @@ pub fn button<State>(id: u64, state: (ButtonState, Binding<State, ButtonState>))
     }
 }
 
-impl<State> Button<State> {
+impl<'a, State> Button<'a, State> {
     pub fn surface(
         mut self,
-        f: impl Fn(ButtonState, Area, &mut AppCtx) -> Layout<'static, View<State>, AppCtx> + 'static,
+        f: impl Fn(ButtonState, Area, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a,
     ) -> Self {
         self.surface = Some(Rc::new(f));
         self
     }
     pub fn label(
         mut self,
-        f: impl Fn(ButtonState, Area, &mut AppCtx) -> Layout<'static, View<State>, AppCtx> + 'static,
+        f: impl Fn(ButtonState, Area, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a,
     ) -> Self {
         self.label = Some(Rc::new(f));
         self
@@ -72,7 +69,7 @@ impl<State> Button<State> {
         self.on_click = Some(Rc::new(on_click));
         self
     }
-    pub fn build(self, _ctx: &mut AppCtx) -> Layout<'static, View<State>, AppCtx>
+    pub fn build(self, _ctx: &mut AppCtx) -> Layout<'a, View<State>, AppCtx>
     where
         State: 'static,
     {
@@ -112,7 +109,7 @@ impl<State> Button<State> {
 
             stack(vec![
                 surface,
-                label.pad(DEFAULT_PADDING),
+                label,
                 rect(crate::id!(id))
                     .fill(TRANSPARENT)
                     .view()

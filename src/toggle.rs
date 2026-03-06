@@ -33,24 +33,25 @@ impl ToggleState {
     }
 }
 
-type ViewFn<State> = Rc<
+type ViewFn<'a, State> = Rc<
     dyn Fn(
         ToggleState,
         Area,
         &mut AppCtx,
-    ) -> Layout<'static, View<State>, AppCtx>,
+    ) -> Layout<'a, View<State>, AppCtx>
+        + 'a,
 >;
 
-pub struct Toggle<State> {
+pub struct Toggle<'a, State> {
     id: u64,
     on_toggle: Option<fn(&mut State, &mut AppState, bool)>,
     state: ToggleState,
     binding: Binding<State, ToggleState>,
-    knob: Option<ViewFn<State>>,
-    track: Option<ViewFn<State>>,
+    knob: Option<ViewFn<'a, State>>,
+    track: Option<ViewFn<'a, State>>,
 }
 
-pub fn toggle<State>(id: u64, state: (ToggleState, Binding<State, ToggleState>)) -> Toggle<State> {
+pub fn toggle<'a, State>(id: u64, state: (ToggleState, Binding<State, ToggleState>)) -> Toggle<'a, State> {
     Toggle {
         id,
         on_toggle: None,
@@ -61,7 +62,7 @@ pub fn toggle<State>(id: u64, state: (ToggleState, Binding<State, ToggleState>))
     }
 }
 
-impl<State> Toggle<State> {
+impl<'a, State> Toggle<'a, State> {
     pub fn on_toggle(mut self, on_toggle: fn(&mut State, &mut AppState, bool)) -> Self {
         self.on_toggle = Some(on_toggle);
         self
@@ -69,7 +70,7 @@ impl<State> Toggle<State> {
 
     pub fn knob(
         mut self,
-        f: impl Fn(ToggleState, Area, &mut AppCtx) -> Layout<'static, View<State>, AppCtx> + 'static,
+        f: impl Fn(ToggleState, Area, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a,
     ) -> Self {
         self.knob = Some(Rc::new(f));
         self
@@ -77,12 +78,12 @@ impl<State> Toggle<State> {
 
     pub fn track(
         mut self,
-        f: impl Fn(ToggleState, Area, &mut AppCtx) -> Layout<'static, View<State>, AppCtx> + 'static,
+        f: impl Fn(ToggleState, Area, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a,
     ) -> Self {
         self.track = Some(Rc::new(f));
         self
     }
-    pub fn build(self, _ctx: &mut AppCtx) -> Layout<'static, View<State>, AppCtx>
+    pub fn build(self, _ctx: &mut AppCtx) -> Layout<'a, View<State>, AppCtx>
     where
         State: 'static,
     {

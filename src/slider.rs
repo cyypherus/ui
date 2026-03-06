@@ -18,28 +18,29 @@ pub struct SliderState {
     pub value: f32,
 }
 
-type ViewFn<State> = Rc<
+type ViewFn<'a, State> = Rc<
     dyn Fn(
         SliderState,
         Area,
         &mut AppCtx,
-    ) -> Layout<'static, View<State>, AppCtx>,
+    ) -> Layout<'a, View<State>, AppCtx>
+        + 'a,
 >;
 
-pub struct Slider<State> {
+pub struct Slider<'a, State> {
     id: u64,
     state: SliderState,
     binding: Binding<State, SliderState>,
     min: f32,
     max: f32,
     on_change: Option<Rc<dyn Fn(&mut State, &mut AppState, f32)>>,
-    knob: Option<ViewFn<State>>,
-    track: Option<ViewFn<State>>,
-    traveled_track: Option<ViewFn<State>>,
-    background: Option<ViewFn<State>>,
+    knob: Option<ViewFn<'a, State>>,
+    track: Option<ViewFn<'a, State>>,
+    traveled_track: Option<ViewFn<'a, State>>,
+    background: Option<ViewFn<'a, State>>,
 }
 
-pub fn slider<State>(id: u64, state: (SliderState, Binding<State, SliderState>)) -> Slider<State> {
+pub fn slider<'a, State>(id: u64, state: (SliderState, Binding<State, SliderState>)) -> Slider<'a, State> {
     Slider {
         id,
         state: state.0,
@@ -54,7 +55,7 @@ pub fn slider<State>(id: u64, state: (SliderState, Binding<State, SliderState>))
     }
 }
 
-impl<State> Slider<State> {
+impl<'a, State> Slider<'a, State> {
     pub fn range(mut self, min: f32, max: f32) -> Self {
         self.min = min;
         self.max = max;
@@ -71,7 +72,7 @@ impl<State> Slider<State> {
 
     pub fn knob(
         mut self,
-        f: impl Fn(SliderState, Area, &mut AppCtx) -> Layout<'static, View<State>, AppCtx> + 'static,
+        f: impl Fn(SliderState, Area, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a,
     ) -> Self {
         self.knob = Some(Rc::new(f));
         self
@@ -79,7 +80,7 @@ impl<State> Slider<State> {
 
     pub fn track(
         mut self,
-        f: impl Fn(SliderState, Area, &mut AppCtx) -> Layout<'static, View<State>, AppCtx> + 'static,
+        f: impl Fn(SliderState, Area, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a,
     ) -> Self {
         self.track = Some(Rc::new(f));
         self
@@ -87,7 +88,7 @@ impl<State> Slider<State> {
 
     pub fn traveled_track(
         mut self,
-        f: impl Fn(SliderState, Area, &mut AppCtx) -> Layout<'static, View<State>, AppCtx> + 'static,
+        f: impl Fn(SliderState, Area, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a,
     ) -> Self {
         self.traveled_track = Some(Rc::new(f));
         self
@@ -95,13 +96,13 @@ impl<State> Slider<State> {
 
     pub fn background(
         mut self,
-        f: impl Fn(SliderState, Area, &mut AppCtx) -> Layout<'static, View<State>, AppCtx> + 'static,
+        f: impl Fn(SliderState, Area, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a,
     ) -> Self {
         self.background = Some(Rc::new(f));
         self
     }
 
-    pub fn build(self, _ctx: &mut AppCtx) -> Layout<'static, View<State>, AppCtx>
+    pub fn build(self, _ctx: &mut AppCtx) -> Layout<'a, View<State>, AppCtx>
     where
         State: 'static,
     {

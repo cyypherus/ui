@@ -97,19 +97,13 @@ impl Text {
 }
 
 impl Text {
-    pub fn view<State>(self) -> Drawable<State>
-    where
-        State: 'static,
-    {
+    pub fn view<State>(self) -> Drawable<State> {
         Drawable {
             view_type: DrawableType::Text(self),
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn build<State>(self, ctx: &mut AppCtx) -> Layout<'static, View<State>, AppCtx>
-    where
-        State: 'static,
-    {
+    pub fn build<State: 'static>(self, ctx: &mut AppCtx) -> Layout<'static, View<State>, AppCtx> {
         self.view().finish(ctx)
     }
 }
@@ -229,10 +223,7 @@ impl Text {
         self,
         ctx: &mut AppCtx,
         node: Layout<'static, View<State>, AppCtx>,
-    ) -> Layout<'static, View<State>, AppCtx>
-    where
-        State: 'static,
-    {
+    ) -> Layout<'static, View<State>, AppCtx> {
         if self.wrap {
             node.dynamic_height(move |w, ctx| {
                 let default_brush = Brush::Solid(crate::DEFAULT_FG_COLOR);

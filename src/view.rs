@@ -86,10 +86,10 @@ macro_rules! scope {
     }};
 }
 
-pub fn clipping<State: 'static>(
+pub fn clipping<'a, State>(
     path: fn(Area) -> BezPath,
-    content: Layout<'static, View<State>, AppCtx>,
-) -> Layout<'static, View<State>, AppCtx> {
+    content: Layout<'a, View<State>, AppCtx>,
+) -> Layout<'a, View<State>, AppCtx> {
     stack(vec![
         draw(move |area, _| vec![View::PushClip { path: path(area) }]),
         content,
@@ -236,11 +236,8 @@ impl DrawableType {
     }
 }
 
-impl<State> Drawable<State> {
-    pub fn finish(self, ctx: &mut AppCtx) -> Layout<'static, View<State>, AppCtx>
-    where
-        State: 'static,
-    {
+impl<State: 'static> Drawable<State> {
+    pub fn finish<'a>(self, ctx: &mut AppCtx) -> Layout<'a, View<State>, AppCtx> {
         let text_clone = if let DrawableType::Text(t) = &self.view_type {
             Some(t.clone())
         } else {

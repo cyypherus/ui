@@ -27,12 +27,12 @@ struct Element {
 }
 
 impl ScrollerState {
-    fn fill_forwards<State>(
+    fn fill_forwards<'a, State>(
         &mut self,
         ctx: &mut AppCtx,
         available_area: Area,
         id: u64,
-        cell: &dyn Fn(usize, u64, &mut AppCtx) -> Option<Layout<'static, View<State>, AppCtx>>,
+        cell: &dyn Fn(usize, u64, &mut AppCtx) -> Option<Layout<'a, View<State>, AppCtx>>,
     ) {
         let mut current_height = self.visible_window.iter().fold(0., |acc, e| acc + e.height);
         let mut index = self.visible_window.last().map(|l| l.index).unwrap_or(0)
@@ -51,12 +51,12 @@ impl ScrollerState {
         }
     }
 
-    fn update<State>(
+    fn update<'a, State>(
         &mut self,
         available_area: Area,
         ctx: &mut AppCtx,
         id: u64,
-        cell: &dyn Fn(usize, u64, &mut AppCtx) -> Option<Layout<'static, View<State>, AppCtx>>,
+        cell: &dyn Fn(usize, u64, &mut AppCtx) -> Option<Layout<'a, View<State>, AppCtx>>,
     ) {
         if self.area != available_area && self.visible_window.len() > 1 {
             self.visible_window.drain(1..);
@@ -131,23 +131,23 @@ impl ScrollerState {
     }
 }
 
-fn cell_height<State>(
+fn cell_height<'a, State>(
     ctx: &mut AppCtx,
     index: usize,
     id: u64,
     available_area: Area,
-    cell: &dyn Fn(usize, u64, &mut AppCtx) -> Option<Layout<'static, View<State>, AppCtx>>,
+    cell: &dyn Fn(usize, u64, &mut AppCtx) -> Option<Layout<'a, View<State>, AppCtx>>,
 ) -> Option<f32> {
     cell(index, id, ctx).and_then(|mut layout| layout.min_height(available_area, ctx))
 }
 
-pub fn scroller<State: 'static>(
+pub fn scroller<'a, State: 'static>(
     id: u64,
-    backing: Option<Layout<'static, View<State>, AppCtx>>,
+    backing: Option<Layout<'a, View<State>, AppCtx>>,
     state: Rc<RefCell<ScrollerState>>,
-    cell: impl Fn(usize, u64, &mut AppCtx) -> Option<Layout<'static, View<State>, AppCtx>> + 'static,
+    cell: impl Fn(usize, u64, &mut AppCtx) -> Option<Layout<'a, View<State>, AppCtx>> + 'a,
     ctx: &mut AppCtx,
-) -> Layout<'static, View<State>, AppCtx> {
+) -> Layout<'a, View<State>, AppCtx> {
     let scroll_state = state.clone();
     stack(vec![
         backing.unwrap_or(empty()),
