@@ -142,7 +142,7 @@ fn main() {
                         .pad(10.)
                         .width_range(..200.),
                         button(id!(), binding!(state, State, paste_button))
-                            .label(text(id!(), "Paste").build(app.ctx()))
+                            .label(|_state, _area, ctx| text(id!(), "Paste").build(ctx))
                             .on_click(|s, _| s.paste_from_clipboard())
                             .build(app.ctx())
                             .height(40.)
@@ -150,7 +150,7 @@ fn main() {
                     ],
                 ),
                 button(id!(), binding!(state, State, load_button))
-                    .label(
+                    .label(move |_state, _area, ctx| {
                         text(
                             id!(),
                             match download_state_for_button {
@@ -158,8 +158,8 @@ fn main() {
                                 _ => "Load Image",
                             },
                         )
-                        .build(app.ctx()),
-                    )
+                        .build(ctx)
+                    })
                     .on_click(|s, app| {
                         if matches!(
                             s.download_state.blocking_lock().clone(),

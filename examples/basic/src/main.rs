@@ -67,10 +67,15 @@ fn main() {
                         ),
                         button(id!(), binding!(state, State, button))
                             .text_label("Engage thrusters")
-                            .background_fill(
-                                Gradient::new_linear((0., 0.), (200., 0.))
-                                    .with_stops([DEFAULT_PURP, Color::from_rgb8(200, 50, 180)])
-                            )
+                            .surface(|_state, _area, ctx| {
+                                rect(id!())
+                                    .fill(
+                                        Gradient::new_linear((0., 0.), (200., 0.))
+                                            .with_stops([DEFAULT_PURP, Color::from_rgb8(200, 50, 180)])
+                                    )
+                                    .corner_rounding(DEFAULT_CORNER_ROUNDING)
+                                    .build(ctx)
+                            })
                             .build(app.ctx()).height(30.),
                     ],
                 )
@@ -99,7 +104,7 @@ fn dropdown_and_text(
             id!(),
             binding!(state, DDTextState, style_dropdown),
             Biome::ALL.to_vec(),
-            |_index, style, ctx| text(id!(), style.label()).build(ctx),
+            |item, ctx| text(id!(), item.value.label()).build(ctx),
         )
         .build(app.ctx())
         .width(140.)
@@ -108,13 +113,22 @@ fn dropdown_and_text(
             let tf = text_field(id!(), binding!(state, DDTextState, text)).wrap();
             match state.style_dropdown.selected {
                 Biome::LuminescentMoss | Biome::FloatingGardens => tf
-                    .background_fill(|area: Area, _: &TextState| {
-                        Gradient::new_linear(
-                            (area.x as f64, area.y as f64),
-                            (area.x as f64 + area.width as f64, area.y as f64),
-                        )
-                        .with_stops([Color::from_rgb8(10, 30, 60), Color::from_rgb8(20, 80, 120)])
-                        .into()
+                    .background(|ts, area, ctx| {
+                        let mut r = rect(id!())
+                            .fill(
+                                Gradient::new_linear(
+                                    (area.x as f64, area.y as f64),
+                                    (area.x as f64 + area.width as f64, area.y as f64),
+                                )
+                                .with_stops([Color::from_rgb8(10, 30, 60), Color::from_rgb8(20, 80, 120)])
+                            )
+                            .corner_rounding(12.);
+                        r = if ts.editing {
+                            r.stroke(Color::from_rgb8(0, 0, 255), Stroke::new(4.))
+                        } else {
+                            r.stroke(Color::from_rgb8(0, 0, 100), Stroke::new(4.))
+                        };
+                        r.build(ctx)
                     })
                     .text_fill(Color::from_rgb8(140, 210, 255))
                     .cursor_fill(Color::from_rgb8(100, 180, 255))
@@ -128,43 +142,40 @@ fn dropdown_and_text(
                             Color::from_rgb8(50, 120, 160),
                         ])
                         .into()
-                    })
-                    .background_stroke(
-                        |_area: Area, ts: &TextState| {
-                            if ts.editing {
-                                Brush::Solid(Color::from_rgb8(0, 0, 255))
-                            } else {
-                                Brush::Solid(Color::from_rgb8(0, 0, 100))
-                            }
-                        },
-                        4.,
-                    )
-                    .background_corner_rounding(12.),
+                    }),
                 Biome::CrystalMycelium | Biome::CerebralForests => tf
-                    .background_fill(|area: Area, _: &TextState| {
-                        Gradient::new_linear(
-                            (area.x as f64, area.y as f64),
-                            (
-                                area.x as f64 + area.width as f64,
-                                area.y as f64 + area.height as f64,
-                            ),
-                        )
-                        .with_stops([Color::from_rgb8(80, 20, 10), Color::from_rgb8(140, 80, 10)])
-                        .into()
+                    .background(|_ts, area, ctx| {
+                        rect(id!())
+                            .fill(
+                                Gradient::new_linear(
+                                    (area.x as f64, area.y as f64),
+                                    (
+                                        area.x as f64 + area.width as f64,
+                                        area.y as f64 + area.height as f64,
+                                    ),
+                                )
+                                .with_stops([Color::from_rgb8(80, 20, 10), Color::from_rgb8(140, 80, 10)])
+                            )
+                            .corner_rounding(2.)
+                            .build(ctx)
                     })
                     .text_fill(Color::from_rgb8(255, 200, 120))
                     .cursor_fill(Color::from_rgb8(255, 160, 60))
-                    .highlight_fill(Color::from_rgb8(160, 80, 20))
-                    .background_corner_rounding(2.),
+                    .highlight_fill(Color::from_rgb8(160, 80, 20)),
                 Biome::QuantumAlgae | Biome::GlassMarrow => tf
-                    .background_fill(|area: Area, _: &TextState| {
-                        Gradient::new_linear(
-                            (area.x as f64, area.y as f64),
-                            (area.x as f64, area.y as f64 + area.height as f64),
-                        )
-                        .with_stops([Color::from_rgb8(25, 5, 50), Color::from_rgb8(5, 15, 35)])
-                        .into()
+                    .background(|_ts, area, ctx| {
+                        rect(id!())
+                            .fill(
+                                Gradient::new_linear(
+                                    (area.x as f64, area.y as f64),
+                                    (area.x as f64, area.y as f64 + area.height as f64),
+                                )
+                                .with_stops([Color::from_rgb8(25, 5, 50), Color::from_rgb8(5, 15, 35)])
+                            )
+                            .corner_rounding(16.)
+                            .build(ctx)
                     })
+                    .padding(12.)
                     .text_fill(|area: Area, _: &TextState| {
                         Gradient::new_linear(
                             (area.x as f64, 0.),
@@ -197,9 +208,7 @@ fn dropdown_and_text(
                             Color::from_rgb8(0, 60, 120).with_alpha(0.5),
                         ])
                         .into()
-                    })
-                    .background_corner_rounding(16.)
-                    .background_padding(12.),
+                    }),
             }
             .build(app.ctx())
             .align(Align::Top)

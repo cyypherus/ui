@@ -50,18 +50,18 @@ fn main() {
                             .build(app.ctx()),
                         button(id!(), binding!(state, State, b2))
                             .on_click(|s, _| s.count += 1)
-                            .surface(
+                            .surface(|state, _area, ctx| {
                                 rect(id!())
                                     .fill({
-                                        match (state.b2.hovered, state.b2.depressed) {
+                                        match (state.hovered, state.depressed) {
                                             (_, true) => AlphaColor::from_rgb8(100, 30, 30),
                                             (true, false) => AlphaColor::from_rgb8(230, 30, 30),
                                             (false, false) => AlphaColor::from_rgb8(200, 30, 30),
                                         }
                                     })
                                     .corner_rounding(40.)
-                                    .build(app.ctx()),
-                            )
+                                    .build(ctx)
+                            })
                             .build(app.ctx()),
                     ],
                 )
@@ -73,16 +73,16 @@ fn main() {
                         text(id!(), "Svg Label").fill(Color::WHITE).build(app.ctx()),
                         button(id!(), binding!(state, State, b3))
                             .on_click(|s, _| s.count += 1)
-                            .label(
+                            .label(|state, _area, ctx| {
                                 svg(id!(), include_str!("../../../assets/download.svg"))
-                                    .fill(match (state.b3.depressed, state.b3.hovered) {
+                                    .fill(match (state.depressed, state.hovered) {
                                         (true, _) => AlphaColor::from_rgb8(190, 190, 190),
                                         (false, true) => AlphaColor::from_rgb8(250, 250, 250),
                                         (false, false) => AlphaColor::from_rgb8(240, 240, 240),
                                     })
-                                    .finish(app.ctx())
-                                    .pad(15.),
-                            )
+                                    .finish(ctx)
+                                    .pad(15.)
+                            })
                             .build(app.ctx()),
                     ],
                 )

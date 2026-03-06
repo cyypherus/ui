@@ -1,11 +1,12 @@
 use crate::app::{AppCtx, View};
-use crate::background_style::BrushSource;
 use crate::{Binding, ClickState, adjust_brush, app::AppState, id, rect};
 use crate::{DEFAULT_FG, DEFAULT_GRAY, DEFAULT_LIGHT_GRAY, TRANSPARENT, circle};
 use backer::{
-    Layout,
+    Area, Layout,
     nodes::{draw, stack},
 };
+use std::rc::Rc;
+use vello_svg::vello::peniko::Brush;
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct ToggleState {
@@ -32,14 +33,21 @@ impl ToggleState {
     }
 }
 
+type ViewFn<State> = Rc<
+    dyn Fn(
+        ToggleState,
+        Area,
+        &mut AppCtx,
+    ) -> Layout<'static, View<State>, AppCtx>,
+>;
+
 pub struct Toggle<State> {
     id: u64,
     on_toggle: Option<fn(&mut State, &mut AppState, bool)>,
     state: ToggleState,
     binding: Binding<State, ToggleState>,
-    on_fill: BrushSource<ToggleState>,
-    off_fill: BrushSource<ToggleState>,
-    knob_fill: BrushSource<ToggleState>,
+    knob: Option<ViewFn<State>>,
+    track: Option<ViewFn<State>>,
 }
 
 pub fn toggle<State>(id: u64, state: (ToggleState, Binding<State, ToggleState>)) -> Toggle<State> {
@@ -48,9 +56,8 @@ pub fn toggle<State>(id: u64, state: (ToggleState, Binding<State, ToggleState>))
         on_toggle: None,
         state: state.0,
         binding: state.1,
-        on_fill: DEFAULT_LIGHT_GRAY.into(),
-        off_fill: DEFAULT_GRAY.into(),
-        knob_fill: DEFAULT_FG.into(),
+        knob: None,
+        track: None,
     }
 }
 
@@ -60,18 +67,19 @@ impl<State> Toggle<State> {
         self
     }
 
-    pub fn on_fill(mut self, fill: impl Into<BrushSource<ToggleState>>) -> Self {
-        self.on_fill = fill.into();
+    pub fn knob(
+        mut self,
+        f: impl Fn(ToggleState, Area, &mut AppCtx) -> Layout<'static, View<State>, AppCtx> + 'static,
+    ) -> Self {
+        self.knob = Some(Rc::new(f));
         self
     }
 
-    pub fn off_fill(mut self, fill: impl Into<BrushSource<ToggleState>>) -> Self {
-        self.off_fill = fill.into();
-        self
-    }
-
-    pub fn knob_fill(mut self, fill: impl Into<BrushSource<ToggleState>>) -> Self {
-        self.knob_fill = fill.into();
+    pub fn track(
+        mut self,
+        f: impl Fn(ToggleState, Area, &mut AppCtx) -> Layout<'static, View<State>, AppCtx> + 'static,
+    ) -> Self {
+        self.track = Some(Rc::new(f));
         self
     }
     pub fn build(self, _ctx: &mut AppCtx) -> Layout<'static, View<State>, AppCtx>
@@ -79,43 +87,59 @@ impl<State> Toggle<State> {
         State: 'static,
     {
         let state = self.state;
+        let knob_fn = self.knob;
+        let track_fn = self.track;
+        let id = self.id;
         draw(move |area, ctx: &mut AppCtx| {
             let width = area.width;
             let height = area.height;
-            stack(vec![
-                rect(id!(self.id))
+
+            let track = if let Some(ref f) = track_fn {
+                f(state, area, ctx)
+            } else {
+                rect(id!(id))
                     .fill(if state.on {
-                        self.on_fill.resolve(area, &state)
+                        Brush::Solid(DEFAULT_LIGHT_GRAY)
                     } else {
-                        self.off_fill.resolve(area, &state)
+                        Brush::Solid(DEFAULT_GRAY)
                     })
                     .corner_rounding(height * 0.5)
                     .build(ctx)
                     .height(height)
-                    .width(width),
-                {
-                    let knob = self.knob_fill.resolve(area, &state);
-                    let depressed = state.depressed;
-                    let hovered = state.hovered;
-                    circle(id!(self.id))
-                        .fill(adjust_brush(&knob, depressed, hovered))
-                        .finish(ctx)
-                        .pad(height * 0.1)
-                        .height(height)
-                        .width(height)
-                        .offset(
-                            {
-                                let button_padding = height - (height * 0.5);
-                                if state.on {
-                                    (width * 0.5) - button_padding
-                                } else {
-                                    (-width * 0.5) + button_padding
-                                }
-                            },
-                            0.,
-                        )
-                },
-                rect(crate::id!(self.id))
+                    .width(width)
+            };
+
+            let knob = if let Some(ref f) = knob_fn {
+                f(state, area, ctx)
+            } else {
+                let knob_brush = adjust_brush(
+                    &Brush::Solid(DEFAULT_FG),
+                    state.depressed,
+                    state.hovered,
+                );
+                circle(id!(id))
+                    .fill(knob_brush)
+                    .finish(ctx)
+                    .pad(height * 0.1)
+                    .height(height)
+                    .width(height)
+                    .offset(
+                        {
+                            let button_padding = height - (height * 0.5);
+                            if state.on {
+                                (width * 0.5) - button_padding
+                            } else {
+                                (-width * 0.5) + button_padding
+                            }
+                        },
+                        0.,
+                    )
+            };
+
+            stack(vec![
+                track,
+                knob,
+                rect(crate::id!(id))
                     .fill(TRANSPARENT)
                     .view()
                     .on_hover({

@@ -1,4 +1,3 @@
-use crate::background_style::BrushSource;
 use crate::{
     Binding, DEFAULT_DARK_GRAY, DEFAULT_FG, DEFAULT_GRAY, DEFAULT_PURP, DragState, TRANSPARENT,
     adjust_brush,
@@ -6,10 +5,11 @@ use crate::{
     circle, id, rect,
 };
 use backer::{
-    Layout,
+    Area, Layout,
     nodes::{draw, stack},
 };
 use std::rc::Rc;
+use vello_svg::vello::peniko::Brush;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SliderState {
@@ -18,6 +18,14 @@ pub struct SliderState {
     pub value: f32,
 }
 
+type ViewFn<State> = Rc<
+    dyn Fn(
+        SliderState,
+        Area,
+        &mut AppCtx,
+    ) -> Layout<'static, View<State>, AppCtx>,
+>;
+
 pub struct Slider<State> {
     id: u64,
     state: SliderState,
@@ -25,10 +33,10 @@ pub struct Slider<State> {
     min: f32,
     max: f32,
     on_change: Option<Rc<dyn Fn(&mut State, &mut AppState, f32)>>,
-    knob_fill: BrushSource<SliderState>,
-    background_fill: BrushSource<SliderState>,
-    track_fill: BrushSource<SliderState>,
-    traveled_track_fill: BrushSource<SliderState>,
+    knob: Option<ViewFn<State>>,
+    track: Option<ViewFn<State>>,
+    traveled_track: Option<ViewFn<State>>,
+    background: Option<ViewFn<State>>,
 }
 
 pub fn slider<State>(id: u64, state: (SliderState, Binding<State, SliderState>)) -> Slider<State> {
@@ -39,10 +47,10 @@ pub fn slider<State>(id: u64, state: (SliderState, Binding<State, SliderState>))
         min: 0.0,
         max: 1.0,
         on_change: None,
-        knob_fill: DEFAULT_FG.into(),
-        background_fill: DEFAULT_GRAY.into(),
-        track_fill: DEFAULT_DARK_GRAY.into(),
-        traveled_track_fill: DEFAULT_PURP.into(),
+        knob: None,
+        track: None,
+        traveled_track: None,
+        background: None,
     }
 }
 
@@ -61,23 +69,35 @@ impl<State> Slider<State> {
         self
     }
 
-    pub fn knob_fill(mut self, fill: impl Into<BrushSource<SliderState>>) -> Self {
-        self.knob_fill = fill.into();
+    pub fn knob(
+        mut self,
+        f: impl Fn(SliderState, Area, &mut AppCtx) -> Layout<'static, View<State>, AppCtx> + 'static,
+    ) -> Self {
+        self.knob = Some(Rc::new(f));
         self
     }
 
-    pub fn background_fill(mut self, fill: impl Into<BrushSource<SliderState>>) -> Self {
-        self.background_fill = fill.into();
+    pub fn track(
+        mut self,
+        f: impl Fn(SliderState, Area, &mut AppCtx) -> Layout<'static, View<State>, AppCtx> + 'static,
+    ) -> Self {
+        self.track = Some(Rc::new(f));
         self
     }
 
-    pub fn track_fill(mut self, fill: impl Into<BrushSource<SliderState>>) -> Self {
-        self.track_fill = fill.into();
+    pub fn traveled_track(
+        mut self,
+        f: impl Fn(SliderState, Area, &mut AppCtx) -> Layout<'static, View<State>, AppCtx> + 'static,
+    ) -> Self {
+        self.traveled_track = Some(Rc::new(f));
         self
     }
 
-    pub fn traveled_track_fill(mut self, fill: impl Into<BrushSource<SliderState>>) -> Self {
-        self.traveled_track_fill = fill.into();
+    pub fn background(
+        mut self,
+        f: impl Fn(SliderState, Area, &mut AppCtx) -> Layout<'static, View<State>, AppCtx> + 'static,
+    ) -> Self {
+        self.background = Some(Rc::new(f));
         self
     }
 
@@ -86,47 +106,76 @@ impl<State> Slider<State> {
         State: 'static,
     {
         let state = self.state;
+        let knob_fn = self.knob;
+        let track_fn = self.track;
+        let traveled_track_fn = self.traveled_track;
+        let background_fn = self.background;
+        let id = self.id;
         draw(move |area, ctx: &mut AppCtx| {
             let width = area.width;
             let height = area.height;
             let normalized_value = (state.value - self.min) / (self.max - self.min);
             let slider_width = (width - height) * normalized_value + height;
 
-            stack(vec![
-                rect(id!(self.id))
-                    .fill(self.background_fill.resolve(area, &state))
+            let bg = if let Some(ref f) = background_fn {
+                f(state, area, ctx)
+            } else {
+                rect(id!(id))
+                    .fill(Brush::Solid(DEFAULT_GRAY))
                     .corner_rounding(height * 0.5)
                     .build(ctx)
                     .height(height)
-                    .width(width),
-                rect(id!(self.id))
-                    .fill(self.track_fill.resolve(area, &state))
+                    .width(width)
+            };
+
+            let track = if let Some(ref f) = track_fn {
+                f(state, area, ctx)
+            } else {
+                rect(id!(id))
+                    .fill(Brush::Solid(DEFAULT_DARK_GRAY))
                     .corner_rounding(height)
                     .build(ctx)
                     .pad(height * 0.3)
                     .height(height)
-                    .width(width),
-                rect(id!(self.id))
-                    .fill(self.traveled_track_fill.resolve(area, &state))
+                    .width(width)
+            };
+
+            let traveled = if let Some(ref f) = traveled_track_fn {
+                f(state, area, ctx)
+            } else {
+                rect(id!(id))
+                    .fill(Brush::Solid(DEFAULT_PURP))
                     .corner_rounding(height)
                     .build(ctx)
                     .pad(height * 0.2)
                     .height(height)
                     .width(slider_width)
-                    .offset((-width * 0.5) + (slider_width * 0.5), 0.),
-                {
-                    let knob = self.knob_fill.resolve(area, &state);
-                    let dragging = state.dragging;
-                    let hovered = state.hovered;
-                    circle(id!(self.id))
-                        .fill(adjust_brush(&knob, dragging, hovered))
-                        .finish(ctx)
-                        .pad(height * 0.1)
-                        .height(if state.dragging { height * 1.1 } else { height })
-                        .width(height)
-                        .offset((-width * 0.5) + slider_width - (height * 0.5), 0.)
-                },
-                rect(id!(self.id))
+                    .offset((-width * 0.5) + (slider_width * 0.5), 0.)
+            };
+
+            let knob = if let Some(ref f) = knob_fn {
+                f(state, area, ctx)
+            } else {
+                let knob_brush = adjust_brush(
+                    &Brush::Solid(DEFAULT_FG),
+                    state.dragging,
+                    state.hovered,
+                );
+                circle(id!(id))
+                    .fill(knob_brush)
+                    .finish(ctx)
+                    .pad(height * 0.1)
+                    .height(if state.dragging { height * 1.1 } else { height })
+                    .width(height)
+                    .offset((-width * 0.5) + slider_width - (height * 0.5), 0.)
+            };
+
+            stack(vec![
+                bg,
+                track,
+                traveled,
+                knob,
+                rect(id!(id))
                     .fill(TRANSPARENT)
                     .view()
                     .on_hover({

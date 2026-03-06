@@ -1,7 +1,5 @@
 use crate::app::{AppCtx, AppState, EditState, View};
-use crate::background_style::{
-    BackgroundStylable, BackgroundStyled, BrushSource, StrokeSource, Style,
-};
+use crate::background_style::BrushSource;
 use crate::shape::{PathData, rect_path};
 use crate::view::DrawableType;
 use crate::{
@@ -46,15 +44,8 @@ pub fn text_field<State>(
         alignment: Alignment::Center,
         editable: true,
         line_height: 1.,
-        background_style: Style {
-            fill: Some(Color::from_rgb8(50, 50, 50).into()),
-            stroke: Some((
-                Color::from_rgb8(60, 60, 60).into(),
-                StrokeSource::Static(Stroke::new(DEFAULT_STROKE_WIDTH as f64)),
-            )),
-            rounding: DEFAULT_CORNER_ROUNDING,
-            padding: DEFAULT_PADDING,
-        },
+        background: None,
+        padding: DEFAULT_PADDING,
         wrap: false,
         cursor_fill: BrushSource::Static(Brush::Solid(DEFAULT_PURP)),
         highlight_fill: BrushSource::Static(Brush::Solid(DEFAULT_PURP)),
@@ -63,6 +54,14 @@ pub fn text_field<State>(
         enter_end_editing: false,
     }
 }
+
+type BgViewFn<State> = Rc<
+    dyn Fn(
+        &TextState,
+        Area,
+        &mut AppCtx,
+    ) -> Layout<'static, View<State>, AppCtx>,
+>;
 
 pub struct TextField<State> {
     pub(crate) id: u64,
@@ -75,7 +74,8 @@ pub struct TextField<State> {
     pub(crate) alignment: Alignment,
     pub(crate) editable: bool,
     pub(crate) line_height: f32,
-    pub(crate) background_style: Style<TextState>,
+    pub(crate) background: Option<BgViewFn<State>>,
+    pub(crate) padding: f32,
     pub(crate) wrap: bool,
     pub(crate) esc_end_editing: bool,
     pub(crate) enter_end_editing: bool,
@@ -83,15 +83,6 @@ pub struct TextField<State> {
     pub(crate) highlight_fill: BrushSource<TextState>,
     on_edit: Option<Rc<dyn Fn(&mut State, &mut AppState, EditInteraction)>>,
 }
-
-impl<State> BackgroundStyled for TextField<State> {
-    type V = TextState;
-    fn background(&mut self) -> &mut Style<TextState> {
-        &mut self.background_style
-    }
-}
-
-impl<State> BackgroundStylable for TextField<State> {}
 
 impl<State> Debug for TextField<State> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -104,7 +95,7 @@ impl<State> Debug for TextField<State> {
             .field("alignment", &self.alignment)
             .field("editable", &self.editable)
             .field("line_height", &self.line_height)
-            .field("background_style", &self.background_style)
+            .field("background", &self.background.is_some())
             .field("wrap", &self.wrap)
             .field("cursor_fill", &self.cursor_fill)
             .field("highlight_fill", &self.highlight_fill)
@@ -126,7 +117,8 @@ impl<State> Clone for TextField<State> {
             alignment: self.alignment,
             editable: self.editable,
             line_height: self.line_height,
-            background_style: self.background_style.clone(),
+            background: self.background.clone(),
+            padding: self.padding,
             wrap: self.wrap,
             cursor_fill: self.cursor_fill.clone(),
             highlight_fill: self.highlight_fill.clone(),
@@ -171,6 +163,22 @@ impl<State> TextField<State> {
     }
     pub fn align(mut self, align: Alignment) -> Self {
         self.alignment = align;
+        self
+    }
+    pub fn background(
+        mut self,
+        f: impl Fn(
+            &TextState,
+            Area,
+            &mut AppCtx,
+        ) -> Layout<'static, View<State>, AppCtx>
+        + 'static,
+    ) -> Self {
+        self.background = Some(Rc::new(f));
+        self
+    }
+    pub fn padding(mut self, padding: f32) -> Self {
+        self.padding = padding;
         self
     }
     pub fn wrap(mut self) -> Self {
@@ -317,7 +325,7 @@ impl<State> TextField<State> {
             }));
 
             let stack = stack(
-                [selection_drawables, cursor_drawables, text_drawables]
+                [selection_drawables, text_drawables, cursor_drawables]
                     .into_iter()
                     .flatten()
                     .collect(),
@@ -354,149 +362,148 @@ impl<State> TextField<State> {
                         .fill(TRANSPARENT)
                         .view()
                         .on_key({
-                        let on_edit = on_edit.clone();
-                        let binding = binding.clone();
-                        move |state, app, key| {
-                            if (self.enter_end_editing
-                                && key == Key::Named(winit::keyboard::NamedKey::Enter))
-                                || (self.esc_end_editing
-                                    && key == Key::Named(winit::keyboard::NamedKey::Escape))
-                            {
-                                app.end_editing();
-                                binding.update(state, |s| s.editing = false);
-                                if let Some(ref on_edit) = on_edit {
-                                    (on_edit)(state, app, EditInteraction::End);
+                            let on_edit = on_edit.clone();
+                            let binding = binding.clone();
+                            move |state, app, key| {
+                                if (self.enter_end_editing
+                                    && key == Key::Named(winit::keyboard::NamedKey::Enter))
+                                    || (self.esc_end_editing
+                                        && key == Key::Named(winit::keyboard::NamedKey::Escape))
+                                {
+                                    app.end_editing();
+                                    binding.update(state, |s| s.editing = false);
+                                    if let Some(ref on_edit) = on_edit {
+                                        (on_edit)(state, app, EditInteraction::End);
+                                    }
+                                    return;
+                                };
+                                if let AppState {
+                                    app_context:
+                                        AppCtx {
+                                            editor: Some(EditState { editor, id, .. }),
+                                            layout_cx,
+                                            font_cx,
+                                            ..
+                                        },
+                                    modifiers,
+                                    ..
+                                } = app
+                                    && *id == root_id
+                                {
+                                    editor.handle_key(key.clone(), layout_cx, font_cx, *modifiers);
                                 }
-                                return;
-                            };
-                            if let AppState {
-                                app_context:
-                                    AppCtx {
-                                        editor: Some(EditState { editor, id, .. }),
-                                        layout_cx,
-                                        font_cx,
-                                        ..
-                                    },
-                                modifiers,
-                                ..
-                            } = app
-                                && *id == root_id
-                            {
-                                editor.handle_key(key.clone(), layout_cx, font_cx, *modifiers);
-                            }
-                            let edit_text = app
-                                .app_context
-                                .editor
-                                .as_ref()
-                                .map(|e| e.editor.text().to_string());
-
-                            if let Some(edit_text) = edit_text
-                                && app.app_context.editor.as_ref().map(|e| e.id) == Some(root_id)
-                            {
-                                if let Some(ref on_edit) = on_edit {
-                                    on_edit(state, app, EditInteraction::Update(edit_text.clone()));
-                                }
-                                binding.update(state, |s| {
-                                    s.text = edit_text.clone();
-                                });
-                            }
-                        }
-                    })
-                    .on_click_outside({
-                        let binding = binding.clone();
-                        let on_edit = on_edit.clone();
-                        move |state: &mut State, app, _, _| {
-                            if let AppState {
-                                app_context:
-                                    AppCtx {
-                                        editor: Some(EditState { id, .. }),
-                                        ..
-                                    },
-                                ..
-                            } = app
-                                && *id == root_id
-                            {
-                                app.end_editing();
-                                binding.update(state, |s| s.editing = false);
-                                if let Some(ref on_edit) = on_edit {
-                                    (on_edit)(state, app, EditInteraction::End);
-                                }
-                            }
-                        }
-                    })
-                    .on_click({
-                        let binding = binding.clone();
-                        let font_family = font_family.clone();
-                        move |state: &mut State, app, _, _| {
-                            let editing = binding.get(state).editing;
-                            if !editing && app.app_context.editor.is_none() {
-                                binding.update(state, |s| s.editing = true);
-                                let editor_area = app
+                                let edit_text = app
                                     .app_context
-                                    .editor_areas
-                                    .get(&root_id)
-                                    .copied()
-                                    .unwrap_or(Area {
-                                        x: 0.,
-                                        y: 0.,
-                                        width: 0.,
-                                        height: 0.,
+                                    .editor
+                                    .as_ref()
+                                    .map(|e| e.editor.text().to_string());
+
+                                if let Some(edit_text) = edit_text
+                                    && app.app_context.editor.as_ref().map(|e| e.id)
+                                        == Some(root_id)
+                                {
+                                    if let Some(ref on_edit) = on_edit {
+                                        on_edit(
+                                            state,
+                                            app,
+                                            EditInteraction::Update(edit_text.clone()),
+                                        );
+                                    }
+                                    binding.update(state, |s| {
+                                        s.text = edit_text.clone();
                                     });
-                                let ts = binding.get(state);
-                                let text = ts.text.clone();
-                                app.begin_editing(
-                                    root_id,
-                                    text,
-                                    self.text_fill.resolve(editor_area, &ts),
-                                    font_family
-                                        .clone()
-                                        .unwrap_or(DEFAULT_FONT_FAMILY.to_string()),
-                                    self.font_weight,
-                                    self.line_height,
-                                    self.font_size as f32,
-                                    parley::OverflowWrap::Anywhere,
-                                    self.alignment,
-                                    self.cursor_fill.resolve(editor_area, &ts),
-                                    self.highlight_fill.resolve(editor_area, &ts),
-                                    self.wrap,
-                                );
+                                }
                             }
-                        }
-                    })
-                    .finish(ctx),
-            ])
+                        })
+                        .on_click_outside({
+                            let binding = binding.clone();
+                            let on_edit = on_edit.clone();
+                            move |state: &mut State, app, _, _| {
+                                if let AppState {
+                                    app_context:
+                                        AppCtx {
+                                            editor: Some(EditState { id, .. }),
+                                            ..
+                                        },
+                                    ..
+                                } = app
+                                    && *id == root_id
+                                {
+                                    app.end_editing();
+                                    binding.update(state, |s| s.editing = false);
+                                    if let Some(ref on_edit) = on_edit {
+                                        (on_edit)(state, app, EditInteraction::End);
+                                    }
+                                }
+                            }
+                        })
+                        .on_click({
+                            let binding = binding.clone();
+                            let font_family = font_family.clone();
+                            move |state: &mut State, app, _, _| {
+                                let editing = binding.get(state).editing;
+                                if !editing && app.app_context.editor.is_none() {
+                                    binding.update(state, |s| s.editing = true);
+                                    let editor_area = app
+                                        .app_context
+                                        .editor_areas
+                                        .get(&root_id)
+                                        .copied()
+                                        .unwrap_or(Area {
+                                            x: 0.,
+                                            y: 0.,
+                                            width: 0.,
+                                            height: 0.,
+                                        });
+                                    let ts = binding.get(state);
+                                    let text = ts.text.clone();
+                                    app.begin_editing(
+                                        root_id,
+                                        text,
+                                        self.text_fill.resolve(editor_area, &ts),
+                                        font_family
+                                            .clone()
+                                            .unwrap_or(DEFAULT_FONT_FAMILY.to_string()),
+                                        self.font_weight,
+                                        self.line_height,
+                                        self.font_size as f32,
+                                        parley::OverflowWrap::Anywhere,
+                                        self.alignment,
+                                        self.cursor_fill.resolve(editor_area, &ts),
+                                        self.highlight_fill.resolve(editor_area, &ts),
+                                        self.wrap,
+                                    );
+                                }
+                            }
+                        })
+                        .finish(ctx),
+                ])
             }
             .inert(),
             text_content,
         ])
-        .pad(if editable {
-            self.background_style.padding
+        .pad(if editable { self.padding } else { 0. });
+        let background_fn = self.background;
+        let ts = self.state.clone();
+        let bg = if let Some(f) = background_fn {
+            draw(move |area, ctx: &mut AppCtx| {
+                f(&ts, area, ctx).draw(area, ctx)
+            })
+        } else if editable {
+            draw(move |area, ctx: &mut AppCtx| {
+                rect(crate::id!(id))
+                    .fill(Color::from_rgb8(50, 50, 50))
+                    .stroke(
+                        Color::from_rgb8(60, 60, 60),
+                        Stroke::new(DEFAULT_STROKE_WIDTH as f64),
+                    )
+                    .corner_rounding(DEFAULT_CORNER_ROUNDING)
+                    .build(ctx)
+                    .draw(area, ctx)
+            })
         } else {
-            0.
-        });
-        stack(vec![
-            if self.background_style.fill.is_some() || self.background_style.stroke.is_some() {
-                let bg_style = self.background_style;
-                let ts = self.state.clone();
-                draw(move |area, ctx: &mut AppCtx| {
-                    let mut rect_node = rect(crate::id!(id));
-                    if let Some(ref fill) = bg_style.fill {
-                        rect_node = rect_node.fill(fill.resolve(area, &ts));
-                    }
-                    if let Some((ref brush, ref stroke)) = bg_style.stroke {
-                        rect_node =
-                            rect_node.stroke(brush.resolve(area, &ts), stroke.resolve(area, &ts));
-                    }
-                    rect_node
-                        .corner_rounding(bg_style.rounding)
-                        .build(ctx)
-                        .draw(area, ctx)
-                })
-            } else {
-                space()
-            }
-            .inert(),
-            padded_content,
-        ])
+            draw(|_, _| Vec::new())
+        };
+        stack(vec![bg.inert(), padded_content])
     }
 }

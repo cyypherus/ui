@@ -24,7 +24,7 @@ mod view;
 
 pub use app::{App, AppBuilder, AppCtx, AppState, RedrawTrigger, View};
 pub use backer::{Area, Layout, nodes::*};
-pub use background_style::{BackgroundStylable, BrushSource};
+pub use background_style::BrushSource;
 pub use button::*;
 pub use bytemuck;
 pub use circle::circle;

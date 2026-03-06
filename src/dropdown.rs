@@ -1,12 +1,10 @@
 use std::rc::Rc;
 
 use crate::app::{AppCtx, View};
-use crate::background_style::BrushSource;
-use crate::{Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_PURP, app::AppState, rect};
-use crate::{Color, DEFAULT_DARK_GRAY, DEFAULT_FG, DEFAULT_PADDING, TRANSPARENT, svg};
-use backer::{Align, Layout, nodes::*};
+use crate::{Binding, ClickState, DEFAULT_CORNER_ROUNDING, app::AppState, rect};
+use crate::{Color, DEFAULT_PADDING, TRANSPARENT};
+use backer::{Align, Area, Layout, nodes::*};
 use vello_svg::vello::kurbo::Stroke;
-use vello_svg::vello::peniko::Brush;
 
 #[derive(Debug, Clone)]
 pub struct DropdownState<T> {
@@ -25,18 +23,29 @@ impl<T: Default> Default for DropdownState<T> {
     }
 }
 
+pub struct DropdownItemCtx<'a, T> {
+    pub index: usize,
+    pub value: &'a T,
+    pub selected: bool,
+    pub hovered: bool,
+    pub expanded: bool,
+}
+
 pub struct DropDown<State, T> {
     id: u64,
     state: DropdownState<T>,
     binding: Binding<State, DropdownState<T>>,
-    background_corner_rounding: f32,
-    background_fill: BrushSource<DropdownState<T>>,
-    background_stroke: (BrushSource<DropdownState<T>>, Stroke),
-    arrow_fill: Brush,
-    highlight_fill: Brush,
-    background_padding: f32,
     options: Vec<T>,
-    view_fn: Rc<dyn Fn(usize, &T, &mut AppCtx) -> Layout<'static, View<State>, AppCtx>>,
+    view_fn: Rc<dyn Fn(DropdownItemCtx<T>, &mut AppCtx) -> Layout<'static, View<State>, AppCtx>>,
+    background: Option<
+        Rc<
+            dyn Fn(
+                &DropdownState<T>,
+                Area,
+                &mut AppCtx,
+            ) -> Layout<'static, View<State>, AppCtx>,
+        >,
+    >,
     on_select: Option<Rc<dyn Fn(&mut State, &mut AppState, &T)>>,
 }
 
@@ -44,53 +53,28 @@ pub fn dropdown<State, T: Clone + PartialEq + 'static>(
     id: u64,
     state: (DropdownState<T>, Binding<State, DropdownState<T>>),
     options: Vec<T>,
-    view_fn: impl Fn(usize, &T, &mut AppCtx) -> Layout<'static, View<State>, AppCtx> + 'static,
+    view_fn: impl Fn(DropdownItemCtx<T>, &mut AppCtx) -> Layout<'static, View<State>, AppCtx> + 'static,
 ) -> DropDown<State, T> {
     DropDown {
         id,
         state: state.0,
         binding: state.1,
-        background_corner_rounding: DEFAULT_CORNER_ROUNDING,
-        background_fill: Color::from_rgb8(50, 50, 50).into(),
-        background_stroke: (Color::from_rgb8(60, 60, 60).into(), Stroke::new(1.)),
-        arrow_fill: Brush::Solid(DEFAULT_FG),
-        highlight_fill: Brush::Solid(DEFAULT_PURP),
-        background_padding: DEFAULT_PADDING,
         options,
         view_fn: Rc::new(view_fn),
+        background: None,
         on_select: None,
     }
 }
 
 impl<State, T: Clone + PartialEq + 'static> DropDown<State, T> {
-    pub fn background_corner_rounding(mut self, corner_rounding: f32) -> Self {
-        self.background_corner_rounding = corner_rounding;
-        self
-    }
-    pub fn background_fill(mut self, fill: impl Into<BrushSource<DropdownState<T>>>) -> Self {
-        self.background_fill = fill.into();
-        self
-    }
-    pub fn background_stroke(
+    pub fn background(
         mut self,
-        brush: impl Into<BrushSource<DropdownState<T>>>,
-        style: Stroke,
+        f: impl Fn(&DropdownState<T>, Area, &mut AppCtx) -> Layout<'static, View<State>, AppCtx> + 'static,
     ) -> Self {
-        self.background_stroke = (brush.into(), style);
+        self.background = Some(Rc::new(f));
         self
     }
-    pub fn arrow_fill(mut self, fill: impl Into<Brush>) -> Self {
-        self.arrow_fill = fill.into();
-        self
-    }
-    pub fn highlight_fill(mut self, fill: impl Into<Brush>) -> Self {
-        self.highlight_fill = fill.into();
-        self
-    }
-    pub fn background_padding(mut self, padding: f32) -> Self {
-        self.background_padding = padding;
-        self
-    }
+
     pub fn on_select(
         mut self,
         on_select: impl Fn(&mut State, &mut AppState, &T) + 'static,
@@ -113,39 +97,25 @@ impl<State, T: Clone + PartialEq + 'static> DropDown<State, T> {
         let id = self.id;
         let binding = self.binding.clone();
         let on_select = self.on_select.clone();
-        let fill = self.background_fill;
-        let stroke = self.background_stroke;
-        let corner_rounding = self.background_corner_rounding;
-        let arrow_fill = self.arrow_fill;
-        let highlight_fill = self.highlight_fill;
-        dbg!(&highlight_fill);
-
-        let arrow_svg = if expanded {
-            include_str!("../assets/arrow-down.svg")
-        } else {
-            include_str!("../assets/arrow-right.svg")
-        };
+        let background_fn = self.background;
+        let dd_state = self.state.clone();
 
         let row =
             |index: usize, option: &T, ctx: &mut AppCtx| -> Layout<'static, View<State>, AppCtx> {
-                let row_fill: Brush = if expanded && selected_index == index {
-                    highlight_fill.clone()
-                } else if let Some(hovered) = hovered
-                    && hovered == index
-                {
-                    DEFAULT_DARK_GRAY.into()
-                } else {
-                    TRANSPARENT.into()
+                let item_ctx = DropdownItemCtx {
+                    index,
+                    value: option,
+                    selected: selected_index == index,
+                    hovered: hovered == Some(index),
+                    expanded,
                 };
-
-                let content = (self.view_fn)(index, option, ctx);
+                let content = (self.view_fn)(item_ctx, ctx);
 
                 stack(vec![
                     {
                         let option = option.clone();
                         rect(crate::id!(index as u64, id))
-                            .fill(row_fill)
-                            .corner_rounding(corner_rounding)
+                            .fill(TRANSPARENT)
                             .view()
                             .on_click({
                                 let binding = binding.clone();
@@ -182,27 +152,10 @@ impl<State, T: Clone + PartialEq + 'static> DropDown<State, T> {
                             .expand_x()
                     }
                     .inert(),
-                    row_spaced(
-                        5.,
-                        vec![
-                            if index == 0 {
-                                svg(crate::id!(id), arrow_svg)
-                                    .fill(arrow_fill.clone())
-                                    .finish(ctx)
-                                    .width(10.)
-                                    .height(10.)
-                            } else {
-                                empty()
-                            },
-                            content,
-                        ],
-                    )
-                    .expand_x()
-                    .pad(self.background_padding),
+                    content.pad(DEFAULT_PADDING),
                 ])
             };
 
-        let dd_state = self.state.clone();
         let visible: Vec<_> = if expanded {
             self.options.iter().enumerate().collect()
         } else {
@@ -213,34 +166,44 @@ impl<State, T: Clone + PartialEq + 'static> DropDown<State, T> {
             .map(|(index, option)| row(index, option, ctx))
             .collect();
 
+        let bg = {
+            let binding = binding.clone();
+            if let Some(f) = background_fn {
+                draw(move |area, ctx: &mut AppCtx| {
+                    f(&dd_state, area, ctx).draw(area, ctx)
+                })
+            } else {
+                draw(move |area, ctx: &mut AppCtx| {
+                    rect(crate::id!(id))
+                        .fill(Color::from_rgb8(50, 50, 50))
+                        .stroke(Color::from_rgb8(60, 60, 60), Stroke::new(1.))
+                        .corner_rounding(DEFAULT_CORNER_ROUNDING)
+                        .view()
+                        .on_click_outside({
+                            let binding = binding.clone();
+                            move |state: &mut State, _app, click, _pos| {
+                                let ClickState::Completed = click else { return };
+                                binding.update(state, |s| s.expanded = false);
+                            }
+                        })
+                        .on_hover({
+                            let binding = binding.clone();
+                            move |state: &mut State, _app, hovered| {
+                                binding.update(state, move |s| {
+                                    if !hovered {
+                                        s.hovered = None
+                                    }
+                                });
+                            }
+                        })
+                        .finish(ctx)
+                        .draw(area, ctx)
+                })
+            }
+        };
+
         stack(vec![
-            draw(move |area, ctx: &mut AppCtx| {
-                rect(crate::id!(id))
-                    .fill(fill.resolve(area, &dd_state))
-                    .stroke(stroke.0.resolve(area, &dd_state), stroke.1.clone())
-                    .corner_rounding(corner_rounding)
-                    .view()
-                    .on_click_outside({
-                        let binding = binding.clone();
-                        move |state: &mut State, _app, click, _pos| {
-                            let ClickState::Completed = click else { return };
-                            binding.update(state, |s| s.expanded = false);
-                        }
-                    })
-                    .on_hover({
-                        let binding = binding.clone();
-                        move |state: &mut State, _app, hovered| {
-                            binding.update(state, move |s| {
-                                if !hovered {
-                                    s.hovered = None
-                                }
-                            });
-                        }
-                    })
-                    .finish(ctx)
-                    .draw(area, ctx)
-            })
-            .inert(),
+            bg.inert(),
             column(rows).align(Align::Top),
         ])
     }
