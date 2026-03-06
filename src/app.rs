@@ -1,6 +1,6 @@
 use crate::draw_layout::draw_layout;
 use crate::gestures::{ClickLocation, Interaction, ScrollDelta};
-use crate::shader::ShaderCache;
+
 use crate::text::TextLayout;
 use crate::view::DrawableType;
 use crate::{ClickState, DragState, Editor, GestureHandler, Point, area_contains};
@@ -14,7 +14,7 @@ use parley::{
 };
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc::Sender;
 use tokio_util::sync::CancellationToken;
@@ -160,8 +160,6 @@ pub struct App<'s, State> {
     pub(crate) on_exit: fn(&mut State, &mut AppState) -> (),
     pub(crate) started: bool,
     pub(crate) last_window_size: Option<winit::dpi::PhysicalSize<u32>>,
-    pub(crate) shader_cache: ShaderCache,
-    pub(crate) start_instant: Instant,
 }
 
 pub(crate) struct RenderState<'surface> {
@@ -464,8 +462,6 @@ impl<State: 'static> App<'_, State> {
             on_exit,
             started: false,
             last_window_size: None,
-            shader_cache: HashMap::new(),
-            start_instant: Instant::now(),
         };
 
         event_loop.run_app(&mut app).expect("run to completion");
@@ -515,7 +511,6 @@ impl<State: 'static> App<'_, State> {
                 &mut self.app_state.app_context,
             );
 
-            let mut shader_commands: Vec<wgpu::CommandBuffer> = Vec::new();
             for item in draw_items {
                 match item {
                     View::PushClip { path } => {
@@ -560,25 +555,10 @@ impl<State: 'static> App<'_, State> {
                             ),
                             DrawableType::Svg(v) => v.draw(draw_area, &mut self.app_state),
                             DrawableType::Image(v) => v.draw(draw_area, &mut self.app_state),
-                            DrawableType::Shader(v) => v.draw(
-                                draw_area,
-                                &mut self.app_state,
-                                &self.context,
-                                &mut self.renderers,
-                                &mut self.shader_cache,
-                                surface.dev_id,
-                                self.start_instant,
-                                &mut shader_commands,
-                            ),
                         }
                     }
                     View::Empty => (),
                 }
-            }
-
-            if !shader_commands.is_empty() {
-                let queue = &self.context.devices[surface.dev_id].queue;
-                queue.submit(shader_commands);
             }
         }
 

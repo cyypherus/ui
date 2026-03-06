@@ -36,11 +36,6 @@ fn main() {
                         .font_size(30)
                         .wrap()
                         .build(app.ctx()),
-                        // shader(id!(), CAUSTICS_SHADER)
-                        //     .inputs(preset(state))
-                        //     .corner_rounding(12.)
-                        //     .finish(app.ctx())
-                        //     .height(200.),
                         scope!(state, State, { style_dropdown, text } => DDTextState,
                             |sub_state| row_spaced(10., dropdown_and_text(sub_state, app))
                         ),
@@ -242,58 +237,6 @@ impl Biome {
             Biome::CerebralForests => "Cerebral Forests",
             Biome::GlassMarrow => "Glass Marrow",
         }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct ShaderInputs {
-    brightness: f32,
-    color_speed: f32,
-    wave_amp: f32,
-    color_base: f32,
-}
-
-const CAUSTICS_SHADER: &str = include_str!("../shaders/caustics.wgsl");
-
-fn preset(state: &State) -> ShaderInputs {
-    match state.style_dropdown.selected {
-        Biome::CrystalMycelium => ShaderInputs {
-            brightness: 0.8,
-            color_speed: 0.1,
-            wave_amp: 0.9,
-            color_base: 2.0,
-        },
-        Biome::QuantumAlgae => ShaderInputs {
-            brightness: 1.5,
-            color_speed: 0.8,
-            wave_amp: 0.3,
-            color_base: 1.0,
-        },
-        Biome::FloatingGardens => ShaderInputs {
-            brightness: 1.0,
-            color_speed: 0.5,
-            wave_amp: 1.2,
-            color_base: 1.2,
-        },
-        Biome::CerebralForests => ShaderInputs {
-            brightness: 0.6,
-            color_speed: 0.2,
-            wave_amp: 0.4,
-            color_base: 2.5,
-        },
-        Biome::GlassMarrow => ShaderInputs {
-            brightness: 2.0,
-            color_speed: 1.0,
-            wave_amp: 0.8,
-            color_base: 0.8,
-        },
-        _ => ShaderInputs {
-            brightness: 1.2,
-            color_speed: 0.3,
-            wave_amp: 0.6,
-            color_base: 1.5,
-        },
     }
 }
 

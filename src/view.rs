@@ -1,7 +1,7 @@
 use crate::app::{AppCtx, AppState, View};
 use crate::gestures::{ClickLocation, Interaction, InteractionType, ScrollDelta};
 use crate::image::Image;
-use crate::shader::Shader;
+
 use crate::shape::PathData;
 use crate::svg::Svg;
 use crate::text::Text;
@@ -108,7 +108,6 @@ pub enum DrawableType {
     Path(Box<PathData>),
     Svg(Svg),
     Image(Image),
-    Shader(Shader),
 }
 
 impl Clone for DrawableType {
@@ -119,7 +118,6 @@ impl Clone for DrawableType {
             DrawableType::Path(path) => DrawableType::Path(path.clone()),
             DrawableType::Svg(svg) => DrawableType::Svg(svg.clone()),
             DrawableType::Image(image) => DrawableType::Image(image.clone()),
-            DrawableType::Shader(shader) => DrawableType::Shader(shader.clone()),
         }
     }
 }
@@ -234,7 +232,6 @@ impl DrawableType {
             DrawableType::Path(view) => view.id,
             DrawableType::Svg(view) => view.id,
             DrawableType::Image(view) => view.id,
-            DrawableType::Shader(view) => view.id,
         }
     }
 }
