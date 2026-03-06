@@ -43,7 +43,7 @@ impl Path {
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn build<State: 'static>(self, ctx: &mut AppCtx) -> Layout<View<State>, AppCtx> {
+    pub fn build<State: 'static>(self, ctx: &mut AppCtx) -> Layout<'static, View<State>, AppCtx> {
         self.view().finish(ctx)
     }
 }

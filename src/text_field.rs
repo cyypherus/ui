@@ -3,7 +3,7 @@ use crate::background_style::{
     BackgroundStylable, BackgroundStyled, BrushSource, StrokeSource, Style,
 };
 use crate::shape::{PathData, rect_path};
-use crate::view::{Drawable, DrawableType};
+use crate::view::DrawableType;
 use crate::{
     Binding, DEFAULT_CORNER_ROUNDING, DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE,
     DEFAULT_PADDING, DEFAULT_PURP, DEFAULT_STROKE_WIDTH, EditInteraction, Key, Text, rect,
@@ -188,7 +188,7 @@ impl<State> TextField<State> {
 }
 
 impl<State> TextField<State> {
-    pub fn build(self, ctx: &mut AppCtx) -> Layout<View<State>, AppCtx>
+    pub fn build(self, ctx: &mut AppCtx) -> Layout<'static, View<State>, AppCtx>
     where
         State: 'static,
     {
@@ -246,15 +246,13 @@ impl<State> TextField<State> {
                         height: rect.height() as f32,
                     };
                     View::Draw {
-                        view: Box::new(Drawable::<State> {
-                            view_type: DrawableType::Path(Box::new(PathData {
-                                id,
-                                builder: rect_path((2., 2., 2., 2.)),
-                                fill: Some(highlight.resolve(resolved_area, &ts).into()),
-                                stroke: None,
-                            })),
-                            gesture_handlers: Vec::new(),
-                        }),
+                        view: Box::new(DrawableType::Path(Box::new(PathData {
+                            id,
+                            builder: rect_path((2., 2., 2., 2.)),
+                            fill: Some(highlight.resolve(resolved_area, &ts).into()),
+                            stroke: None,
+                        }))),
+                        gesture_handlers: Vec::new(),
                         area: resolved_area,
                     }
                 }));
@@ -289,15 +287,13 @@ impl<State> TextField<State> {
                         },
                     };
                     View::<State>::Draw {
-                        view: Box::new(Drawable {
-                            view_type: DrawableType::Path(Box::new(PathData {
-                                id,
-                                builder: rect_path((rounding, rounding, rounding, rounding)),
-                                fill: Some(cursor_fill.resolve(resolved_area, &ts).into()),
-                                stroke: None,
-                            })),
-                            gesture_handlers: Vec::new(),
-                        }),
+                        view: Box::new(DrawableType::Path(Box::new(PathData {
+                            id,
+                            builder: rect_path((rounding, rounding, rounding, rounding)),
+                            fill: Some(cursor_fill.resolve(resolved_area, &ts).into()),
+                            stroke: None,
+                        }))),
+                        gesture_handlers: Vec::new(),
                         area: resolved_area,
                     }
                 }));
@@ -309,10 +305,8 @@ impl<State> TextField<State> {
                 let transform =
                     Affine::translate((area.x as f64, area.y as f64)).then_scale(scale_factor);
                 View::<State>::Draw {
-                    view: Box::new(Drawable {
-                        view_type: DrawableType::Layout(Box::new((layout.clone(), transform))),
-                        gesture_handlers: Vec::new(),
-                    }),
+                    view: Box::new(DrawableType::Layout(Box::new((layout.clone(), transform)))),
+                    gesture_handlers: Vec::new(),
                     area: Area {
                         x: area.x,
                         y: area.y,
@@ -480,7 +474,7 @@ impl<State> TextField<State> {
             if self.background_style.fill.is_some() || self.background_style.stroke.is_some() {
                 let bg_style = self.background_style;
                 let ts = self.state.clone();
-                area_reader(move |area, ctx: &mut AppCtx| {
+                multi_draw(move |area, ctx: &mut AppCtx| {
                     let mut rect_node = rect(crate::id!(id));
                     if let Some(ref fill) = bg_style.fill {
                         rect_node = rect_node.fill(fill.resolve(area, &ts));
@@ -489,7 +483,10 @@ impl<State> TextField<State> {
                         rect_node =
                             rect_node.stroke(brush.resolve(area, &ts), stroke.resolve(area, &ts));
                     }
-                    rect_node.corner_rounding(bg_style.rounding).build(ctx)
+                    rect_node
+                        .corner_rounding(bg_style.rounding)
+                        .build(ctx)
+                        .draw(area, ctx)
                 })
             } else {
                 space()

@@ -9,7 +9,7 @@ use vello_svg::vello::peniko::{Color, Fill};
 pub(crate) type PathBuilder = Rc<dyn Fn(Area) -> BezPath>;
 
 #[derive(Clone)]
-pub(crate) struct PathData {
+pub struct PathData {
     pub(crate) id: u64,
     pub(crate) builder: PathBuilder,
     pub(crate) fill: Option<BrushSource<()>>,

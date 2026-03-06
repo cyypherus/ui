@@ -12,7 +12,7 @@ use std::fmt::Debug;
 use vello_svg::vello::kurbo::Affine;
 use vello_svg::vello::peniko::Brush;
 
-pub fn text(id: u64, text: impl AsRef<str> + 'static) -> Text {
+pub fn text(id: u64, text: impl AsRef<str>) -> Text {
     Text {
         id,
         string: text.as_ref().to_string(),
@@ -106,7 +106,7 @@ impl Text {
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn build<State>(self, ctx: &mut AppCtx) -> Layout<View<State>, AppCtx>
+    pub fn build<State>(self, ctx: &mut AppCtx) -> Layout<'static, View<State>, AppCtx>
     where
         State: 'static,
     {
@@ -228,8 +228,8 @@ impl Text {
     pub(crate) fn with_text_constraints<State>(
         self,
         ctx: &mut AppCtx,
-        node: Layout<View<State>, AppCtx>,
-    ) -> Layout<View<State>, AppCtx>
+        node: Layout<'static, View<State>, AppCtx>,
+    ) -> Layout<'static, View<State>, AppCtx>
     where
         State: 'static,
     {

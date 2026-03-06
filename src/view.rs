@@ -68,10 +68,28 @@ macro_rules! binding {
     };
 }
 
+#[macro_export]
+macro_rules! scope {
+    ($state_var:ident, $Root:ty, { $($field:ident),+ $(,)? } => $Sub:ident, $layout:expr) => {{
+        let sub_state = $Sub {
+            $( $field: $state_var.$field.clone(), )+
+        };
+        let binding = Binding::new(
+            |s: &$Root| $Sub {
+                $( $field: s.$field.clone(), )+
+            },
+            |s: &mut $Root, v: $Sub| {
+                $( s.$field = v.$field; )+
+            },
+        );
+        $crate::scope($layout(&sub_state), binding)
+    }};
+}
+
 pub fn clipping<State: 'static>(
     path: fn(Area) -> BezPath,
-    content: Layout<View<State>, AppCtx>,
-) -> Layout<View<State>, AppCtx> {
+    content: Layout<'static, View<State>, AppCtx>,
+) -> Layout<'static, View<State>, AppCtx> {
     stack(vec![
         draw(move |area, _| View::PushClip { path: path(area) }),
         content,
@@ -84,16 +102,7 @@ pub struct Drawable<State> {
     pub(crate) gesture_handlers: Vec<GestureHandler<State, AppState>>,
 }
 
-impl<State> Clone for Drawable<State> {
-    fn clone(&self) -> Self {
-        Self {
-            view_type: self.view_type.clone(),
-            gesture_handlers: self.gesture_handlers.clone(),
-        }
-    }
-}
-
-pub(crate) enum DrawableType {
+pub enum DrawableType {
     Text(Text),
     Layout(Box<(TextLayout<Brush>, Affine)>),
     Path(Box<PathData>),
@@ -152,10 +161,7 @@ impl<State> Drawable<State> {
         });
         self
     }
-    pub fn on_drag(
-        mut self,
-        f: impl Fn(&mut State, &mut AppState, DragState) + 'static,
-    ) -> Self {
+    pub fn on_drag(mut self, f: impl Fn(&mut State, &mut AppState, DragState) + 'static) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
                 drag: true,
@@ -170,10 +176,7 @@ impl<State> Drawable<State> {
         });
         self
     }
-    pub fn on_hover(
-        mut self,
-        f: impl Fn(&mut State, &mut AppState, bool) + 'static,
-    ) -> Self {
+    pub fn on_hover(mut self, f: impl Fn(&mut State, &mut AppState, bool) + 'static) -> Self {
         self.gesture_handlers.push(GestureHandler {
             interaction_type: InteractionType {
                 hover: true,
@@ -221,8 +224,11 @@ impl<State> Drawable<State> {
         });
         self
     }
+}
+
+impl DrawableType {
     pub(crate) fn id(&self) -> u64 {
-        match &self.view_type {
+        match self {
             DrawableType::Text(view) => view.id,
             DrawableType::Layout(_) => 0,
             DrawableType::Path(view) => view.id,
@@ -234,18 +240,23 @@ impl<State> Drawable<State> {
 }
 
 impl<State> Drawable<State> {
-    pub fn finish(self, ctx: &mut AppCtx) -> Layout<View<State>, AppCtx>
+    pub fn finish(self, ctx: &mut AppCtx) -> Layout<'static, View<State>, AppCtx>
     where
         State: 'static,
     {
-        let view_type = self.view_type.clone();
+        let text_clone = if let DrawableType::Text(t) = &self.view_type {
+            Some(t.clone())
+        } else {
+            None
+        };
 
         let node = draw(move |area, _| View::Draw {
-            view: Box::new(self.clone()),
+            view: Box::new(self.view_type),
+            gesture_handlers: self.gesture_handlers,
             area,
         });
 
-        if let DrawableType::Text(text_view) = view_type {
+        if let Some(text_view) = text_clone {
             text_view.with_text_constraints(ctx, node)
         } else {
             node
@@ -253,34 +264,38 @@ impl<State> Drawable<State> {
     }
 }
 
-pub fn scope<Root: 'static, Sub: 'static>(
-    layout: Layout<View<Sub>, AppCtx>,
+pub fn scope<'a, Root: 'static, Sub: 'static>(
+    layout: Layout<'a, View<Sub>, AppCtx>,
     binding: Binding<Root, Sub>,
-) -> Layout<View<Root>, AppCtx> {
+) -> Layout<'a, View<Root>, AppCtx> {
     let binding = Rc::new(binding);
     layout.map(move |view| match view {
-        View::Draw { view, area } => View::Draw {
-            view: Box::new(Drawable {
-                view_type: view.view_type,
-                gesture_handlers: view
-                    .gesture_handlers
-                    .into_iter()
-                    .map(|gh| {
-                        let handler = gh.interaction_handler.map(|h| {
-                            let binding = binding.clone();
-                            Rc::new(move |root: &mut Root, app: &mut AppState, interaction: Interaction| {
+        View::Draw {
+            view,
+            gesture_handlers,
+            area,
+        } => View::Draw {
+            view,
+            gesture_handlers: gesture_handlers
+                .into_iter()
+                .map(|gh| {
+                    let handler = gh.interaction_handler.map(|h| {
+                        let binding = binding.clone();
+                        Rc::new(
+                            move |root: &mut Root, app: &mut AppState, interaction: Interaction| {
                                 let mut sub = binding.get(root);
                                 h(&mut sub, app, interaction);
                                 binding.set(root, sub);
-                            }) as Rc<dyn Fn(&mut Root, &mut AppState, Interaction)>
-                        });
-                        GestureHandler {
-                            interaction_type: gh.interaction_type,
-                            interaction_handler: handler,
-                        }
-                    })
-                    .collect(),
-            }),
+                            },
+                        )
+                            as Rc<dyn Fn(&mut Root, &mut AppState, Interaction)>
+                    });
+                    GestureHandler {
+                        interaction_type: gh.interaction_type,
+                        interaction_handler: handler,
+                    }
+                })
+                .collect(),
             area,
         },
         View::PushClip { path } => View::PushClip { path },

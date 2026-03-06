@@ -4,7 +4,7 @@ use crate::{Binding, ClickState, adjust_brush, app::AppState, id, rect};
 use crate::{DEFAULT_FG, DEFAULT_GRAY, DEFAULT_LIGHT_GRAY, TRANSPARENT, circle};
 use backer::{
     Layout,
-    nodes::{area_reader, stack},
+    nodes::{multi_draw, stack},
 };
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -74,12 +74,12 @@ impl<State> Toggle<State> {
         self.knob_fill = fill.into();
         self
     }
-    pub fn build(self, _ctx: &mut AppCtx) -> Layout<View<State>, AppCtx>
+    pub fn build(self, _ctx: &mut AppCtx) -> Layout<'static, View<State>, AppCtx>
     where
         State: 'static,
     {
         let state = self.state;
-        area_reader(move |area, ctx: &mut AppCtx| {
+        multi_draw(move |area, ctx: &mut AppCtx| {
             let width = area.width;
             let height = area.height;
             stack(vec![
@@ -150,6 +150,7 @@ impl<State> Toggle<State> {
                     .height(height)
                     .width(width),
             ])
+            .draw(area, ctx)
         })
     }
 }

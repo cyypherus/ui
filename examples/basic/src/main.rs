@@ -6,8 +6,7 @@ struct State {
     toggle: ToggleState,
     slider: SliderState,
     button: ButtonState,
-    dropdown: DropdownState<Biome>,
-    style_dropdown: DropdownState<Style>,
+    style_dropdown: DropdownState<Biome>,
 }
 
 fn main() {
@@ -21,7 +20,6 @@ fn main() {
             toggle: ToggleState::default(),
             slider: SliderState::default(),
             button: ButtonState::default(),
-            dropdown: DropdownState::default(),
             style_dropdown: DropdownState::default(),
         },
         |state, app| {
@@ -38,18 +36,17 @@ fn main() {
                         .font_size(30)
                         .wrap()
                         .build(app.ctx()),
-                        shader(id!(), CAUSTICS_SHADER)
-                            .inputs(preset(state))
-                            .corner_rounding(12.)
-                            .finish(app.ctx())
-                            .height(200.),
-                        row_spaced(
-                            10.,
-                            dropdown_and_text(state, app)
+                        // shader(id!(), CAUSTICS_SHADER)
+                        //     .inputs(preset(state))
+                        //     .corner_rounding(12.)
+                        //     .finish(app.ctx())
+                        //     .height(200.),
+                        scope!(state, State, { style_dropdown, text } => DDTextState,
+                            |sub_state| row_spaced(10., dropdown_and_text(sub_state, app))
                         ),
                         stack(vec![
                             rect(id!()).fill(DEFAULT_DARK_GRAY).corner_rounding(8.).build(app.ctx()),
-                            area_reader(|area, ctx: &mut AppCtx| {
+                            multi_draw(|area, ctx: &mut AppCtx| {
                                 path(id!(), |area| chart_fill(area, CHART_DATA))
                                     .fill(
                                         Gradient::new_linear(
@@ -59,15 +56,13 @@ fn main() {
                                         .with_stops([DEFAULT_PURP.with_alpha(0.4), DEFAULT_PURP.with_alpha(0.0)])
                                     )
                                     .build(ctx)
+                                    .draw(area, ctx)
                             }),
                             path(id!(), |area| chart_line(area, CHART_DATA))
                                 .stroke(DEFAULT_PURP, Stroke::new(2.0).with_caps(Cap::Round).with_join(Join::Round))
                                 .build(app.ctx()),
                         ])
                         .height(120.),
-                            dropdown(id!(), binding!(state, State, dropdown), Biome::ALL.to_vec(), |_index, biome, ctx| {
-                                text(id!(), biome.label()).build(ctx)
-                            }).build(app.ctx()),
                         row_spaced(
                             10.,
                             vec![
@@ -94,24 +89,30 @@ fn main() {
     .start()
 }
 
+#[derive(Clone)]
+struct DDTextState {
+    style_dropdown: DropdownState<Biome>,
+    text: TextState,
+}
+
 fn dropdown_and_text(
-    state: &mut State,
+    state: &DDTextState,
     app: &mut AppState,
-) -> Vec<Layout<View<State>, AppCtx>> {
+) -> Vec<Layout<'static, View<DDTextState>, AppCtx>> {
     vec![
         dropdown(
             id!(),
-            binding!(state, State, style_dropdown),
-            Style::ALL.to_vec(),
+            binding!(state, DDTextState, style_dropdown),
+            Biome::ALL.to_vec(),
             |_index, style, ctx| text(id!(), style.label()).build(ctx),
         )
         .build(app.ctx())
         .width(140.)
         .align(Align::Top),
         {
-            let tf = text_field(id!(), binding!(state, State, text)).wrap();
+            let tf = text_field(id!(), binding!(state, DDTextState, text)).wrap();
             match state.style_dropdown.selected {
-                Style::Ocean => tf
+                Biome::LuminescentMoss | Biome::FloatingGardens => tf
                     .background_fill(|area: Area, _: &TextState| {
                         Gradient::new_linear(
                             (area.x as f64, area.y as f64),
@@ -144,7 +145,7 @@ fn dropdown_and_text(
                         4.,
                     )
                     .background_corner_rounding(12.),
-                Style::Sunset => tf
+                Biome::CrystalMycelium | Biome::CerebralForests => tf
                     .background_fill(|area: Area, _: &TextState| {
                         Gradient::new_linear(
                             (area.x as f64, area.y as f64),
@@ -160,7 +161,7 @@ fn dropdown_and_text(
                     .cursor_fill(Color::from_rgb8(255, 160, 60))
                     .highlight_fill(Color::from_rgb8(160, 80, 20))
                     .background_corner_rounding(2.),
-                Style::Neon => tf
+                Biome::QuantumAlgae | Biome::GlassMarrow => tf
                     .background_fill(|area: Area, _: &TextState| {
                         Gradient::new_linear(
                             (area.x as f64, area.y as f64),
@@ -204,34 +205,11 @@ fn dropdown_and_text(
                     })
                     .background_corner_rounding(16.)
                     .background_padding(12.),
-                _ => tf,
             }
             .build(app.ctx())
             .align(Align::Top)
         },
     ]
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
-enum Style {
-    #[default]
-    Default,
-    Ocean,
-    Sunset,
-    Neon,
-}
-
-impl Style {
-    const ALL: &[Style] = &[Style::Default, Style::Ocean, Style::Sunset, Style::Neon];
-
-    fn label(&self) -> &'static str {
-        match self {
-            Style::Default => "Default",
-            Style::Ocean => "Ocean",
-            Style::Sunset => "Sunset",
-            Style::Neon => "Neon",
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -279,7 +257,7 @@ struct ShaderInputs {
 const CAUSTICS_SHADER: &str = include_str!("../shaders/caustics.wgsl");
 
 fn preset(state: &State) -> ShaderInputs {
-    match state.dropdown.selected {
+    match state.style_dropdown.selected {
         Biome::CrystalMycelium => ShaderInputs {
             brightness: 0.8,
             color_speed: 0.1,

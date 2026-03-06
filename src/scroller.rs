@@ -6,7 +6,7 @@ use crate::{
 };
 use backer::{
     Area, Layout,
-    nodes::{area_reader, column, empty, stack},
+    nodes::{multi_draw, column, empty, stack},
 };
 use std::{cell::RefCell, rc::Rc};
 use vello_svg::vello::kurbo::{RoundedRect, Shape as _};
@@ -32,7 +32,7 @@ impl ScrollerState {
         ctx: &mut AppCtx,
         available_area: Area,
         id: u64,
-        cell: &dyn Fn(usize, u64, &mut AppCtx) -> Option<Layout<View<State>, AppCtx>>,
+        cell: &dyn Fn(usize, u64, &mut AppCtx) -> Option<Layout<'static, View<State>, AppCtx>>,
     ) {
         let mut current_height = self.visible_window.iter().fold(0., |acc, e| acc + e.height);
         let mut index = self.visible_window.last().map(|l| l.index).unwrap_or(0)
@@ -56,7 +56,7 @@ impl ScrollerState {
         available_area: Area,
         ctx: &mut AppCtx,
         id: u64,
-        cell: &dyn Fn(usize, u64, &mut AppCtx) -> Option<Layout<View<State>, AppCtx>>,
+        cell: &dyn Fn(usize, u64, &mut AppCtx) -> Option<Layout<'static, View<State>, AppCtx>>,
     ) {
         if self.area != available_area && self.visible_window.len() > 1 {
             self.visible_window.drain(1..);
@@ -136,18 +136,18 @@ fn cell_height<State>(
     index: usize,
     id: u64,
     available_area: Area,
-    cell: &dyn Fn(usize, u64, &mut AppCtx) -> Option<Layout<View<State>, AppCtx>>,
+    cell: &dyn Fn(usize, u64, &mut AppCtx) -> Option<Layout<'static, View<State>, AppCtx>>,
 ) -> Option<f32> {
     cell(index, id, ctx).and_then(|mut layout| layout.min_height(available_area, ctx))
 }
 
 pub fn scroller<State: 'static>(
     id: u64,
-    backing: Option<Layout<View<State>, AppCtx>>,
+    backing: Option<Layout<'static, View<State>, AppCtx>>,
     state: Rc<RefCell<ScrollerState>>,
-    cell: impl Fn(usize, u64, &mut AppCtx) -> Option<Layout<View<State>, AppCtx>> + 'static,
+    cell: impl Fn(usize, u64, &mut AppCtx) -> Option<Layout<'static, View<State>, AppCtx>> + 'static,
     ctx: &mut AppCtx,
-) -> Layout<View<State>, AppCtx> {
+) -> Layout<'static, View<State>, AppCtx> {
     let scroll_state = state.clone();
     stack(vec![
         backing.unwrap_or(empty()),
@@ -164,7 +164,7 @@ pub fn scroller<State: 'static>(
                 )
                 .to_path(0.1)
             },
-            area_reader({
+            multi_draw({
                 let state = state.clone();
                 move |area, ctx: &mut AppCtx| {
                     let mut s = state.borrow_mut();
@@ -177,7 +177,7 @@ pub fn scroller<State: 'static>(
                     }
                     let offset = s.offset;
                     let comp = s.compensated;
-                    column(cells).offset_y(offset + comp)
+                    column(cells).offset_y(offset + comp).draw(area, ctx)
                 }
             })
             .expand(),

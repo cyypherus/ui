@@ -2,7 +2,7 @@ use crate::draw_layout::draw_layout;
 use crate::gestures::{ClickLocation, Interaction, ScrollDelta};
 use crate::shader::ShaderCache;
 use crate::text::TextLayout;
-use crate::view::{Drawable, DrawableType};
+use crate::view::DrawableType;
 use crate::{ClickState, DragState, Editor, GestureHandler, Point, area_contains};
 use crate::{GestureState, RUBIK_FONT, area_contains_padded, event};
 use backer::{Area, Layout};
@@ -39,7 +39,7 @@ type FontEntry = (Arc<Vec<u8>>, Option<String>);
 
 pub struct AppBuilder<State> {
     state: State,
-    view: fn(&mut State, &mut AppState) -> Layout<View<State>, AppCtx>,
+    view: for<'a> fn(&'a State, &mut AppState) -> Layout<'a, View<State>, AppCtx>,
     on_frame: fn(&mut State, &mut AppState) -> (),
     on_start: fn(&mut State, &mut AppState) -> (),
     on_exit: fn(&mut State, &mut AppState) -> (),
@@ -53,7 +53,7 @@ pub struct AppBuilder<State> {
 impl<State: 'static> AppBuilder<State> {
     pub fn new(
         state: State,
-        view: fn(&mut State, &mut AppState) -> Layout<View<State>, AppCtx>,
+        view: for<'a> fn(&'a State, &mut AppState) -> Layout<'a, View<State>, AppCtx>,
     ) -> Self {
         Self {
             state,
@@ -154,7 +154,7 @@ pub struct App<'s, State> {
     pub(crate) app_state: AppState,
     pub(crate) gesture_handlers: Vec<(u64, Area, GestureHandler<State, AppState>)>,
     pub state: State,
-    pub(crate) view: fn(&mut State, &mut AppState) -> Layout<View<State>, AppCtx>,
+    pub(crate) view: for<'a> fn(&'a State, &mut AppState) -> Layout<'a, View<State>, AppCtx>,
     pub(crate) on_frame: fn(&mut State, &mut AppState) -> (),
     pub(crate) on_start: fn(&mut State, &mut AppState) -> (),
     pub(crate) on_exit: fn(&mut State, &mut AppState) -> (),
@@ -200,7 +200,8 @@ pub struct AppState {
 
 pub enum View<State> {
     Draw {
-        view: Box<Drawable<State>>,
+        view: Box<DrawableType>,
+        gesture_handlers: Vec<GestureHandler<State, AppState>>,
         area: Area,
     },
     PushClip {
@@ -347,14 +348,14 @@ impl RedrawTrigger {
 impl<State: 'static> App<'_, State> {
     pub fn start(
         state: State,
-        view: fn(&mut State, &mut AppState) -> Layout<View<State>, AppCtx>,
+        view: for<'a> fn(&'a State, &mut AppState) -> Layout<'a, View<State>, AppCtx>,
     ) {
         AppBuilder::new(state, view).start();
     }
 
     pub fn builder(
         state: State,
-        view: fn(&mut State, &mut AppState) -> Layout<View<State>, AppCtx>,
+        view: for<'a> fn(&'a State, &mut AppState) -> Layout<'a, View<State>, AppCtx>,
     ) -> AppBuilder<State> {
         AppBuilder::new(state, view)
     }
@@ -375,7 +376,7 @@ impl<State: 'static> App<'_, State> {
         event_loop: EventLoop<AppEvent>,
         render_cx: RenderContext,
         #[cfg(target_arch = "wasm32")] render_state: RenderState,
-        view: fn(&mut State, &mut AppState) -> Layout<View<State>, AppCtx>,
+        view: for<'a> fn(&'a State, &mut AppState) -> Layout<'a, View<State>, AppCtx>,
         on_frame: fn(&mut State, &mut AppState) -> (),
         on_start: fn(&mut State, &mut AppState) -> (),
         on_exit: fn(&mut State, &mut AppState) -> (),
@@ -503,7 +504,7 @@ impl<State: 'static> App<'_, State> {
             }
 
             let view = self.view;
-            let mut layout = view(&mut self.state, &mut self.app_state);
+            let mut layout = view(&self.state, &mut self.app_state);
             let draw_items = layout.draw(
                 Area {
                     x: 0.,
@@ -532,18 +533,21 @@ impl<State: 'static> App<'_, State> {
                     View::EditorArea(id, area) => {
                         self.app_state.app_context.editor_areas.insert(id, area);
                     }
-                    View::Draw { mut view, area } => {
+                    View::Draw {
+                        mut view,
+                        gesture_handlers,
+                        area,
+                    } => {
                         let id = view.id();
                         let draw_area = area;
 
                         self.gesture_handlers.extend(
-                            view.gesture_handlers
-                                .clone()
-                                .drain(..)
+                            gesture_handlers
+                                .into_iter()
                                 .map(|handler| (id, draw_area, handler)),
                         );
 
-                        match &mut view.view_type {
+                        match &mut *view {
                             DrawableType::Text(v) => v.draw(draw_area, area, &mut self.app_state),
                             DrawableType::Layout(boxed) => {
                                 let (layout, transform) = boxed.as_mut();

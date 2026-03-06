@@ -7,7 +7,7 @@ use crate::{
 };
 use backer::{
     Layout,
-    nodes::{area_reader, stack},
+    nodes::{multi_draw, stack},
 };
 use std::rc::Rc;
 
@@ -81,12 +81,12 @@ impl<State> Slider<State> {
         self
     }
 
-    pub fn build(self, _ctx: &mut AppCtx) -> Layout<View<State>, AppCtx>
+    pub fn build(self, _ctx: &mut AppCtx) -> Layout<'static, View<State>, AppCtx>
     where
         State: 'static,
     {
         let state = self.state;
-        area_reader(move |area, ctx: &mut AppCtx| {
+        multi_draw(move |area, ctx: &mut AppCtx| {
             let width = area.width;
             let height = area.height;
             let normalized_value = (state.value - self.min) / (self.max - self.min);
@@ -178,6 +178,7 @@ impl<State> Slider<State> {
                     .height(height)
                     .width(width),
             ])
+            .draw(area, ctx)
         })
     }
 }

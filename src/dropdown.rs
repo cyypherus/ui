@@ -36,7 +36,7 @@ pub struct DropDown<State, T> {
     highlight_fill: Brush,
     background_padding: f32,
     options: Vec<T>,
-    view_fn: Rc<dyn Fn(usize, &T, &mut AppCtx) -> Layout<View<State>, AppCtx>>,
+    view_fn: Rc<dyn Fn(usize, &T, &mut AppCtx) -> Layout<'static, View<State>, AppCtx>>,
     on_select: Option<Rc<dyn Fn(&mut State, &mut AppState, &T)>>,
 }
 
@@ -44,7 +44,7 @@ pub fn dropdown<State, T: Clone + PartialEq + 'static>(
     id: u64,
     state: (DropdownState<T>, Binding<State, DropdownState<T>>),
     options: Vec<T>,
-    view_fn: impl Fn(usize, &T, &mut AppCtx) -> Layout<View<State>, AppCtx> + 'static,
+    view_fn: impl Fn(usize, &T, &mut AppCtx) -> Layout<'static, View<State>, AppCtx> + 'static,
 ) -> DropDown<State, T> {
     DropDown {
         id,
@@ -99,7 +99,7 @@ impl<State, T: Clone + PartialEq + 'static> DropDown<State, T> {
         self
     }
 
-    pub fn build(self, ctx: &mut AppCtx) -> Layout<View<State>, AppCtx>
+    pub fn build(self, ctx: &mut AppCtx) -> Layout<'static, View<State>, AppCtx>
     where
         State: 'static,
     {
@@ -125,7 +125,7 @@ impl<State, T: Clone + PartialEq + 'static> DropDown<State, T> {
             include_str!("../assets/arrow-right.svg")
         };
 
-        let row = |index: usize, option: &T, ctx: &mut AppCtx| -> Layout<View<State>, AppCtx> {
+        let row = |index: usize, option: &T, ctx: &mut AppCtx| -> Layout<'static, View<State>, AppCtx> {
             let row_fill: Brush = if expanded && selected_index == index {
                 highlight_fill.clone()
             } else if let Some(hovered) = hovered
@@ -210,7 +210,7 @@ impl<State, T: Clone + PartialEq + 'static> DropDown<State, T> {
 
         column(rows)
             .align(Align::Top)
-            .attach_under(area_reader(move |area, ctx: &mut AppCtx| {
+            .attach_under(multi_draw(move |area, ctx: &mut AppCtx| {
                 rect(crate::id!(id))
                     .fill(fill.resolve(area, &dd_state))
                     .stroke(stroke.0.resolve(area, &dd_state), stroke.1.clone())
@@ -234,6 +234,7 @@ impl<State, T: Clone + PartialEq + 'static> DropDown<State, T> {
                         }
                     })
                     .finish(ctx)
+                    .draw(area, ctx)
             }))
     }
 }
