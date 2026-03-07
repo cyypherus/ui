@@ -244,11 +244,13 @@ impl<State: 'static> Drawable<State> {
             None
         };
 
-        let node = draw(move |area, _| vec![View::Draw {
-            view: Box::new(self.view_type),
-            gesture_handlers: self.gesture_handlers,
-            area,
-        }]);
+        let node = draw(move |area, _| {
+            vec![View::Draw {
+                view: Box::new(self.view_type),
+                gesture_handlers: self.gesture_handlers,
+                area,
+            }]
+        });
 
         if let Some(text_view) = text_clone {
             text_view.with_text_constraints(ctx, node)

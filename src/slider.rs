@@ -18,14 +18,8 @@ pub struct SliderState {
     pub value: f32,
 }
 
-type ViewFn<'a, State> = Rc<
-    dyn Fn(
-        SliderState,
-        Area,
-        &mut AppCtx,
-    ) -> Layout<'a, View<State>, AppCtx>
-        + 'a,
->;
+type ViewFn<'a, State> =
+    Rc<dyn Fn(SliderState, Area, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a>;
 
 pub struct Slider<'a, State> {
     id: u64,
@@ -40,7 +34,10 @@ pub struct Slider<'a, State> {
     background: Option<ViewFn<'a, State>>,
 }
 
-pub fn slider<'a, State>(id: u64, state: (SliderState, Binding<State, SliderState>)) -> Slider<'a, State> {
+pub fn slider<'a, State>(
+    id: u64,
+    state: (SliderState, Binding<State, SliderState>),
+) -> Slider<'a, State> {
     Slider {
         id,
         state: state.0,
@@ -136,9 +133,6 @@ impl<'a, State> Slider<'a, State> {
                     .fill(Brush::Solid(DEFAULT_DARK_GRAY))
                     .corner_rounding(height)
                     .build(ctx)
-                    .pad(height * 0.3)
-                    .height(height)
-                    .width(width)
             };
 
             let traveled = if let Some(ref f) = traveled_track_fn {
@@ -148,34 +142,28 @@ impl<'a, State> Slider<'a, State> {
                     .fill(Brush::Solid(DEFAULT_PURP))
                     .corner_rounding(height)
                     .build(ctx)
-                    .pad(height * 0.2)
-                    .height(height)
-                    .width(slider_width)
-                    .offset((-width * 0.5) + (slider_width * 0.5), 0.)
             };
 
             let knob = if let Some(ref f) = knob_fn {
                 f(state, area, ctx)
             } else {
-                let knob_brush = adjust_brush(
-                    &Brush::Solid(DEFAULT_FG),
-                    state.dragging,
-                    state.hovered,
-                );
-                circle(id!(id))
-                    .fill(knob_brush)
-                    .finish(ctx)
-                    .pad(height * 0.1)
-                    .height(if state.dragging { height * 1.1 } else { height })
-                    .width(height)
-                    .offset((-width * 0.5) + slider_width - (height * 0.5), 0.)
+                let knob_brush =
+                    adjust_brush(&Brush::Solid(DEFAULT_FG), state.dragging, state.hovered);
+                circle(id!(id)).fill(knob_brush).finish(ctx)
             };
 
             stack(vec![
                 bg,
-                track,
-                traveled,
-                knob,
+                track.pad(height * 0.3).height(height).width(width),
+                traveled
+                    .pad(height * 0.2)
+                    .height(height)
+                    .width(slider_width)
+                    .offset((-width * 0.5) + (slider_width * 0.5), 0.),
+                knob.pad(height * 0.1)
+                    .height(if state.dragging { height * 1.1 } else { height })
+                    .width(height)
+                    .offset((-width * 0.5) + slider_width - (height * 0.5), 0.),
                 rect(id!(id))
                     .fill(TRANSPARENT)
                     .view()

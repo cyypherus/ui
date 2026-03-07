@@ -31,9 +31,7 @@ impl PathData {
             }
             if let Some((ref brush_source, ref stroke_style)) = self.stroke {
                 let brush = brush_source.resolve(area, &());
-                let mut scaled = stroke_style.clone();
-                scaled.width *= scale_factor;
-                scene.stroke(&scaled, scale, &brush, None, &user_path);
+                scene.stroke(stroke_style, scale, &brush, None, &user_path);
             }
         }
     }

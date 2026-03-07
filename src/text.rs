@@ -18,7 +18,7 @@ pub fn text(id: u64, text: impl AsRef<str>) -> Text {
         string: text.as_ref().to_string(),
         font_size: DEFAULT_FONT_SIZE,
         font_weight: FontWeight::NORMAL,
-        font_family: None,
+        font_family: Some(DEFAULT_FONT_FAMILY.to_string()),
         fill: BrushSource::Static(Brush::Solid(DEFAULT_FG_COLOR)),
         alignment: Alignment::Center,
         line_height: 1.,
@@ -198,12 +198,7 @@ impl TextLayout {
 }
 
 impl Text {
-    pub(crate) fn draw(
-        &mut self,
-        animated_area: Area,
-        area: Area,
-        app: &mut AppState,
-    ) {
+    pub(crate) fn draw(&mut self, animated_area: Area, area: Area, app: &mut AppState) {
         let fill = self.fill.resolve(area, &());
 
         let layout = app
