@@ -50,7 +50,7 @@ fn main() {
                             .build(app.ctx()),
                         button(id!(), binding!(state, State, b2))
                             .on_click(|s, _| s.count += 1)
-                            .surface(|state, _area, ctx| {
+                            .surface(|state, ctx| {
                                 rect(id!())
                                     .fill({
                                         match (state.hovered, state.depressed) {
@@ -73,7 +73,7 @@ fn main() {
                         text(id!(), "Svg Label").fill(Color::WHITE).build(app.ctx()),
                         button(id!(), binding!(state, State, b3))
                             .on_click(|s, _| s.count += 1)
-                            .label(|state, _area, ctx| {
+                            .label(|state, ctx| {
                                 svg(id!(), include_str!("../../../assets/download.svg"))
                                     .fill(match (state.depressed, state.hovered) {
                                         (true, _) => AlphaColor::from_rgb8(190, 190, 190),

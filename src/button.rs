@@ -4,10 +4,7 @@ use crate::{
     app::{AppCtx, AppState, View},
     rect,
 };
-use backer::{
-    Area, Layout,
-    nodes::{draw, stack},
-};
+use backer::{Layout, nodes::stack};
 use std::rc::Rc;
 use vello_svg::vello::peniko::Brush;
 use vello_svg::vello::peniko::color::palette::css::TRANSPARENT;
@@ -19,7 +16,7 @@ pub struct ButtonState {
 }
 
 type ViewFn<'a, State> =
-    Rc<dyn Fn(ButtonState, Area, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a>;
+    Rc<dyn Fn(ButtonState, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a>;
 
 pub struct Button<'a, State> {
     id: u64,
@@ -49,14 +46,14 @@ pub fn button<'a, State>(
 impl<'a, State> Button<'a, State> {
     pub fn surface(
         mut self,
-        f: impl Fn(ButtonState, Area, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a,
+        f: impl Fn(ButtonState, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a,
     ) -> Self {
         self.surface = Some(Rc::new(f));
         self
     }
     pub fn label(
         mut self,
-        f: impl Fn(ButtonState, Area, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a,
+        f: impl Fn(ButtonState, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a,
     ) -> Self {
         self.label = Some(Rc::new(f));
         self
@@ -69,7 +66,7 @@ impl<'a, State> Button<'a, State> {
         self.on_click = Some(Rc::new(on_click));
         self
     }
-    pub fn build(self, _ctx: &mut AppCtx) -> Layout<'a, View<State>, AppCtx>
+    pub fn build(self, ctx: &mut AppCtx) -> Layout<'a, View<State>, AppCtx>
     where
         State: 'static,
     {
@@ -79,70 +76,59 @@ impl<'a, State> Button<'a, State> {
         let text_label = self.text_label.unwrap_or_default();
         let id = self.id;
 
-        draw(move |area, ctx: &mut AppCtx| {
-            let surface = if let Some(ref f) = surface_fn {
-                f(btn_state, area, ctx)
-            } else {
-                rect(crate::id!(id))
-                    .fill(adjust_brush(
-                        &Brush::Solid(DEFAULT_PURP),
-                        btn_state.depressed,
-                        btn_state.hovered,
-                    ))
-                    .corner_rounding(DEFAULT_CORNER_ROUNDING)
-                    .build(ctx)
-            };
+        let surface = if let Some(ref f) = surface_fn {
+            f(btn_state, ctx)
+        } else {
+            rect(crate::id!(id))
+                .fill(adjust_brush(
+                    &Brush::Solid(DEFAULT_PURP),
+                    btn_state.depressed,
+                    btn_state.hovered,
+                ))
+                .corner_rounding(DEFAULT_CORNER_ROUNDING)
+                .build(ctx)
+        };
 
-            let label = if let Some(ref f) = label_fn {
-                f(btn_state, area, ctx)
-            } else {
-                crate::text(crate::id!(id), text_label.clone())
-                    .fill(adjust_brush(
-                        &Brush::Solid(DEFAULT_FG),
-                        btn_state.depressed,
-                        btn_state.hovered,
-                    ))
-                    .font_size(DEFAULT_FONT_SIZE)
-                    .view()
-                    .finish(ctx)
-            };
+        let label = if let Some(ref f) = label_fn {
+            f(btn_state, ctx)
+        } else {
+            crate::text(crate::id!(id), text_label.clone())
+                .fill(adjust_brush(
+                    &Brush::Solid(DEFAULT_FG),
+                    btn_state.depressed,
+                    btn_state.hovered,
+                ))
+                .font_size(DEFAULT_FONT_SIZE)
+                .view()
+                .finish(ctx)
+        };
 
-            stack(vec![
-                surface,
-                label,
-                rect(crate::id!(id))
-                    .fill(TRANSPARENT)
-                    .view()
-                    .on_hover({
-                        let binding = self.binding.clone();
-                        move |state, _app: &mut AppState, h| {
-                            binding.update(state, |s| s.hovered = h)
-                        }
-                    })
-                    .on_click({
-                        let binding = self.binding.clone();
-                        let on_click = self.on_click.clone();
-                        move |state: &mut State, app: &mut AppState, click_state, _| {
-                            match click_state {
-                                ClickState::Started => {
-                                    binding.update(state, |s| s.depressed = true)
-                                }
-                                ClickState::Cancelled => {
-                                    binding.update(state, |s| s.depressed = false)
-                                }
-                                ClickState::Completed => {
-                                    if let Some(f) = &on_click {
-                                        f(state, app);
-                                    }
-                                    binding.update(state, |s| s.depressed = false)
-                                }
+        stack(vec![
+            surface,
+            label,
+            rect(crate::id!(id))
+                .fill(TRANSPARENT)
+                .view()
+                .on_hover({
+                    let binding = self.binding.clone();
+                    move |state, _app: &mut AppState, h| binding.update(state, |s| s.hovered = h)
+                })
+                .on_click({
+                    let binding = self.binding.clone();
+                    let on_click = self.on_click.clone();
+                    move |state: &mut State, app: &mut AppState, click_state, _| match click_state {
+                        ClickState::Started => binding.update(state, |s| s.depressed = true),
+                        ClickState::Cancelled => binding.update(state, |s| s.depressed = false),
+                        ClickState::Completed => {
+                            if let Some(f) = &on_click {
+                                f(state, app);
                             }
+                            binding.update(state, |s| s.depressed = false)
                         }
-                    })
-                    .finish(ctx)
-                    .inert(),
-            ])
-            .draw(area, ctx)
-        })
+                    }
+                })
+                .finish(ctx)
+                .inert(),
+        ])
     }
 }

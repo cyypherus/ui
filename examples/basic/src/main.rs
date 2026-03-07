@@ -67,7 +67,7 @@ fn main() {
                         ),
                         button(id!(), binding!(state, State, button))
                             .text_label("Engage thrusters")
-                            .surface(|_state, _area, ctx| {
+                            .surface(|_state, ctx| {
                                 rect(id!())
                                     .fill(
                                         Gradient::new_linear((0., 0.), (200., 0.))
@@ -120,7 +120,10 @@ fn dropdown_and_text(
                                     (area.x as f64, area.y as f64),
                                     (area.x as f64 + area.width as f64, area.y as f64),
                                 )
-                                .with_stops([Color::from_rgb8(10, 30, 60), Color::from_rgb8(20, 80, 120)])
+                                .with_stops([
+                                    Color::from_rgb8(10, 30, 60),
+                                    Color::from_rgb8(20, 80, 120),
+                                ]),
                             )
                             .corner_rounding(12.);
                         r = if ts.editing {
@@ -154,7 +157,10 @@ fn dropdown_and_text(
                                         area.y as f64 + area.height as f64,
                                     ),
                                 )
-                                .with_stops([Color::from_rgb8(80, 20, 10), Color::from_rgb8(140, 80, 10)])
+                                .with_stops([
+                                    Color::from_rgb8(80, 20, 10),
+                                    Color::from_rgb8(140, 80, 10),
+                                ]),
                             )
                             .corner_rounding(2.)
                             .build(ctx)
@@ -170,7 +176,10 @@ fn dropdown_and_text(
                                     (area.x as f64, area.y as f64),
                                     (area.x as f64, area.y as f64 + area.height as f64),
                                 )
-                                .with_stops([Color::from_rgb8(25, 5, 50), Color::from_rgb8(5, 15, 35)])
+                                .with_stops([
+                                    Color::from_rgb8(25, 5, 50),
+                                    Color::from_rgb8(5, 15, 35),
+                                ]),
                             )
                             .corner_rounding(16.)
                             .build(ctx)
