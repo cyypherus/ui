@@ -25,8 +25,10 @@ use vello_svg::vello::util::{RenderContext, RenderSurface};
 use vello_svg::vello::{Renderer, RendererOptions, Scene};
 use winit::event::{Modifiers, MouseScrollDelta};
 use winit::event_loop::ActiveEventLoop;
-use winit::window::{Fullscreen, Icon};
-use winit::{application::ApplicationHandler, event_loop::EventLoop, window::Window};
+use winit::window::{Fullscreen, WindowId};
+use winit::{
+    application::ApplicationHandler, event_loop::EventLoop, window::Window as WinitWindow,
+};
 use winit::{dpi::LogicalSize, event::MouseButton};
 
 #[cfg(target_os = "macos")]
@@ -37,41 +39,31 @@ use winit::platform::windows::WindowAttributesExtWindows;
 
 type FontEntry = (Arc<Vec<u8>>, Option<String>);
 
-pub struct AppBuilder<State> {
-    state: State,
-    view: for<'a> fn(&'a State, &mut AppState) -> Layout<'a, View<State>, AppCtx>,
-    on_frame: fn(&mut State, &mut AppState) -> (),
-    on_start: fn(&mut State, &mut AppState) -> (),
-    on_exit: fn(&mut State, &mut AppState) -> (),
+type ViewFn<State> = for<'a> fn(&'a State, &mut AppState) -> Layout<'a, View<State>, AppCtx>;
+
+pub struct Window<State> {
+    name: &'static str,
+    view: ViewFn<State>,
     inner_size: Option<(u32, u32)>,
     resizable: Option<bool>,
     title: Option<String>,
-    icon: Option<Icon>,
-    custom_fonts: Vec<FontEntry>,
+    transparent: Option<bool>,
+    decorations: Option<bool>,
+    open_at_start: bool,
 }
 
-impl<State: 'static> AppBuilder<State> {
-    pub fn new(
-        state: State,
-        view: for<'a> fn(&'a State, &mut AppState) -> Layout<'a, View<State>, AppCtx>,
-    ) -> Self {
+impl<State> Window<State> {
+    pub fn new(name: &'static str, view: ViewFn<State>) -> Self {
         Self {
-            state,
+            name,
             view,
-            on_frame: |_, _| {},
-            on_start: |_, _| {},
-            on_exit: |_, _| {},
             inner_size: None,
             resizable: None,
             title: None,
-            icon: None,
-            custom_fonts: Vec::new(),
+            transparent: None,
+            decorations: None,
+            open_at_start: true,
         }
-    }
-    pub fn add_font_bytes(mut self, bytes: Vec<u8>, family: Option<&str>) -> Self {
-        self.custom_fonts
-            .push((Arc::new(bytes), family.map(|s| s.to_string())));
-        self
     }
 
     pub fn inner_size(mut self, width: u32, height: u32) -> Self {
@@ -81,6 +73,72 @@ impl<State: 'static> AppBuilder<State> {
 
     pub fn resizable(mut self, resizable: bool) -> Self {
         self.resizable = Some(resizable);
+        self
+    }
+
+    pub fn title(mut self, title: &str) -> Self {
+        self.title = Some(title.to_string());
+        self
+    }
+
+    pub fn transparent(mut self, transparent: bool) -> Self {
+        self.transparent = Some(transparent);
+        self
+    }
+
+    pub fn decorations(mut self, decorations: bool) -> Self {
+        self.decorations = Some(decorations);
+        self
+    }
+
+    pub fn open_at_start(mut self, open: bool) -> Self {
+        self.open_at_start = open;
+        self
+    }
+}
+
+pub struct AppBuilder<State> {
+    state: State,
+    window_registry: HashMap<&'static str, Window<State>>,
+    initial_windows: Vec<&'static str>,
+    on_frame: fn(&mut State, &mut AppState) -> (),
+    on_start: fn(&mut State, &mut AppState) -> (),
+    on_exit: fn(&mut State, &mut AppState) -> (),
+    custom_fonts: Vec<FontEntry>,
+}
+
+impl<State: 'static> AppBuilder<State> {
+    pub fn new(state: State, window: Window<State>) -> Self {
+        let mut registry = HashMap::new();
+        let mut initial_windows = Vec::new();
+        if window.open_at_start {
+            initial_windows.push(window.name);
+        }
+        let name = window.name;
+        registry.insert(name, window);
+        Self {
+            state,
+            window_registry: registry,
+            initial_windows,
+            on_frame: |_, _| {},
+            on_start: |_, _| {},
+            on_exit: |_, _| {},
+            custom_fonts: Vec::new(),
+        }
+    }
+
+    pub fn window(mut self, window: Window<State>) -> Self {
+        if window.open_at_start {
+            self.initial_windows.push(window.name);
+        }
+        let name = window.name;
+        self.window_registry.insert(name, window);
+        self
+    }
+
+    pub fn add_font_bytes(mut self, bytes: Vec<u8>, family: Option<&str>) -> Self {
+        self.custom_fonts
+            .push((Arc::new(bytes), family.map(|s| s.to_string())));
         self
     }
 
@@ -99,23 +157,6 @@ impl<State: 'static> AppBuilder<State> {
         self
     }
 
-    pub fn title(mut self, title: &str) -> Self {
-        self.title = Some(title.to_string());
-        self
-    }
-
-    /// Does nothing on macOS
-    /// 32x32 is a reasonable size
-    pub fn icon(mut self, icon: &[u8]) -> Self {
-        let img = image::load_from_memory(icon).expect("Invalid icon bytes");
-        let rgba_img = img.to_rgba8();
-        let (width, height) = rgba_img.dimensions();
-        self.icon = Some(
-            Icon::from_rgba(rgba_img.into_raw(), width, height).expect("Failed to create icon"),
-        );
-        self
-    }
-
     pub fn start(self) {
         let event_loop: EventLoop<AppEvent> = EventLoop::with_user_event()
             .build()
@@ -128,14 +169,11 @@ impl<State: 'static> AppBuilder<State> {
                 self.state,
                 event_loop,
                 render_cx,
-                self.view,
+                self.window_registry,
+                self.initial_windows,
                 self.on_frame,
                 self.on_start,
                 self.on_exit,
-                self.inner_size,
-                self.resizable,
-                self.title,
-                self.icon,
                 self.custom_fonts,
             );
         }
@@ -145,28 +183,30 @@ impl<State: 'static> AppBuilder<State> {
 pub struct App<'s, State> {
     pub(crate) context: RenderContext,
     pub(crate) renderers: Vec<Option<Renderer>>,
-    pub(crate) render_state: Option<RenderState<'s>>,
-    pub(crate) cached_window: Option<Arc<Window>>,
-    pub(crate) window_inner_size: Option<(u32, u32)>,
-    pub(crate) window_resizable: Option<bool>,
-    pub(crate) window_title: Option<String>,
-    pub(crate) window_icon: Option<Icon>,
+    pub(crate) windows: HashMap<winit::window::WindowId, WindowState<'s, State>>,
+    pub(crate) window_registry: HashMap<&'static str, Window<State>>,
+    pub(crate) initial_windows: Vec<&'static str>,
     pub(crate) app_state: AppState,
-    pub(crate) gesture_handlers: Vec<(u64, Area, GestureHandler<State, AppState>)>,
     pub state: State,
-    pub(crate) view: for<'a> fn(&'a State, &mut AppState) -> Layout<'a, View<State>, AppCtx>,
     pub(crate) on_frame: fn(&mut State, &mut AppState) -> (),
     pub(crate) on_start: fn(&mut State, &mut AppState) -> (),
     pub(crate) on_exit: fn(&mut State, &mut AppState) -> (),
     pub(crate) started: bool,
-    pub(crate) last_window_size: Option<winit::dpi::PhysicalSize<u32>>,
 }
 
-pub(crate) struct RenderState<'surface> {
+pub(crate) struct WindowState<'surface, State> {
     // SAFETY: We MUST drop the surface before the `window`, so the fields
     // must be in this order
     pub(crate) surface: RenderSurface<'surface>,
-    pub(crate) window: Arc<Window>,
+    pub(crate) window: Arc<WinitWindow>,
+    pub(crate) scene: Scene,
+    pub(crate) name: &'static str,
+    pub(crate) view: ViewFn<State>,
+    pub(crate) gesture_handlers: Vec<(u64, Area, GestureHandler<State, AppState>)>,
+    pub(crate) cursor_position: Option<Point>,
+    pub(crate) gesture_state: GestureState,
+    pub(crate) last_window_size: Option<winit::dpi::PhysicalSize<u32>>,
+    pub(crate) fullscreen_requested: bool,
 }
 
 pub(crate) type LayoutCache = HashMap<u64, Vec<(String, f32, parley::Layout<Brush>)>>;
@@ -181,19 +221,17 @@ pub struct AppCtx {
 }
 
 pub struct AppState {
-    pub cursor_position: Option<Point>,
-    pub(crate) gesture_state: GestureState,
     pub(crate) runtime: Runtime,
     pub(crate) cancellation_token: CancellationToken,
     pub(crate) task_tracker: TaskTracker,
-    pub(crate) scene: Scene,
     pub(crate) app_context: AppCtx,
     pub(crate) layout_cache: LayoutCache,
     pub(crate) svg_scenes: HashMap<String, (Scene, f32, f32)>,
     pub(crate) image_scenes: HashMap<u64, (Scene, f32, f32)>,
     pub(crate) modifiers: Option<Modifiers>,
     pub(crate) redraw: Sender<()>,
-    pub(crate) fullscreen_requested: bool,
+    pub(crate) event_proxy: winit::event_loop::EventLoopProxy<AppEvent>,
+    pub(crate) cursor_position: Option<Point>,
 }
 
 pub enum View<State> {
@@ -241,12 +279,12 @@ impl AppState {
         }
     }
 
-    pub fn set_fullscreen(&mut self) {
-        self.fullscreen_requested = true;
+    pub fn open_window(&mut self, name: &'static str) {
+        let _ = self.event_proxy.send_event(AppEvent::OpenWindow(name));
     }
 
-    pub fn exit_fullscreen(&mut self) {
-        self.fullscreen_requested = false;
+    pub fn close_window(&mut self, id: winit::window::WindowId) {
+        let _ = self.event_proxy.send_event(AppEvent::CloseWindow(id));
     }
 
     pub(crate) fn begin_editing(
@@ -344,29 +382,135 @@ impl RedrawTrigger {
 }
 
 impl<State: 'static> App<'_, State> {
-    pub fn start(
-        state: State,
-        view: for<'a> fn(&'a State, &mut AppState) -> Layout<'a, View<State>, AppCtx>,
-    ) {
-        AppBuilder::new(state, view).start();
+    pub fn start(state: State, window: Window<State>) {
+        AppBuilder::new(state, window).start();
     }
 
-    pub fn builder(
-        state: State,
-        view: for<'a> fn(&'a State, &mut AppState) -> Layout<'a, View<State>, AppCtx>,
-    ) -> AppBuilder<State> {
-        AppBuilder::new(state, view)
+    pub fn builder(state: State, window: Window<State>) -> AppBuilder<State> {
+        AppBuilder::new(state, window)
     }
 
     fn request_redraw(&self) {
-        let Some(RenderState { window, .. }) = &self.render_state else {
-            return;
-        };
-        window.request_redraw();
+        for ws in self.windows.values() {
+            ws.window.request_redraw();
+        }
     }
 
-    fn gesture_handlers(&self) -> Vec<(u64, Area, GestureHandler<State, AppState>)> {
-        self.gesture_handlers.clone()
+    fn request_redraw_window(&self, window_id: winit::window::WindowId) {
+        if let Some(ws) = self.windows.get(&window_id) {
+            ws.window.request_redraw();
+        }
+    }
+
+    fn gesture_handlers(
+        &self,
+        window_id: winit::window::WindowId,
+    ) -> Vec<(u64, Area, GestureHandler<State, AppState>)> {
+        self.windows
+            .get(&window_id)
+            .map(|ws| ws.gesture_handlers.clone())
+            .unwrap_or_default()
+    }
+
+    fn remove_window(&mut self, id: WindowId) {
+        self.windows.remove(&id);
+        if !self.windows.is_empty() {
+            self.request_redraw();
+        }
+    }
+    fn create_window(&mut self, event_loop: &ActiveEventLoop, name: &'static str) {
+        if let Some(ws) = self.windows.values().find(|ws| ws.name == name) {
+            ws.window.focus_window();
+            return;
+        }
+        let Some(config) = self.window_registry.get(name) else {
+            eprintln!("No registered window named '{name}'");
+            return;
+        };
+
+        let inner_size = config.inner_size.unwrap_or((1044, 800));
+        let resizable = config.resizable.unwrap_or(true);
+        let transparent = config.transparent.unwrap_or(false);
+        let decorations = config.decorations.unwrap_or(true);
+
+        #[cfg(target_os = "macos")]
+        let mut attributes = WinitWindow::default_attributes()
+            .with_inner_size(LogicalSize::new(inner_size.0, inner_size.1))
+            .with_resizable(resizable)
+            .with_transparent(transparent)
+            .with_decorations(decorations)
+            .with_titlebar_hidden(false)
+            .with_titlebar_transparent(true)
+            .with_title_hidden(true)
+            .with_fullsize_content_view(true);
+
+        #[cfg(target_os = "windows")]
+        let mut attributes = WinitWindow::default_attributes()
+            .with_inner_size(LogicalSize::new(inner_size.0, inner_size.1))
+            .with_resizable(resizable)
+            .with_transparent(transparent)
+            .with_decorations(decorations)
+            .with_visible(false);
+
+        if let Some(ref title) = config.title {
+            attributes = attributes.with_title(title.clone());
+        }
+
+        let window = Arc::new(event_loop.create_window(attributes).unwrap());
+        let size = window.inner_size();
+        let surface_future = self.context.create_surface(
+            window.clone(),
+            size.width,
+            size.height,
+            vello_svg::vello::wgpu::PresentMode::AutoNoVsync,
+        );
+        let mut surface = pollster::block_on(surface_future).expect("Error creating surface");
+
+        if transparent {
+            let device = &self.context.devices[surface.dev_id].device;
+            let capabilities = surface
+                .surface
+                .get_capabilities(self.context.devices[surface.dev_id].adapter());
+            if capabilities
+                .alpha_modes
+                .contains(&wgpu::CompositeAlphaMode::PostMultiplied)
+            {
+                surface.config.alpha_mode = wgpu::CompositeAlphaMode::PostMultiplied;
+            }
+            surface.surface.configure(device, &surface.config);
+        }
+
+        let dev_id = surface.dev_id;
+        let devices_len = self.context.devices.len();
+        self.renderers.resize_with(devices_len, || None);
+        self.renderers[dev_id].get_or_insert_with(|| {
+            Renderer::new(
+                &self.context.devices[dev_id].device,
+                RendererOptions::default(),
+            )
+            .expect("Failed to create renderer")
+        });
+
+        let window_id = window.id();
+
+        #[cfg(target_os = "windows")]
+        window.set_visible(true);
+
+        self.windows.insert(
+            window_id,
+            WindowState {
+                surface,
+                window,
+                scene: Scene::new(),
+                name,
+                view: config.view,
+                gesture_handlers: Vec::new(),
+                cursor_position: None,
+                gesture_state: GestureState::None,
+                last_window_size: None,
+                fullscreen_requested: false,
+            },
+        );
     }
 
     fn run(
@@ -374,14 +518,11 @@ impl<State: 'static> App<'_, State> {
         event_loop: EventLoop<AppEvent>,
         render_cx: RenderContext,
         #[cfg(target_arch = "wasm32")] render_state: RenderState,
-        view: for<'a> fn(&'a State, &mut AppState) -> Layout<'a, View<State>, AppCtx>,
+        window_registry: HashMap<&'static str, Window<State>>,
+        initial_windows: Vec<&'static str>,
         on_frame: fn(&mut State, &mut AppState) -> (),
         on_start: fn(&mut State, &mut AppState) -> (),
         on_exit: fn(&mut State, &mut AppState) -> (),
-        inner_size: Option<(u32, u32)>,
-        resizable: Option<bool>,
-        title: Option<String>,
-        icon: Option<Icon>,
         custom_fonts: Vec<FontEntry>,
     ) {
         #[allow(unused_mut)]
@@ -403,10 +544,10 @@ impl<State: 'static> App<'_, State> {
             );
         }
 
-        let render_state = None::<RenderState>;
         let runtime = Runtime::new().expect("Failed to create runtime");
 
         let redraw_proxy = event_loop.create_proxy();
+        let event_proxy = event_loop.create_proxy();
         let (redraw_sender, mut redraw_receiver) = tokio::sync::mpsc::channel::<()>(10);
         runtime.spawn(async move {
             loop {
@@ -425,23 +566,14 @@ impl<State: 'static> App<'_, State> {
         let mut app = Self {
             context: render_cx,
             renderers,
-            render_state,
-            cached_window: None,
-            window_inner_size: inner_size,
-            window_resizable: resizable,
-            window_title: title,
-            window_icon: icon,
+            windows: HashMap::new(),
+            window_registry,
+            initial_windows,
             state,
-            view,
-            gesture_handlers: Vec::new(),
-
             app_state: AppState {
-                cursor_position: None,
-                gesture_state: GestureState::None,
                 runtime,
                 cancellation_token: CancellationToken::new(),
                 task_tracker: TaskTracker::new(),
-                scene: Scene::new(),
                 app_context: AppCtx {
                     text_layout: TextLayout::new(layout_cache, font_cx_inner, layout_cx),
                     font_cx: FontContext::new(),
@@ -455,13 +587,13 @@ impl<State: 'static> App<'_, State> {
                 svg_scenes: HashMap::new(),
                 modifiers: None,
                 redraw: redraw_sender,
-                fullscreen_requested: false,
+                event_proxy,
+                cursor_position: None,
             },
             on_frame,
             on_start,
             on_exit,
             started: false,
-            last_window_size: None,
         };
 
         event_loop.run_app(&mut app).expect("run to completion");
@@ -476,32 +608,30 @@ impl<State: 'static> App<'_, State> {
             .shutdown_timeout(Duration::from_secs(5));
     }
 
-    fn redraw(&mut self) {
+    fn redraw(&mut self, window_id: winit::window::WindowId) {
         if !self.started {
             self.started = true;
             (self.on_start)(&mut self.state, &mut self.app_state);
         }
 
-        self.gesture_handlers.clear();
-        if let Self {
-            context,
-            render_state: Some(RenderState { surface, window }),
-            ..
-        } = self
-        {
-            let size = window.inner_size();
-            self.last_window_size = Some(size);
-            self.app_state.app_context.scale_factor = window.scale_factor();
-            let size = window.inner_size();
-            let width = size.width;
-            let height = size.height;
-            if surface.config.width != width || surface.config.height != height {
-                context.resize_surface(surface, width, height);
-            }
+        let Some(ws) = self.windows.get_mut(&window_id) else {
+            return;
+        };
 
-            let view = self.view;
+        ws.gesture_handlers.clear();
+        let size = ws.window.inner_size();
+        ws.last_window_size = Some(size);
+        self.app_state.app_context.scale_factor = ws.window.scale_factor();
+        let width = size.width;
+        let height = size.height;
+        if ws.surface.config.width != width || ws.surface.config.height != height {
+            self.context.resize_surface(&mut ws.surface, width, height);
+        }
+
+        let view = ws.view;
+        let draw_items = {
             let mut layout = view(&self.state, &mut self.app_state);
-            let draw_items = layout.draw(
+            layout.draw(
                 Area {
                     x: 0.,
                     y: 0.,
@@ -509,98 +639,98 @@ impl<State: 'static> App<'_, State> {
                     height: ((height as f64) / self.app_state.app_context.scale_factor) as f32,
                 },
                 &mut self.app_state.app_context,
-            );
+            )
+        };
 
-            for item in draw_items {
-                match item {
-                    View::PushClip { path } => {
-                        self.app_state.scene.push_layer(
-                            Fill::NonZero,
-                            Mix::Normal,
-                            1.,
-                            Affine::scale(self.app_state.app_context.scale_factor),
-                            &path,
-                        );
-                    }
-                    View::PopClip => {
-                        self.app_state.scene.pop_layer();
-                    }
-                    View::EditorArea(id, area) => {
-                        self.app_state.app_context.editor_areas.insert(id, area);
-                    }
-                    View::Draw {
-                        mut view,
-                        gesture_handlers,
-                        area,
-                    } => {
-                        let id = view.id();
-                        let draw_area = area;
+        let ws = self.windows.get_mut(&window_id).unwrap();
+        for item in draw_items {
+            match item {
+                View::PushClip { path } => {
+                    ws.scene.push_layer(
+                        Fill::NonZero,
+                        Mix::Normal,
+                        1.,
+                        Affine::scale(self.app_state.app_context.scale_factor),
+                        &path,
+                    );
+                }
+                View::PopClip => {
+                    ws.scene.pop_layer();
+                }
+                View::EditorArea(id, area) => {
+                    self.app_state.app_context.editor_areas.insert(id, area);
+                }
+                View::Draw {
+                    mut view,
+                    gesture_handlers,
+                    area,
+                } => {
+                    let id = view.id();
+                    let draw_area = area;
 
-                        self.gesture_handlers.extend(
-                            gesture_handlers
-                                .into_iter()
-                                .map(|handler| (id, draw_area, handler)),
-                        );
+                    ws.gesture_handlers.extend(
+                        gesture_handlers
+                            .into_iter()
+                            .map(|handler| (id, draw_area, handler)),
+                    );
 
-                        match &mut *view {
-                            DrawableType::Text(v) => v.draw(draw_area, area, &mut self.app_state),
-                            DrawableType::Layout(boxed) => {
-                                let (layout, transform) = boxed.as_mut();
-                                draw_layout(None, *transform, layout, &mut self.app_state.scene)
-                            }
-                            DrawableType::Path(v) => v.draw(
-                                &mut self.app_state.scene,
-                                draw_area,
-                                self.app_state.app_context.scale_factor,
-                            ),
-                            DrawableType::Svg(v) => v.draw(draw_area, &mut self.app_state),
-                            DrawableType::Image(v) => v.draw(draw_area, &mut self.app_state),
+                    match &mut *view {
+                        DrawableType::Text(v) => {
+                            v.draw(draw_area, area, &mut ws.scene, &mut self.app_state)
+                        }
+                        DrawableType::Layout(boxed) => {
+                            let (layout, transform) = boxed.as_mut();
+                            draw_layout(None, *transform, layout, &mut ws.scene)
+                        }
+                        DrawableType::Path(v) => v.draw(
+                            &mut ws.scene,
+                            draw_area,
+                            self.app_state.app_context.scale_factor,
+                        ),
+                        DrawableType::Svg(v) => {
+                            v.draw(draw_area, &mut ws.scene, &mut self.app_state)
+                        }
+                        DrawableType::Image(v) => {
+                            v.draw(draw_area, &mut ws.scene, &mut self.app_state)
                         }
                     }
-                    View::Empty => (),
                 }
+                View::Empty => (),
             }
         }
 
         (self.on_frame)(&mut self.state, &mut self.app_state);
-        let Self {
-            context,
-            render_state: Some(RenderState { surface, window }),
-            app_state: AppState { scene, .. },
-            ..
-        } = self
-        else {
-            return;
-        };
 
-        let size = window.inner_size();
+        let ws = self.windows.get_mut(&window_id).unwrap();
+        let size = ws.window.inner_size();
         let width = size.width;
         let height = size.height;
 
-        let device_handle = &context.devices[surface.dev_id];
+        let device_handle = &self.context.devices[ws.surface.dev_id];
 
         let render_params = vello_svg::vello::RenderParams {
-            base_color: Color::BLACK,
+            base_color: Color::TRANSPARENT,
             width,
             height,
-            antialiasing_method: vello_svg::vello::AaConfig::Area,
+            antialiasing_method: vello_svg::vello::AaConfig::Msaa8,
         };
 
-        window.pre_present_notify();
+        ws.window.pre_present_notify();
 
-        self.renderers[surface.dev_id]
+        self.renderers[ws.surface.dev_id]
             .as_mut()
             .unwrap()
             .render_to_texture(
                 &device_handle.device,
                 &device_handle.queue,
-                scene,
-                &surface.target_view,
+                &ws.scene,
+                &ws.surface.target_view,
                 &render_params,
             )
             .expect("failed to render to texture");
 
-        let surface_texture = surface
+        let surface_texture = ws
+            .surface
             .surface
             .get_current_texture()
             .expect("failed to get surface texture");
@@ -611,10 +741,10 @@ impl<State: 'static> App<'_, State> {
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("Surface Blit"),
                 });
-        surface.blitter.copy(
+        ws.surface.blitter.copy(
             &device_handle.device,
             &mut encoder,
-            &surface.target_view,
+            &ws.surface.target_view,
             &surface_texture
                 .texture
                 .create_view(&wgpu::TextureViewDescriptor::default()),
@@ -622,101 +752,42 @@ impl<State: 'static> App<'_, State> {
         device_handle.queue.submit([encoder.finish()]);
         surface_texture.present();
 
-        scene.reset();
+        ws.scene.reset();
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-enum AppEvent {
+pub(crate) enum AppEvent {
     RequestRedraw,
+    OpenWindow(&'static str),
+    CloseWindow(WindowId),
 }
 
 impl<State: 'static> ApplicationHandler<AppEvent> for App<'_, State> {
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: AppEvent) {
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: AppEvent) {
         match event {
             AppEvent::RequestRedraw => {
                 self.request_redraw();
+            }
+            AppEvent::OpenWindow(name) => {
+                self.create_window(event_loop, name);
+            }
+            AppEvent::CloseWindow(id) => {
+                self.remove_window(id);
             }
         }
     }
 
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        let Option::None = self.render_state else {
-            return;
-        };
-        let window = self.cached_window.take().unwrap_or_else(|| {
-            let inner_size = self.window_inner_size.take().unwrap_or((1044, 800));
-            let resizable = self.window_resizable.take().unwrap_or(true);
-
-            #[cfg(target_os = "macos")]
-            let mut attributes = Window::default_attributes()
-                .with_inner_size(LogicalSize::new(inner_size.0, inner_size.1))
-                .with_resizable(resizable)
-                .with_decorations(true)
-                .with_titlebar_hidden(false)
-                .with_titlebar_transparent(true)
-                .with_title_hidden(true)
-                .with_fullsize_content_view(true)
-                .with_window_icon(self.window_icon.clone());
-
-            #[cfg(target_os = "windows")]
-            let mut attributes = Window::default_attributes()
-                .with_inner_size(LogicalSize::new(inner_size.0, inner_size.1))
-                .with_resizable(resizable)
-                .with_decorations(true)
-                .with_visible(false)
-                .with_window_icon(self.window_icon.clone())
-                .with_taskbar_icon(self.window_icon.clone());
-
-            if let Some(ref title) = self.window_title {
-                attributes = attributes.with_title(title.clone());
-            }
-
-            Arc::new(event_loop.create_window(attributes).unwrap())
-        });
-        let size = window.inner_size();
-        let surface_future = self.context.create_surface(
-            window.clone(),
-            size.width,
-            size.height,
-            vello_svg::vello::wgpu::PresentMode::Immediate,
-        );
-        let surface = pollster::block_on(surface_future).expect("Error creating surface");
-        let render_state = RenderState { window, surface };
-        let devices_len = self.context.devices.len();
-        self.renderers.resize_with(devices_len, || None);
-        let render_state = {
-            let Self {
-                context, renderers, ..
-            } = self;
-            let id = render_state.surface.dev_id;
-            renderers[id].get_or_insert_with(|| {
-                #[allow(unused_mut)]
-                let mut renderer =
-                    Renderer::new(&context.devices[id].device, RendererOptions::default())
-                        .expect("Failed to create renderer");
-                renderer
-            });
-            Some(render_state)
-        };
-        self.render_state = render_state;
-
-        #[cfg(target_os = "windows")]
-        if let Self {
-            render_state: Some(RenderState { window, .. }),
-            ..
-        } = self
-        {
-            // Windows flashes white on startup so we delay display until the renderer is configured
-            window.set_visible(true);
+        for window in self.initial_windows.clone() {
+            self.create_window(event_loop, window);
         }
-        self.request_redraw();
     }
 
     fn window_event(
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
-        _window_id: winit::window::WindowId,
+        window_id: winit::window::WindowId,
         event: winit::event::WindowEvent,
     ) {
         if let Some(event) = crate::event::WindowEvent::from_winit_window_event(event) {
@@ -727,7 +798,7 @@ impl<State: 'static> ApplicationHandler<AppEvent> for App<'_, State> {
                         return;
                     };
                     let mut needs_redraw = false;
-                    for (_id, _area, handler) in self.gesture_handlers() {
+                    for (_id, _area, handler) in self.gesture_handlers(window_id) {
                         if let Some(ref interaction_handler) = handler.interaction_handler
                             && handler.interaction_type.key
                         {
@@ -740,19 +811,43 @@ impl<State: 'static> ApplicationHandler<AppEvent> for App<'_, State> {
                         }
                     }
                     if needs_redraw {
-                        self.request_redraw();
+                        self.request_redraw_window(window_id);
                     }
                 }
                 event::WindowEvent::KeyReleased(_) => {}
-                event::WindowEvent::MouseMoved(pos) => self.mouse_moved(pos),
-                event::WindowEvent::MousePressed(MouseButton::Left) => self.mouse_pressed(),
-                event::WindowEvent::MouseReleased(MouseButton::Left) => self.mouse_released(),
+                event::WindowEvent::MouseMoved(pos) => self.mouse_moved(window_id, pos),
+                event::WindowEvent::MousePressed(MouseButton::Left) => {
+                    self.mouse_pressed(window_id)
+                }
+                event::WindowEvent::MouseReleased(MouseButton::Left) => {
+                    self.mouse_released(window_id)
+                }
                 event::WindowEvent::MousePressed(_) => {}
                 event::WindowEvent::MouseReleased(_) => {}
                 event::WindowEvent::MouseEntered => {}
-                event::WindowEvent::MouseExited => {}
+                event::WindowEvent::MouseExited => {
+                    if let Some(ws) = self.windows.get_mut(&window_id) {
+                        ws.cursor_position = None;
+                    }
+                    let mut needs_redraw = false;
+                    for (_, _, gh) in self.gesture_handlers(window_id) {
+                        if gh.interaction_type.hover
+                            && let Some(ref on_hover) = gh.interaction_handler
+                        {
+                            needs_redraw = true;
+                            on_hover(
+                                &mut self.state,
+                                &mut self.app_state,
+                                Interaction::Hover(false),
+                            );
+                        }
+                    }
+                    if needs_redraw {
+                        self.request_redraw_window(window_id);
+                    }
+                }
                 event::WindowEvent::MouseWheel(delta, _phase) => {
-                    self.scrolled(delta);
+                    self.scrolled(window_id, delta);
                 }
                 event::WindowEvent::Resized(_) => {}
                 event::WindowEvent::HoveredFile(_) => {}
@@ -761,11 +856,16 @@ impl<State: 'static> ApplicationHandler<AppEvent> for App<'_, State> {
                 event::WindowEvent::Touch(_) => {}
                 event::WindowEvent::TouchPressure(_) => {}
                 event::WindowEvent::Focused => {
-                    self.request_redraw();
+                    self.request_redraw_window(window_id);
                 }
                 event::WindowEvent::Unfocused => {}
-                event::WindowEvent::Closed => event_loop.exit(),
-                event::WindowEvent::RedrawRequested => self.redraw(),
+                event::WindowEvent::Closed => {
+                    self.windows.remove(&window_id);
+                    if self.windows.is_empty() {
+                        event_loop.exit();
+                    }
+                }
+                event::WindowEvent::RedrawRequested => self.redraw(window_id),
                 event::WindowEvent::ScaleFactorChanged(scale_factor) => {
                     self.app_state.app_context.scale_factor = scale_factor;
                     self.app_state.layout_cache.clear();
@@ -779,12 +879,15 @@ impl<State: 'static> ApplicationHandler<AppEvent> for App<'_, State> {
     }
 }
 impl<State: 'static> App<'_, State> {
-    pub(crate) fn mouse_moved(&mut self, pos: Point) {
+    pub(crate) fn mouse_moved(&mut self, window_id: winit::window::WindowId, pos: Point) {
         let pos = Point::new(
             pos.x / self.app_state.app_context.scale_factor,
             pos.y / self.app_state.app_context.scale_factor,
         );
         let mut needs_redraw = false;
+        if let Some(ws) = self.windows.get_mut(&window_id) {
+            ws.cursor_position = Some(pos);
+        }
         self.app_state.cursor_position = Some(pos);
         if let Some(EditState { id, editor, .. }) = self.app_state.app_context.editor.as_mut()
             && let Some(area) = self.app_state.app_context.editor_areas.get(id).copied()
@@ -796,30 +899,37 @@ impl<State: 'static> App<'_, State> {
                 &mut self.app_state.app_context.font_cx,
             );
         }
-        self.gesture_handlers().iter().for_each(|(_, area, gh)| {
-            if gh.interaction_type.hover
-                && let Some(ref on_hover) = gh.interaction_handler
-            {
-                needs_redraw = true;
-                (on_hover)(
-                    &mut self.state,
-                    &mut self.app_state,
-                    Interaction::Hover(area_contains(area, pos)),
-                );
-            }
-        });
+        self.gesture_handlers(window_id)
+            .iter()
+            .for_each(|(_, area, gh)| {
+                if gh.interaction_type.hover
+                    && let Some(ref on_hover) = gh.interaction_handler
+                {
+                    needs_redraw = true;
+                    (on_hover)(
+                        &mut self.state,
+                        &mut self.app_state,
+                        Interaction::Hover(area_contains(area, pos)),
+                    );
+                }
+            });
+        let gesture_state = self
+            .windows
+            .get(&window_id)
+            .map(|ws| ws.gesture_state)
+            .unwrap_or(GestureState::None);
         if let GestureState::Dragging {
             start,
             last_position,
             capturer,
-        } = self.app_state.gesture_state
+        } = gesture_state
         {
             let distance = start.distance(pos);
             let delta = Point {
                 x: pos.x - last_position.x,
                 y: pos.y - last_position.y,
             };
-            self.gesture_handlers()
+            self.gesture_handlers(window_id)
                 .iter()
                 .filter(|(id, _, gh)| *id == capturer && gh.interaction_type.drag)
                 .for_each(|(_, area, gh)| {
@@ -845,22 +955,27 @@ impl<State: 'static> App<'_, State> {
                         );
                     }
                 });
-            // Update last_position for next delta calculation
-            self.app_state.gesture_state = GestureState::Dragging {
-                start,
-                last_position: pos,
-                capturer,
-            };
+            if let Some(ws) = self.windows.get_mut(&window_id) {
+                ws.gesture_state = GestureState::Dragging {
+                    start,
+                    last_position: pos,
+                    capturer,
+                };
+            }
         }
         if needs_redraw {
-            self.request_redraw();
+            self.request_redraw_window(window_id);
         }
     }
-    pub(crate) fn mouse_pressed(&mut self) {
+    pub(crate) fn mouse_pressed(&mut self, window_id: winit::window::WindowId) {
         let mut needs_redraw = false;
-        if let Some(point) = self.app_state.cursor_position {
+        let cursor_position = self
+            .windows
+            .get(&window_id)
+            .and_then(|ws| ws.cursor_position);
+        if let Some(point) = cursor_position {
             for (_, area, handler) in
-                self.gesture_handlers()
+                self.gesture_handlers(window_id)
                     .iter()
                     .rev()
                     .filter(|(_, area, handler)| {
@@ -881,29 +996,25 @@ impl<State: 'static> App<'_, State> {
                     );
                 }
             }
-            if let Some((capturer, area, handler)) = self
-                .gesture_handlers()
+            let handlers = self.gesture_handlers(window_id);
+            if let Some((capturer, area, handler)) = handlers
                 .iter()
                 .rev()
                 .find(|(_, area, handler)| {
                     area_contains(area, point)
                         && (handler.interaction_type.click || handler.interaction_type.drag)
                 })
-                .or(self
-                    .gesture_handlers()
-                    .iter()
-                    .rev()
-                    .find(|(_, area, handler)| {
-                        area_contains(
-                            &Area {
-                                x: area.x - 10.,
-                                y: area.y - 10.,
-                                width: area.width + 20.,
-                                height: area.height + 20.,
-                            },
-                            point,
-                        ) && (handler.interaction_type.click || handler.interaction_type.drag)
-                    }))
+                .or(handlers.iter().rev().find(|(_, area, handler)| {
+                    area_contains(
+                        &Area {
+                            x: area.x - 10.,
+                            y: area.y - 10.,
+                            width: area.width + 20.,
+                            height: area.height + 20.,
+                        },
+                        point,
+                    ) && (handler.interaction_type.click || handler.interaction_type.drag)
+                }))
             {
                 needs_redraw = true;
                 if handler.interaction_type.click
@@ -929,13 +1040,14 @@ impl<State: 'static> App<'_, State> {
                         }),
                     );
                 }
-                self.app_state.gesture_state = GestureState::Dragging {
-                    start: point,
-                    last_position: point,
-                    capturer: *capturer,
+                if let Some(ws) = self.windows.get_mut(&window_id) {
+                    ws.gesture_state = GestureState::Dragging {
+                        start: point,
+                        last_position: point,
+                        capturer: *capturer,
+                    };
                 }
             }
-            // Once all click handlers are run, text fields will have set up an editor if they have been clicked, so we can send the mouse press to the editor
             if let Some(EditState { id, editor, .. }) = self.app_state.app_context.editor.as_mut()
                 && let Some(area) = self.app_state.app_context.editor_areas.get(id).cloned()
                 && area_contains_padded(&area, point, 10.)
@@ -948,20 +1060,29 @@ impl<State: 'static> App<'_, State> {
         }
 
         if needs_redraw {
-            self.request_redraw();
+            self.request_redraw_window(window_id);
         }
     }
-    pub(crate) fn mouse_released(&mut self) {
+    pub(crate) fn mouse_released(&mut self, window_id: winit::window::WindowId) {
         let mut needs_redraw = false;
-        if let Some(current) = self.app_state.cursor_position {
+        let cursor_position = self
+            .windows
+            .get(&window_id)
+            .and_then(|ws| ws.cursor_position);
+        let gesture_state = self
+            .windows
+            .get(&window_id)
+            .map(|ws| ws.gesture_state)
+            .unwrap_or(GestureState::None);
+        if let Some(current) = cursor_position {
             if let Some(EditState { id, editor, .. }) = self.app_state.app_context.editor.as_mut()
                 && let Some(area) = self.app_state.app_context.editor_areas.get(id)
             {
                 editor.mouse_released();
                 needs_redraw = true;
                 if !area_contains(area, current)
-                    && (!matches!(self.app_state.gesture_state, GestureState::Dragging { .. })
-                        || match self.app_state.gesture_state {
+                    && (!matches!(gesture_state, GestureState::Dragging { .. })
+                        || match gesture_state {
                             GestureState::Dragging { capturer, .. } => capturer != *id,
                             _ => false,
                         })
@@ -973,14 +1094,14 @@ impl<State: 'static> App<'_, State> {
                 start,
                 last_position,
                 capturer,
-            } = self.app_state.gesture_state
+            } = gesture_state
             {
                 let distance = start.distance(current);
                 let delta = Point {
                     x: current.x - last_position.x,
                     y: current.y - last_position.y,
                 };
-                self.gesture_handlers()
+                self.gesture_handlers(window_id)
                     .iter()
                     .filter(|(id, _, _)| *id == capturer)
                     .for_each(|(_, area, gh)| {
@@ -1033,12 +1154,12 @@ impl<State: 'static> App<'_, State> {
                         }
                     });
             }
-            let press_start = match self.app_state.gesture_state {
+            let press_start = match gesture_state {
                 GestureState::Dragging { start, .. } => Some(start),
                 _ => None,
             };
             for (_, area, handler) in self
-                .gesture_handlers()
+                .gesture_handlers(window_id)
                 .iter()
                 .filter(|(_, _, h)| h.interaction_type.click_outside)
             {
@@ -1058,30 +1179,34 @@ impl<State: 'static> App<'_, State> {
                 }
             }
         }
-        self.app_state.gesture_state = GestureState::None;
+        if let Some(ws) = self.windows.get_mut(&window_id) {
+            ws.gesture_state = GestureState::None;
+        }
         if needs_redraw {
-            self.request_redraw();
+            self.request_redraw_window(window_id);
         }
 
-        if self.app_state.fullscreen_requested
-            && let Some(render_state) = &self.render_state
-            && render_state.window.fullscreen() != Some(Fullscreen::Borderless(None))
-        {
-            render_state
-                .window
-                .set_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
-        } else if let Some(render_state) = &self.render_state
-            && render_state.window.fullscreen().is_some()
-        {
-            render_state.window.set_fullscreen(None);
+        if let Some(ws) = self.windows.get(&window_id) {
+            if ws.fullscreen_requested
+                && ws.window.fullscreen() != Some(Fullscreen::Borderless(None))
+            {
+                ws.window
+                    .set_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
+            } else if ws.window.fullscreen().is_some() {
+                ws.window.set_fullscreen(None);
+            }
         }
     }
 
-    pub(crate) fn scrolled(&mut self, delta: MouseScrollDelta) {
+    pub(crate) fn scrolled(&mut self, window_id: winit::window::WindowId, delta: MouseScrollDelta) {
         let mut needs_redraw = false;
-        if let Some(current) = self.app_state.cursor_position
+        let cursor_position = self
+            .windows
+            .get(&window_id)
+            .and_then(|ws| ws.cursor_position);
+        if let Some(current) = cursor_position
             && let Some((_, _, handler)) =
-                self.gesture_handlers()
+                self.gesture_handlers(window_id)
                     .iter()
                     .rev()
                     .find(|(_, area, handler)| {
@@ -1106,7 +1231,7 @@ impl<State: 'static> App<'_, State> {
             );
         }
         if needs_redraw {
-            self.request_redraw();
+            self.request_redraw_window(window_id);
         }
     }
 }

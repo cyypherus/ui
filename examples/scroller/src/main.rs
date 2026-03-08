@@ -36,7 +36,7 @@ fn main() {
             ],
             scroller: Rc::new(RefCell::new(ScrollerState::default())),
         },
-        |state, app| {
+        Window::new("main", |state, app| {
             let texts = state.texts.clone();
             let scroller_state = state.scroller.clone();
             row(vec![
@@ -86,6 +86,6 @@ fn main() {
                 space(),
             ])
             .pad_y(25.)
-        },
+        }),
     )
 }

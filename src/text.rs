@@ -3,6 +3,7 @@ use crate::background_style::BrushSource;
 use crate::draw_layout::draw_layout;
 use crate::view::{Drawable, DrawableType};
 use crate::{DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE};
+use vello_svg::vello::Scene;
 use backer::{Area, Layout};
 use parley::{
     Alignment, AlignmentOptions, FontContext, FontStack, FontWeight, Layout as ParleyLayout,
@@ -198,7 +199,7 @@ impl TextLayout {
 }
 
 impl Text {
-    pub(crate) fn draw(&mut self, animated_area: Area, area: Area, app: &mut AppState) {
+    pub(crate) fn draw(&mut self, animated_area: Area, area: Area, scene: &mut Scene, app: &mut AppState) {
         let fill = self.fill.resolve(area, &());
 
         let layout = app
@@ -209,7 +210,7 @@ impl Text {
         let transform = Affine::translate((animated_area.x as f64, animated_area.y as f64))
             .then_scale(app.app_context.scale_factor);
 
-        draw_layout(Some(fill), transform, &layout, &mut app.scene);
+        draw_layout(Some(fill), transform, &layout, scene);
     }
 }
 

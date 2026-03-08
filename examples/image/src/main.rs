@@ -113,7 +113,7 @@ impl State {
 }
 
 fn main() {
-    App::builder(State::new(), |state, app| {
+    App::builder(State::new(), Window::new("main", |state, app| {
         let download_state = state.download_state.blocking_lock().clone();
         let download_state_for_button = download_state.clone();
 
@@ -202,9 +202,6 @@ fn main() {
         )
         .pad(20.)
         .pad_top(20.)
-    })
-    .inner_size(600, 700)
-    .resizable(true)
-    .title("Image Download")
+    }))
     .start()
 }

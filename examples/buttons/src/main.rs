@@ -11,7 +11,7 @@ struct State {
 }
 
 fn main() {
-    App::start(State::default(), |state, app| {
+    App::start(State::default(), Window::new("main", |state, app| {
         row_spaced(
             20.,
             vec![
@@ -90,5 +90,5 @@ fn main() {
                 .width(200.),
             ],
         )
-    })
+    }))
 }

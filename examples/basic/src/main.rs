@@ -22,7 +22,7 @@ fn main() {
             button: ButtonState::default(),
             style_dropdown: DropdownState::default(),
         },
-        |state, app| {
+        Window::new("main", |state: &State, app: &mut AppState| {
                 column_spaced(
                     10.,
                     vec![
@@ -67,6 +67,9 @@ fn main() {
                         ),
                         button(id!(), binding!(state, State, button))
                             .text_label("Engage thrusters")
+                            .on_click(|_state, app| {
+                                app.open_window("thrusters");
+                            })
                             .surface(|_state, ctx| {
                                 rect(id!())
                                     .fill(
@@ -81,12 +84,26 @@ fn main() {
                 )
                 .pad(20.)
                 .align(Align::Top)
-        },
-    ).on_frame(|_, app|
-        app.redraw()
+        }).inner_size(800, 600),
     )
-    .inner_size(800, 600)
+    .window(Window::new("thrusters", thrusters_view).open_at_start(false).title("Thrusters").inner_size(400, 300))
     .start()
+}
+
+fn thrusters_view<'a>(_state: &'a State, app: &mut AppState) -> Layout<'a, View<State>, AppCtx> {
+    column_spaced(
+        10.,
+        vec![
+            text(id!(), "Thrusters Engaged")
+                .font_weight(FontWeight::BOLD)
+                .font_size(24)
+                .build(app.ctx()),
+            text(id!(), "All systems nominal. Quantum drive is spooling up.")
+                .wrap()
+                .build(app.ctx()),
+        ],
+    )
+    .pad(20.)
 }
 
 #[derive(Clone)]

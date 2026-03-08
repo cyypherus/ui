@@ -93,7 +93,7 @@ impl Image {
 }
 
 impl Image {
-    pub(crate) fn draw(&mut self, area: Area, app: &mut AppState) {
+    pub(crate) fn draw(&mut self, area: Area, scene: &mut Scene, app: &mut AppState) {
         let cache_key = if let Some(ref image_id) = self.image_id {
             use std::collections::hash_map::DefaultHasher;
             use std::hash::{Hash, Hasher};
@@ -127,7 +127,6 @@ impl Image {
 
         let AppState {
             image_scenes,
-            scene,
             ..
         } = app;
 
@@ -165,7 +164,7 @@ impl Image {
                 ),
             );
             scene.append(image_scene, Some(transform));
-            app.scene.pop_layer();
+            scene.pop_layer();
         }
     }
 

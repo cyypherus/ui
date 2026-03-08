@@ -45,7 +45,7 @@ impl Svg {
 }
 
 impl Svg {
-    pub(crate) fn draw(&mut self, area: Area, app: &mut AppState) {
+    pub(crate) fn draw(&mut self, area: Area, scene: &mut Scene, app: &mut AppState) {
         if !app.svg_scenes.contains_key(&self.content) {
             match vello_svg::usvg::Tree::from_data(
                 self.content.as_bytes(),
@@ -67,7 +67,7 @@ impl Svg {
             }
         }
         let AppState {
-            svg_scenes, scene, ..
+            svg_scenes, ..
         } = app;
         if let Some((svg_scene, width, height)) = svg_scenes.get(&self.content) {
             let width = *width as f64;
