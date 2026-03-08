@@ -2,14 +2,11 @@ use parley::{Layout, PositionedLayoutItem};
 use vello_svg::vello::{
     Scene,
     kurbo::{Affine, Line, Stroke},
-    peniko::{
-        Brush, Fill,
-        color::{AlphaColor, Srgb},
-    },
+    peniko::{Brush, Fill},
 };
 
 pub(crate) fn draw_layout(
-    fill: Option<AlphaColor<Srgb>>,
+    fill: Option<Brush>,
     transform: Affine,
     layout: &Layout<Brush>,
     scene: &mut Scene,
@@ -62,8 +59,7 @@ pub(crate) fn draw_layout(
                 .skew()
                 .map(|angle| Affine::skew(angle.to_radians().tan() as f64, 0.0));
 
-            let override_brush = fill.map(Brush::Solid);
-            let brush = override_brush.as_ref().unwrap_or(&style.brush);
+            let brush = fill.as_ref().unwrap_or(&style.brush);
 
             scene
                 .draw_glyphs(font)

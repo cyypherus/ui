@@ -1,13 +1,15 @@
-use crate::{Binding, DEFAULT_CORNER_ROUNDING, app::AppState, clipping, rect};
+use crate::{
+    DEFAULT_CORNER_ROUNDING, TRANSPARENT,
+    app::{AppCtx, AppState, View},
+    rect,
+    view::clipping,
+};
 use backer::{
-    Node,
-    models::Area,
-    nodes::{area_reader, column, empty, stack},
+    Area, Layout,
+    nodes::{draw, column, empty, stack},
 };
-use vello_svg::vello::{
-    kurbo::{Point, RoundedRect, Shape, Size},
-    peniko::color::palette::css::TRANSPARENT,
-};
+use std::{cell::RefCell, rc::Rc};
+use vello_svg::vello::kurbo::{RoundedRect, Shape as _};
 
 #[derive(Debug, Clone, Default)]
 pub struct ScrollerState {
@@ -16,32 +18,27 @@ pub struct ScrollerState {
     compensated: f32,
     offset: f32,
     area: Area,
-    _limit_offset: f32,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
-pub struct Element {
+struct Element {
     height: f32,
     index: usize,
 }
 
 impl ScrollerState {
-    fn fill_forwards<State, CellFn>(
+    fn fill_forwards<'a, State>(
         &mut self,
-        state: &mut State,
-        app: &mut AppState<State>,
+        ctx: &mut AppCtx,
         available_area: Area,
         id: u64,
-        cell: CellFn,
-    ) where
-        CellFn: Fn(&mut State, &mut AppState<State>, usize, u64, Area) -> Option<f32> + Copy,
-    {
+        cell: &dyn Fn(usize, u64, &mut AppCtx) -> Option<Layout<'a, View<State>, AppCtx>>,
+    ) {
         let mut current_height = self.visible_window.iter().fold(0., |acc, e| acc + e.height);
-        let mut index = self.visible_window.last().map(|l| l.index).unwrap_or(0) + {
-            if self.visible_window.is_empty() { 0 } else { 1 }
-        };
+        let mut index = self.visible_window.last().map(|l| l.index).unwrap_or(0)
+            + if self.visible_window.is_empty() { 0 } else { 1 };
         while current_height + self.compensated < available_area.height {
-            if let Some(added_height) = cell(state, app, index, id, available_area) {
+            if let Some(added_height) = cell_height::<State>(ctx, index, id, available_area, cell) {
                 current_height += added_height;
                 self.visible_window.push(Element {
                     height: added_height,
@@ -53,26 +50,23 @@ impl ScrollerState {
             }
         }
     }
-    pub fn update<State, CellFn>(
+
+    fn update<'a, State>(
         &mut self,
         available_area: Area,
-        state: &mut State,
-        app: &mut AppState<State>,
+        ctx: &mut AppCtx,
         id: u64,
-        cell: CellFn,
-    ) where
-        CellFn: Fn(&mut State, &mut AppState<State>, usize, u64, Area) -> Option<f32> + Copy,
-    {
+        cell: &dyn Fn(usize, u64, &mut AppCtx) -> Option<Layout<'a, View<State>, AppCtx>>,
+    ) {
         if self.area != available_area && self.visible_window.len() > 1 {
-            // This handles "re-layout" when the available area changes, anchored to the first element
             self.visible_window.drain(1..);
             let index = self.visible_window[0].index;
             self.visible_window[0].height =
-                cell(state, app, index, id, available_area).unwrap_or(0.);
-            self.fill_forwards(state, app, available_area, id, cell);
+                cell_height::<State>(ctx, index, id, available_area, cell).unwrap_or(0.);
+            self.fill_forwards::<State>(ctx, available_area, id, cell);
         }
         if self.visible_window.is_empty() {
-            self.fill_forwards(state, app, available_area, id, cell);
+            self.fill_forwards::<State>(ctx, available_area, id, cell);
         }
         if self.dt != 0. {
             if self.dt.is_sign_negative() {
@@ -81,7 +75,7 @@ impl ScrollerState {
                 if self
                     .visible_window
                     .last()
-                    .and_then(|l| cell(state, app, l.index + 1, id, available_area))
+                    .and_then(|l| cell_height::<State>(ctx, l.index + 1, id, available_area, cell))
                     .is_none()
                 {
                     self.compensated = self.compensated.max(
@@ -97,34 +91,28 @@ impl ScrollerState {
                         let removed = self.visible_window.remove(0);
                         self.compensated += removed.height;
                     }
-                    self.fill_forwards(state, app, available_area, id, cell)
+                    self.fill_forwards::<State>(ctx, available_area, id, cell);
                 }
             } else if self.dt.is_sign_positive() {
                 self.compensated += self.dt;
                 self.dt = 0.;
-                while let Some((cell_height, true, index)) =
-                    self.visible_window.first().and_then(|f| {
-                        if f.index > 0 {
-                            cell(state, app, f.index - 1, id, available_area).map(|cell_height| {
-                                (cell_height, self.compensated >= 0., f.index - 1)
-                            })
-                        } else {
-                            // if self.compensated > 0. {
-                            //     self.limit_offset = self.compensated.min(self.compensated * 0.2);
-                            // }
-                            self.compensated = self.compensated.min(0.);
-                            None
-                        }
-                    })
-                {
+                while let Some((ch, true, idx)) = self.visible_window.first().and_then(|f| {
+                    if f.index > 0 {
+                        cell_height::<State>(ctx, f.index - 1, id, available_area, cell)
+                            .map(|ch| (ch, self.compensated >= 0., f.index - 1))
+                    } else {
+                        self.compensated = self.compensated.min(0.);
+                        None
+                    }
+                }) {
                     self.visible_window.insert(
                         0,
                         Element {
-                            height: cell_height,
-                            index,
+                            height: ch,
+                            index: idx,
                         },
                     );
-                    self.compensated -= cell_height;
+                    self.compensated -= ch;
                 }
                 while self.visible_window.len() > 1
                     && self.visible_window.iter().fold(0., |acc, e| acc + e.height)
@@ -143,72 +131,67 @@ impl ScrollerState {
     }
 }
 
-pub fn scroller<'n, State: 'static, CellFn>(
+fn cell_height<'a, State>(
+    ctx: &mut AppCtx,
+    index: usize,
     id: u64,
-    backing: Option<Node<'n, State, AppState<State>>>,
-    scroller: Binding<State, ScrollerState>,
-    cell: CellFn,
-) -> Node<'n, State, AppState<State>>
-where
-    CellFn: for<'x> Fn(
-            &'x mut State,
-            &'x mut AppState<State>,
-            usize,
-            u64,
-        ) -> Option<Node<'n, State, AppState<State>>>
-        + Copy
-        + 'static,
-{
+    available_area: Area,
+    cell: &dyn Fn(usize, u64, &mut AppCtx) -> Option<Layout<'a, View<State>, AppCtx>>,
+) -> Option<f32> {
+    cell(index, id, ctx).and_then(|mut layout| layout.min_height(available_area, ctx))
+}
+
+pub fn scroller<'a, State: 'static>(
+    id: u64,
+    backing: Option<Layout<'a, View<State>, AppCtx>>,
+    state: Rc<RefCell<ScrollerState>>,
+    cell: impl Fn(usize, u64, &mut AppCtx) -> Option<Layout<'a, View<State>, AppCtx>> + 'a,
+    ctx: &mut AppCtx,
+) -> Layout<'a, View<State>, AppCtx> {
+    let scroll_state = state.clone();
     stack(vec![
         backing.unwrap_or(empty()),
         clipping(
             |area| {
-                RoundedRect::from_origin_size(
-                    Point::new(area.x.into(), area.y.into()),
-                    Size::new(area.width.into(), area.height.into()),
+                RoundedRect::from_rect(
+                    vello_svg::vello::kurbo::Rect::new(
+                        area.x as f64,
+                        area.y as f64,
+                        (area.x + area.width) as f64,
+                        (area.y + area.height) as f64,
+                    ),
                     DEFAULT_CORNER_ROUNDING as f64,
                 )
-                .to_path(0.001)
+                .to_path(0.1)
             },
-            area_reader::<State, AppState<State>>({
-                let scroller = scroller.clone();
-                move |area, state, app| {
-                    let mut scroller_state = scroller.get(state);
-                    scroller_state.update(area, state, app, id, |state, app, index, id, area| {
-                        cell(state, app, index, id)?.min_height(area, state, app)
-                    });
-                    let window = &scroller_state.visible_window;
+            draw({
+                let state = state.clone();
+                move |area, ctx: &mut AppCtx| {
+                    let mut s = state.borrow_mut();
+                    s.update::<State>(area, ctx, id, &cell);
                     let mut cells = Vec::new();
-                    for element in window {
-                        if let Some(cell) = cell(state, app, element.index, id) {
-                            cells.push(cell);
+                    for element in &s.visible_window {
+                        if let Some(c) = cell(element.index, id, ctx) {
+                            cells.push(c.height(element.height));
                         }
                     }
-                    let offset = scroller_state.offset;
-                    let comp = scroller_state.compensated;
-                    // let limit_offset = scroller_state.limit_offset;
-
-                    scroller.set(state, scroller_state);
-                    column(cells)
-                        //
-                        .offset_y(offset + comp)
-                        .height(1.)
+                    let offset = s.offset;
+                    let comp = s.compensated;
+                    column(cells).offset_y(offset + comp).draw(area, ctx)
                 }
             })
             .expand(),
         ),
-        rect(crate::id!())
+        rect(crate::id!(id))
             .corner_rounding(DEFAULT_CORNER_ROUNDING)
             .fill(TRANSPARENT)
             .view()
             .on_scroll({
-                let scroller = scroller.clone();
-                move |s, _, dt| {
-                    let mut sc = scroller.get(s);
-                    sc.dt += dt.y;
-                    scroller.set(s, sc);
+                move |_s: &mut State, _app: &mut AppState, dt| {
+                    let mut state = scroll_state.borrow_mut();
+                    state.dt += dt.y;
                 }
             })
-            .finish(),
+            .finish(ctx),
     ])
 }

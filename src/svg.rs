@@ -1,10 +1,10 @@
-use crate::app::AppState;
-use crate::view::{View, ViewType};
-use backer::Node;
-use backer::models::Area;
-use lilt::Easing;
+use crate::app::{AppCtx, AppState, View};
+
+use crate::view::{Drawable, DrawableType};
+
+use backer::{Area, Layout};
 use vello_svg::vello::kurbo::{self, Affine, Vec2};
-use vello_svg::vello::peniko::{Color, Compose, Fill, Mix};
+use vello_svg::vello::peniko::{Brush, Compose, Fill, Mix};
 use vello_svg::vello::{Scene, peniko};
 
 #[derive(Debug, Clone)]
@@ -12,19 +12,13 @@ pub struct Svg {
     pub(crate) id: u64,
     pub(crate) content: String,
     pub(crate) unlocked_aspect_ratio: bool,
-    pub(crate) fill: Option<Color>,
-    pub(crate) easing: Option<Easing>,
-    pub(crate) duration: Option<f32>,
-    pub(crate) delay: f32,
+    pub(crate) fill: Option<Brush>,
 }
 
 pub fn svg(id: u64, content: impl AsRef<str>) -> Svg {
     Svg {
         id,
         content: content.as_ref().to_string(),
-        easing: None,
-        duration: None,
-        delay: 0.,
         unlocked_aspect_ratio: false,
         fill: None,
     }
@@ -35,35 +29,23 @@ impl Svg {
         self.unlocked_aspect_ratio = true;
         self
     }
-    pub fn fill(mut self, color: Color) -> Self {
-        self.fill = Some(color);
+    pub fn fill(mut self, fill: impl Into<Brush>) -> Self {
+        self.fill = Some(fill.into());
         self
     }
-    pub fn view<State>(self) -> View<State> {
-        View {
-            view_type: ViewType::Svg(self),
-            z_index: 0,
+    pub fn view<State>(self) -> Drawable<State> {
+        Drawable {
+            view_type: DrawableType::Svg(self),
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<'n, State: 'static>(self) -> Node<'n, State, AppState<State>> {
-        self.view().finish()
+    pub fn finish<State: 'static>(self, ctx: &mut AppCtx) -> Layout<'static, View<State>, AppCtx> {
+        self.view().finish(ctx)
     }
 }
 
 impl Svg {
-    pub(crate) fn draw<State>(
-        &mut self,
-        area: Area,
-        _state: &mut State,
-        app: &mut AppState<State>,
-        visible: bool,
-        visible_amount: f32,
-    ) {
-        if !visible && visible_amount == 0. {
-            return;
-        }
-        #[allow(clippy::map_entry)]
+    pub(crate) fn draw(&mut self, area: Area, scene: &mut Scene, app: &mut AppState) {
         if !app.svg_scenes.contains_key(&self.content) {
             match vello_svg::usvg::Tree::from_data(
                 self.content.as_bytes(),
@@ -85,17 +67,18 @@ impl Svg {
             }
         }
         let AppState {
-            svg_scenes, scene, ..
+            svg_scenes, ..
         } = app;
         if let Some((svg_scene, width, height)) = svg_scenes.get(&self.content) {
             let width = *width as f64;
             let height = *height as f64;
-            let area_x = area.x as f64 * app.scale_factor;
-            let area_y = area.y as f64 * app.scale_factor;
-            let area_width = area.width as f64 * app.scale_factor;
-            let area_height = area.height as f64 * app.scale_factor;
+            let area_x = area.x as f64 * app.app_context.scale_factor;
+            let area_y = area.y as f64 * app.app_context.scale_factor;
+            let area_width = area.width as f64 * app.app_context.scale_factor;
+            let area_height = area.height as f64 * app.app_context.scale_factor;
             if self.fill.is_some() {
                 scene.push_layer(
+                    Fill::NonZero,
                     peniko::BlendMode {
                         mix: Mix::Normal,
                         compose: Compose::SrcOver,
@@ -123,10 +106,11 @@ impl Svg {
                         .then_translate(Vec2::new(dx, dy))
                 }),
             );
-            if let Some(fill) = self.fill {
+            if let Some(ref fill) = self.fill {
                 scene.push_layer(
+                    Fill::NonZero,
                     peniko::BlendMode {
-                        mix: Mix::Clip,
+                        mix: Mix::Normal,
                         compose: Compose::SrcIn,
                     },
                     1.0,

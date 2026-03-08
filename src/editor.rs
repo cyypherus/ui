@@ -1,5 +1,5 @@
 use core::default::Default;
-use parley::{GenericFamily, StyleProperty, editor::SplitString};
+use parley::{GenericFamily, StyleProperty, editing::SplitString};
 use std::time::{Duration, Instant};
 use vello_svg::vello::{
     kurbo::Point,
@@ -7,7 +7,7 @@ use vello_svg::vello::{
 };
 use winit::{event::Modifiers, keyboard::NamedKey};
 
-pub use parley::layout::editor::Generation;
+pub use parley::editing::Generation;
 use parley::{FontContext, LayoutContext, PlainEditor, PlainEditorDriver};
 
 use crate::Key;
@@ -91,7 +91,7 @@ impl Editor {
     pub fn cursor_blink(&mut self) {
         self.cursor_visible = self.start_time.is_some_and(|start_time| {
             let elapsed = Instant::now().duration_since(start_time);
-            (elapsed.as_millis() / self.blink_period.as_millis()) % 2 == 0
+            (elapsed.as_millis() / self.blink_period.as_millis()).is_multiple_of(2)
         });
     }
 

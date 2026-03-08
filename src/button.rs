@@ -1,13 +1,12 @@
+use crate::DEFAULT_FG;
 use crate::{
-    Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, DEFAULT_PURP, app::AppState,
+    Binding, ClickState, DEFAULT_CORNER_ROUNDING, DEFAULT_FONT_SIZE, DEFAULT_PURP, adjust_brush,
+    app::{AppCtx, AppState, View},
     rect,
 };
-use crate::{Color, DEFAULT_FG};
-use backer::{
-    Node,
-    nodes::{dynamic, stack},
-};
+use backer::{Layout, nodes::stack};
 use std::rc::Rc;
+use vello_svg::vello::peniko::Brush;
 use vello_svg::vello::peniko::color::palette::css::TRANSPARENT;
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -16,166 +15,120 @@ pub struct ButtonState {
     pub depressed: bool,
 }
 
-type BodyFn<'n, State> = fn(&mut State, ButtonState) -> Node<'n, State, AppState<State>>;
-type LabelFn<'n, State> =
-    Box<dyn Fn(&mut State, ButtonState) -> Node<'n, State, AppState<State>> + 'n>;
+type ViewFn<'a, State> =
+    Rc<dyn Fn(ButtonState, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a>;
 
-pub struct Button<'n, State> {
+pub struct Button<'a, State> {
     id: u64,
-    body: Option<BodyFn<'n, State>>,
-    label: Option<LabelFn<'n, State>>,
+    surface: Option<ViewFn<'a, State>>,
+    label: Option<ViewFn<'a, State>>,
     text_label: Option<String>,
-    corner_rounding: Option<f32>,
-    on_click: Option<Rc<dyn Fn(&mut State, &mut AppState<State>)>>,
-    state: Binding<State, ButtonState>,
-    fill: Option<Color>,
-    text_fill: Option<Color>,
+    on_click: Option<Rc<dyn Fn(&mut State, &mut AppState)>>,
+    state: ButtonState,
+    binding: Binding<State, ButtonState>,
 }
 
-pub fn button<'n, State>(id: u64, binding: Binding<State, ButtonState>) -> Button<'n, State> {
+pub fn button<'a, State>(
+    id: u64,
+    state: (ButtonState, Binding<State, ButtonState>),
+) -> Button<'a, State> {
     Button {
         id,
-        body: None,
+        surface: None,
         label: None,
         text_label: None,
-        corner_rounding: None,
         on_click: None,
-        state: binding,
-        fill: None,
-        text_fill: None,
+        state: state.0,
+        binding: state.1,
     }
 }
 
-impl<'n, State> Button<'n, State> {
+impl<'a, State> Button<'a, State> {
     pub fn surface(
         mut self,
-        body: fn(&mut State, ButtonState) -> Node<'n, State, AppState<State>>,
+        f: impl Fn(ButtonState, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a,
     ) -> Self {
-        self.body = Some(body);
+        self.surface = Some(Rc::new(f));
         self
     }
     pub fn label(
         mut self,
-        label: impl Fn(&mut State, ButtonState) -> Node<'n, State, AppState<State>> + 'n,
+        f: impl Fn(ButtonState, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a,
     ) -> Self {
-        self.label = Some(Box::new(label));
+        self.label = Some(Rc::new(f));
         self
     }
     pub fn text_label(mut self, text_label: impl AsRef<str>) -> Self {
         self.text_label = Some(text_label.as_ref().to_string());
         self
     }
-    pub fn corner_rounding(mut self, corner_rounding: f32) -> Self {
-        self.corner_rounding = Some(corner_rounding);
-        self
-    }
-    pub fn on_click(
-        mut self,
-        on_click: impl Fn(&mut State, &mut AppState<State>) + 'static,
-    ) -> Self {
+    pub fn on_click(mut self, on_click: impl Fn(&mut State, &mut AppState) + 'static) -> Self {
         self.on_click = Some(Rc::new(on_click));
         self
     }
-    pub fn fill(mut self, color: Color) -> Self {
-        self.fill = Some(color);
-        self
-    }
-    pub fn idle_text_fill(mut self, color: Color) -> Self {
-        self.text_fill = Some(color);
-        self
-    }
-    pub fn finish(self) -> Node<'n, State, AppState<State>>
+    pub fn build(self, ctx: &mut AppCtx) -> Layout<'a, View<State>, AppCtx>
     where
         State: 'static,
     {
-        dynamic(move |state: &mut State, _app: &mut AppState<State>| {
-            stack(vec![
-                if let Some(body) = self.body {
-                    let vs = self.state.get(state);
-                    body(state, vs)
-                } else {
-                    rect(crate::id!(self.id))
-                        .fill(
-                            match (
-                                self.state.get(state).depressed,
-                                self.state.get(state).hovered,
-                            ) {
-                                (true, _) => {
-                                    self.fill.unwrap_or(DEFAULT_PURP).map_lightness(|l| l - 0.1)
-                                }
-                                (false, true) => {
-                                    self.fill.unwrap_or(DEFAULT_PURP).map_lightness(|l| l + 0.1)
-                                }
-                                (false, false) => self.fill.unwrap_or(DEFAULT_PURP),
-                            },
-                        )
-                        .corner_rounding(self.corner_rounding.unwrap_or(DEFAULT_CORNER_ROUNDING))
-                        .view()
-                        // .transition_duration(0.)
-                        .finish()
-                },
-                if let Some(label) = &self.label {
-                    let vs = self.state.get(state);
-                    label(state, vs)
-                } else {
-                    crate::text(
-                        crate::id!(self.id),
-                        self.text_label.clone().unwrap_or_default(),
-                    )
-                    .fill(
-                        match (
-                            self.state.get(state).depressed,
-                            self.state.get(state).hovered,
-                        ) {
-                            (true, _) => self
-                                .text_fill
-                                .unwrap_or(DEFAULT_FG)
-                                .map_lightness(|l| l - 0.1),
-                            (false, true) => self
-                                .text_fill
-                                .unwrap_or(DEFAULT_FG)
-                                .map_lightness(|l| l + 0.1),
-                            (false, false) => self.text_fill.unwrap_or(DEFAULT_FG),
-                        },
-                    )
-                    .font_size(DEFAULT_FONT_SIZE)
-                    .view()
-                    // .transition_duration(0.)
-                    .finish()
-                },
-            ])
-            .attach_over(
-                rect(crate::id!(self.id))
-                    .fill(TRANSPARENT)
-                    .view()
-                    .on_hover({
-                        let binding = self.state.clone();
-                        move |state, _app: &mut AppState<State>, h| {
-                            binding.update(state, |s| s.hovered = h)
-                        }
-                    })
-                    .on_click({
-                        let binding = self.state.clone();
-                        let on_click = self.on_click.clone();
-                        move |state: &mut State, app: &mut AppState<State>, click_state, _| {
-                            match click_state {
-                                ClickState::Started => {
-                                    binding.update(state, |s| s.depressed = true)
-                                }
-                                ClickState::Cancelled => {
-                                    binding.update(state, |s| s.depressed = false)
-                                }
-                                ClickState::Completed => {
-                                    if let Some(f) = &on_click {
-                                        f(state, app);
-                                    }
-                                    binding.update(state, |s| s.depressed = false)
-                                }
+        let btn_state = self.state;
+        let surface_fn = self.surface;
+        let label_fn = self.label;
+        let text_label = self.text_label.unwrap_or_default();
+        let id = self.id;
+
+        let surface = if let Some(ref f) = surface_fn {
+            f(btn_state, ctx)
+        } else {
+            rect(crate::id!(id))
+                .fill(adjust_brush(
+                    &Brush::Solid(DEFAULT_PURP),
+                    btn_state.depressed,
+                    btn_state.hovered,
+                ))
+                .corner_rounding(DEFAULT_CORNER_ROUNDING)
+                .build(ctx)
+        };
+
+        let label = if let Some(ref f) = label_fn {
+            f(btn_state, ctx)
+        } else {
+            crate::text(crate::id!(id), text_label.clone())
+                .fill(adjust_brush(
+                    &Brush::Solid(DEFAULT_FG),
+                    btn_state.depressed,
+                    btn_state.hovered,
+                ))
+                .font_size(DEFAULT_FONT_SIZE)
+                .view()
+                .finish(ctx)
+        };
+
+        stack(vec![
+            surface,
+            label,
+            rect(crate::id!(id))
+                .fill(TRANSPARENT)
+                .view()
+                .on_hover({
+                    let binding = self.binding.clone();
+                    move |state, _app: &mut AppState, h| binding.update(state, |s| s.hovered = h)
+                })
+                .on_click({
+                    let binding = self.binding.clone();
+                    let on_click = self.on_click.clone();
+                    move |state: &mut State, app: &mut AppState, click_state, _| match click_state {
+                        ClickState::Started => binding.update(state, |s| s.depressed = true),
+                        ClickState::Cancelled => binding.update(state, |s| s.depressed = false),
+                        ClickState::Completed => {
+                            if let Some(f) = &on_click {
+                                f(state, app);
                             }
+                            binding.update(state, |s| s.depressed = false)
                         }
-                    })
-                    .finish(),
-            )
-        })
+                    }
+                })
+                .finish(ctx)
+                .inert(),
+        ])
     }
 }

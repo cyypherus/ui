@@ -1,9 +1,12 @@
-use crate::{Binding, ClickState, app::AppState, id, rect};
-use crate::{Color, DEFAULT_FG, DEFAULT_GRAY, DEFAULT_LIGHT_GRAY, TRANSPARENT};
+use crate::app::{AppCtx, View};
+use crate::{Binding, ClickState, adjust_brush, app::AppState, id, rect};
+use crate::{DEFAULT_FG, DEFAULT_GRAY, DEFAULT_LIGHT_GRAY, TRANSPARENT, circle};
 use backer::{
-    Node,
-    nodes::{area_reader, stack},
+    Area, Layout,
+    nodes::{draw, stack},
 };
+use std::rc::Rc;
+use vello_svg::vello::peniko::Brush;
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct ToggleState {
@@ -30,102 +33,125 @@ impl ToggleState {
     }
 }
 
-pub struct Toggle<State> {
+type ViewFn<'a, State> = Rc<
+    dyn Fn(
+        ToggleState,
+        Area,
+        &mut AppCtx,
+    ) -> Layout<'a, View<State>, AppCtx>
+        + 'a,
+>;
+
+pub struct Toggle<'a, State> {
     id: u64,
-    on_toggle: Option<fn(&mut State, &mut AppState<State>, bool)>,
-    state: Binding<State, ToggleState>,
-    on_fill: Color,
-    off_fill: Color,
-    knob_fill: Color,
+    on_toggle: Option<fn(&mut State, &mut AppState, bool)>,
+    state: ToggleState,
+    binding: Binding<State, ToggleState>,
+    knob: Option<ViewFn<'a, State>>,
+    track: Option<ViewFn<'a, State>>,
 }
 
-pub fn toggle<State>(id: u64, binding: Binding<State, ToggleState>) -> Toggle<State> {
+pub fn toggle<'a, State>(id: u64, state: (ToggleState, Binding<State, ToggleState>)) -> Toggle<'a, State> {
     Toggle {
         id,
         on_toggle: None,
-        state: binding,
-        on_fill: DEFAULT_LIGHT_GRAY,
-        off_fill: DEFAULT_GRAY,
-        knob_fill: DEFAULT_FG,
+        state: state.0,
+        binding: state.1,
+        knob: None,
+        track: None,
     }
 }
 
-impl<State> Toggle<State> {
-    pub fn on_toggle(mut self, on_toggle: fn(&mut State, &mut AppState<State>, bool)) -> Self {
+impl<'a, State> Toggle<'a, State> {
+    pub fn on_toggle(mut self, on_toggle: fn(&mut State, &mut AppState, bool)) -> Self {
         self.on_toggle = Some(on_toggle);
         self
     }
 
-    pub fn on_fill(mut self, fill: Color) -> Self {
-        self.on_fill = fill;
+    pub fn knob(
+        mut self,
+        f: impl Fn(ToggleState, Area, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a,
+    ) -> Self {
+        self.knob = Some(Rc::new(f));
         self
     }
 
-    pub fn off_fill(mut self, fill: Color) -> Self {
-        self.off_fill = fill;
+    pub fn track(
+        mut self,
+        f: impl Fn(ToggleState, Area, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a,
+    ) -> Self {
+        self.track = Some(Rc::new(f));
         self
     }
-
-    pub fn knob_fill(mut self, fill: Color) -> Self {
-        self.knob_fill = fill;
-        self
-    }
-    pub fn finish<'n>(self) -> Node<'n, State, AppState<State>>
+    pub fn build(self, _ctx: &mut AppCtx) -> Layout<'a, View<State>, AppCtx>
     where
         State: 'static,
     {
-        area_reader(move |area, state, _app: &mut AppState<State>| {
+        let state = self.state;
+        let knob_fn = self.knob;
+        let track_fn = self.track;
+        let id = self.id;
+        draw(move |area, ctx: &mut AppCtx| {
             let width = area.width;
-            let height = area.height; //.min(width * 0.3);
-            stack(vec![
-                //
-                rect(id!(self.id))
-                    .fill(if self.state.get(state).on {
-                        self.on_fill
+            let height = area.height;
+
+            let track = if let Some(ref f) = track_fn {
+                f(state, area, ctx)
+            } else {
+                rect(id!(id))
+                    .fill(if state.on {
+                        Brush::Solid(DEFAULT_LIGHT_GRAY)
                     } else {
-                        self.off_fill
+                        Brush::Solid(DEFAULT_GRAY)
                     })
                     .corner_rounding(height * 0.5)
-                    .finish()
+                    .build(ctx)
                     .height(height)
-                    .width(width),
-                rect(id!(self.id))
-                    .fill(
-                        match (
-                            self.state.get(state).depressed,
-                            self.state.get(state).hovered,
-                        ) {
-                            (true, _) => self.knob_fill.map_lightness(|l| l - 0.1),
-                            (false, true) => self.knob_fill.map_lightness(|l| l + 0.1),
-                            (false, false) => self.knob_fill,
-                        },
-                    )
-                    .corner_rounding(height)
-                    // .box_shadow(Color::from_rgba8(0, 0, 0, 100), 5.)
-                    .finish()
-                    .pad(height * 0.2)
+                    .width(width)
+            };
+
+            let knob = if let Some(ref f) = knob_fn {
+                f(state, area, ctx)
+            } else {
+                let knob_brush = adjust_brush(
+                    &Brush::Solid(DEFAULT_FG),
+                    state.depressed,
+                    state.hovered,
+                );
+                circle(id!(id))
+                    .fill(knob_brush)
+                    .finish(ctx)
+                    .pad(height * 0.1)
                     .height(height)
                     .width(height)
-                    .offset_x({
-                        let button_padding = height - (height * 0.5);
-                        if self.state.get(state).on {
-                            (width * 0.5) - button_padding
-                        } else {
-                            (-width * 0.5) + button_padding
-                        }
-                    }),
-                rect(crate::id!(self.id))
+                    .offset(
+                        {
+                            let button_padding = height - (height * 0.5);
+                            if state.on {
+                                (width * 0.5) - button_padding
+                            } else {
+                                (-width * 0.5) + button_padding
+                            }
+                        },
+                        0.,
+                    )
+            };
+
+            stack(vec![
+                track,
+                knob,
+                rect(crate::id!(id))
                     .fill(TRANSPARENT)
                     .view()
                     .on_hover({
-                        let binding = self.state.clone();
-                        move |state: &mut State, _app: &mut AppState<State>, h| {
+                        let binding = self.binding.clone();
+                        move |state: &mut State, _app: &mut AppState, h| {
                             binding.update(state, |s| s.hovered = h)
                         }
                     })
                     .on_click({
-                        let binding = self.state.clone();
-                        move |state: &mut State, app: &mut AppState<State>, click_state, _| {
+                        let binding = self.binding.clone();
+                        move |state: &mut State, app: &mut AppState, click_state, _| {
                             match click_state {
                                 ClickState::Started => {
                                     binding.update(state, |s| s.depressed = true)
@@ -145,10 +171,11 @@ impl<State> Toggle<State> {
                             }
                         }
                     })
-                    .finish()
+                    .finish(ctx)
                     .height(height)
                     .width(width),
             ])
+            .draw(area, ctx)
         })
     }
 }

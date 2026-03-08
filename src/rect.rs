@@ -1,60 +1,41 @@
-use crate::Color;
-use crate::app::AppState;
-use crate::shape::{AnimatedShape, Shape, ShapeType};
-use crate::view::{AnimatedView, View, ViewType};
-use backer::Node;
-use backer::models::Area;
-use std::time::Instant;
+use crate::DEFAULT_CORNER_ROUNDING;
+use crate::app::{AppCtx, View};
+use crate::background_style::BrushSource;
+use crate::shape::{PathData, rect_path};
+use crate::view::{Drawable, DrawableType};
+use backer::Layout;
+use vello_svg::vello::kurbo::Stroke;
+use vello_svg::vello::peniko::Brush;
+use vello_svg::vello::peniko::color::palette::css::BLACK;
 
-#[derive(Debug, Clone, Copy)]
 pub struct Rect {
-    pub(crate) id: u64,
-    pub(crate) shape: Shape,
-    // pub(crate) box_shadow: Option<(Color, f32)>,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct AnimatedRect {
-    pub(crate) shape: AnimatedShape,
-}
-
-impl AnimatedRect {
-    pub(crate) fn update(now: Instant, from: &Rect, existing: &mut AnimatedRect) {
-        AnimatedShape::update(now, &from.shape, &mut existing.shape);
-    }
-    pub(crate) fn new_from(from: &Rect) -> Self {
-        AnimatedRect {
-            shape: AnimatedShape::new_from(&from.shape),
-        }
-    }
+    id: u64,
+    fill: Option<BrushSource<()>>,
+    stroke: Option<(BrushSource<()>, Stroke)>,
+    corner_rounding: (f32, f32, f32, f32),
 }
 
 pub fn rect(id: u64) -> Rect {
     Rect {
         id,
-        shape: Shape {
-            shape: ShapeType::Rect {
-                corner_rounding: (0., 0., 0., 0.),
-            },
-            fill: None,
-            stroke: None,
-            easing: None,
-            duration: None,
-            delay: 0.,
-        },
-        // box_shadow: None,
+        fill: Some(BrushSource::Static(Brush::Solid(BLACK))),
+        stroke: None,
+        corner_rounding: (
+            DEFAULT_CORNER_ROUNDING,
+            DEFAULT_CORNER_ROUNDING,
+            DEFAULT_CORNER_ROUNDING,
+            DEFAULT_CORNER_ROUNDING,
+        ),
     }
 }
 
 impl Rect {
-    pub fn fill(mut self, color: Color) -> Self {
-        self.shape.fill = Some(color);
+    pub fn fill(mut self, brush: impl Into<BrushSource<()>>) -> Self {
+        self.fill = Some(brush.into());
         self
     }
     pub fn corner_rounding(mut self, radius: f32) -> Self {
-        self.shape.shape = ShapeType::Rect {
-            corner_rounding: (radius, radius, radius, radius),
-        };
+        self.corner_rounding = (radius, radius, radius, radius);
         self
     }
     pub fn corner_rounding_individual(
@@ -64,76 +45,28 @@ impl Rect {
         bottom_right: f32,
         bottom_left: f32,
     ) -> Self {
-        self.shape.shape = ShapeType::Rect {
-            corner_rounding: (top_left, top_right, bottom_right, bottom_left),
-        };
+        self.corner_rounding = (top_left, top_right, bottom_right, bottom_left);
         self
     }
-    pub fn stroke(mut self, color: Color, line_width: f32) -> Self {
-        self.shape.stroke = Some((color, line_width));
+    pub fn stroke(mut self, brush: impl Into<BrushSource<()>>, style: impl Into<Stroke>) -> Self {
+        self.stroke = Some((brush.into(), style.into()));
         self
     }
-    // pub fn box_shadow(mut self, color: Color, radius: f32) -> Self {
-    //     self.box_shadow = Some((color, radius));
-    //     self
-    // }
-    pub fn view<State>(self) -> View<State> {
-        View {
-            view_type: ViewType::Rect(self),
-            z_index: 0,
+    pub(crate) fn into_path_data(self) -> PathData {
+        PathData {
+            id: self.id,
+            builder: rect_path(self.corner_rounding),
+            fill: self.fill,
+            stroke: self.stroke,
+        }
+    }
+    pub fn view<State>(self) -> Drawable<State> {
+        Drawable {
+            view_type: DrawableType::Path(Box::new(self.into_path_data())),
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<'n, State: 'static>(self) -> Node<'n, State, AppState<State>> {
-        self.view().finish()
-    }
-}
-
-impl Rect {
-    pub(crate) fn draw<State>(
-        &mut self,
-        area: Area,
-        _state: &mut State,
-        app: &mut AppState<State>,
-        visible: bool,
-        visible_amount: f32,
-    ) {
-        if !visible && visible_amount == 0. {
-            return;
-        }
-        let AnimatedView::Rect(mut animated) = app
-            .view_state
-            .remove(&self.id)
-            .unwrap_or(AnimatedView::Rect(Box::new(AnimatedRect::new_from(self))))
-        else {
-            return;
-        };
-        AnimatedRect::update(app.now, self, &mut animated);
-        // TODO: Fix box shadow drawing with scale factor
-        // if let Some((color, radius)) = self.box_shadow {
-        //     app.scene.draw_blurred_rounded_rect(
-        //         Affine::IDENTITY,
-        //         kurbo::Rect::new(
-        //             area.x as f64 * app.scale_factor,
-        //             area.y as f64 * app.scale_factor,
-        //             area.x as f64 + area.width as f64 * app.scale_factor,
-        //             area.y as f64 + area.height as f64 * app.scale_factor,
-        //         ),
-        //         color,
-        //         {
-        //             if let ShapeType::Rect { corner_rounding } = self.shape.shape {
-        //                 corner_rounding as f64 * app.scale_factor
-        //             } else {
-        //                 0.0
-        //             }
-        //         },
-        //         radius as f64 * app.scale_factor,
-        //     );
-        // }
-        let now = app.now;
-        animated
-            .shape
-            .draw(&mut app.scene, area, app.scale_factor, now, visible_amount);
-        app.view_state.insert(self.id, AnimatedView::Rect(animated));
+    pub fn build<State: 'static>(self, ctx: &mut AppCtx) -> Layout<'static, View<State>, AppCtx> {
+        self.view().finish(ctx)
     }
 }

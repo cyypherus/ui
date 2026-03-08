@@ -1,12 +1,13 @@
+use crate::app::{AppCtx, AppState, View};
+
 use crate::DEFAULT_CORNER_ROUNDING;
-use crate::app::AppState;
-use crate::view::{View, ViewType};
-use backer::Node;
-use backer::models::Area;
-use lilt::Easing;
+use crate::view::{Drawable, DrawableType};
+
+use backer::{Area, Layout};
+use image::{DynamicImage, ImageBuffer, Rgba};
 use std::sync::Arc;
 use vello_svg::vello::kurbo::{Affine, Point, RoundedRect, Size, Vec2};
-use vello_svg::vello::peniko::Mix;
+use vello_svg::vello::peniko::{Fill, Mix};
 use vello_svg::vello::{Scene, peniko};
 
 #[derive(Debug, Clone)]
@@ -14,9 +15,6 @@ pub struct Image {
     pub(crate) id: u64,
     pub(crate) source: ImageSource,
     pub(crate) unlocked_aspect_ratio: bool,
-    pub(crate) easing: Option<Easing>,
-    pub(crate) duration: Option<f32>,
-    pub(crate) delay: f32,
     pub(crate) image_id: Option<String>,
     pub(crate) corner_rounding: f32,
 }
@@ -25,15 +23,13 @@ pub struct Image {
 pub enum ImageSource {
     Path(String),
     Bytes(Arc<Vec<u8>>),
+    Buffer(u32, u32, Arc<Vec<u8>>),
 }
 
 pub fn image(id: u64, source: impl Into<ImageSource>) -> Image {
     Image {
         id,
         source: source.into(),
-        easing: None,
-        duration: None,
-        delay: 0.,
         unlocked_aspect_ratio: false,
         image_id: None,
         corner_rounding: DEFAULT_CORNER_ROUNDING,
@@ -84,32 +80,20 @@ impl Image {
         self
     }
 
-    pub fn view<State>(self) -> View<State> {
-        View {
-            view_type: ViewType::Image(self),
-            z_index: 0,
+    pub fn view<State>(self) -> Drawable<State> {
+        Drawable {
+            view_type: DrawableType::Image(self),
             gesture_handlers: Vec::new(),
         }
     }
 
-    pub fn finish<'n, State: 'static>(self) -> Node<'n, State, AppState<State>> {
-        self.view().finish()
+    pub fn finish<State: 'static>(self, ctx: &mut AppCtx) -> Layout<'static, View<State>, AppCtx> {
+        self.view().finish(ctx)
     }
 }
 
 impl Image {
-    pub(crate) fn draw<State>(
-        &mut self,
-        area: Area,
-        _state: &mut State,
-        app: &mut AppState<State>,
-        visible: bool,
-        visible_amount: f32,
-    ) {
-        if !visible && visible_amount == 0. {
-            return;
-        }
-
+    pub(crate) fn draw(&mut self, area: Area, scene: &mut Scene, app: &mut AppState) {
         let cache_key = if let Some(ref image_id) = self.image_id {
             use std::collections::hash_map::DefaultHasher;
             use std::hash::{Hash, Hasher};
@@ -143,17 +127,16 @@ impl Image {
 
         let AppState {
             image_scenes,
-            scene,
             ..
         } = app;
 
         if let Some((image_scene, width, height)) = image_scenes.get(&cache_key) {
             let width = *width as f64;
             let height = *height as f64;
-            let area_x = area.x as f64 * app.scale_factor;
-            let area_y = area.y as f64 * app.scale_factor;
-            let area_width = area.width as f64 * app.scale_factor;
-            let area_height = area.height as f64 * app.scale_factor;
+            let area_x = area.x as f64 * app.app_context.scale_factor;
+            let area_y = area.y as f64 * app.app_context.scale_factor;
+            let area_width = area.width as f64 * app.app_context.scale_factor;
+            let area_height = area.height as f64 * app.app_context.scale_factor;
             let mut scale = 1.;
 
             let transform = if self.unlocked_aspect_ratio {
@@ -170,6 +153,7 @@ impl Image {
             };
 
             scene.push_layer(
+                Fill::NonZero,
                 Mix::Normal,
                 1.,
                 transform,
@@ -180,27 +164,55 @@ impl Image {
                 ),
             );
             scene.append(image_scene, Some(transform));
-            app.scene.pop_layer();
+            scene.pop_layer();
         }
     }
 
-    fn load_image(&self) -> Result<peniko::Image, Box<dyn std::error::Error>> {
-        let image_data = match &self.source {
-            ImageSource::Path(path) => std::fs::read(path)?,
-            ImageSource::Bytes(bytes) => bytes.as_ref().clone(),
+    fn load_image(&self) -> Result<peniko::ImageData, Box<dyn std::error::Error>> {
+        #[derive(Debug)]
+        pub enum ImageError {
+            InvalidBuffer(String),
+        }
+
+        impl std::fmt::Display for ImageError {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match self {
+                    ImageError::InvalidBuffer(msg) => write!(f, "Invalid image buffer: {}", msg),
+                }
+            }
+        }
+
+        impl std::error::Error for ImageError {}
+
+        let img = match &self.source {
+            ImageSource::Path(path) => image::load_from_memory(&std::fs::read(path)?)?,
+            ImageSource::Bytes(bytes) => image::load_from_memory(&bytes.as_ref().clone())?,
+            ImageSource::Buffer(width, height, container) => DynamicImage::ImageRgba8(
+                ImageBuffer::<Rgba<u8>, Vec<u8>>::from_raw(
+                    *width,
+                    *height,
+                    container.as_ref().clone(),
+                )
+                .ok_or_else(|| {
+                    ImageError::InvalidBuffer(format!(
+                        "Buffer size mismatch for {}x{} image",
+                        width, height
+                    ))
+                })?,
+            ),
         };
 
-        let img = image::load_from_memory(&image_data)?;
         let rgba_img = img.to_rgba8();
         let (width, height) = rgba_img.dimensions();
 
         let blob = peniko::Blob::new(Arc::new(rgba_img.into_raw()));
 
-        Ok(peniko::Image::new(
-            blob,
-            peniko::ImageFormat::Rgba8,
+        Ok(peniko::ImageData {
+            data: blob,
+            format: peniko::ImageFormat::Rgba8,
+            alpha_type: peniko::ImageAlphaType::Alpha,
             width,
             height,
-        ))
+        })
     }
 }

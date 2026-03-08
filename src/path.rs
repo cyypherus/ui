@@ -1,26 +1,29 @@
+use std::rc::Rc;
+
 use crate::app::{AppCtx, View};
 use crate::background_style::BrushSource;
-use crate::shape::{PathData, circle_path};
+use crate::shape::PathData;
 use crate::view::{Drawable, DrawableType};
+use backer::{Area, Layout};
+use vello_svg::vello::kurbo::{BezPath, Stroke};
 
-use backer::Layout;
-use vello_svg::vello::kurbo::Stroke;
-
-pub struct Circle {
+pub struct Path {
     id: u64,
+    builder: Rc<dyn Fn(Area) -> BezPath>,
     fill: Option<BrushSource<()>>,
     stroke: Option<(BrushSource<()>, Stroke)>,
 }
 
-pub fn circle(id: u64) -> Circle {
-    Circle {
+pub fn path(id: u64, builder: impl Fn(Area) -> BezPath + 'static) -> Path {
+    Path {
         id,
+        builder: Rc::new(builder),
         fill: None,
         stroke: None,
     }
 }
 
-impl Circle {
+impl Path {
     pub fn fill(mut self, brush: impl Into<BrushSource<()>>) -> Self {
         self.fill = Some(brush.into());
         self
@@ -29,21 +32,18 @@ impl Circle {
         self.stroke = Some((brush.into(), style));
         self
     }
-    pub(crate) fn into_path_data(self) -> PathData {
-        PathData {
-            id: self.id,
-            builder: circle_path(),
-            fill: self.fill,
-            stroke: self.stroke,
-        }
-    }
     pub fn view<State>(self) -> Drawable<State> {
         Drawable {
-            view_type: DrawableType::Path(Box::new(self.into_path_data())),
+            view_type: DrawableType::Path(Box::new(PathData {
+                id: self.id,
+                builder: self.builder,
+                fill: self.fill,
+                stroke: self.stroke,
+            })),
             gesture_handlers: Vec::new(),
         }
     }
-    pub fn finish<State: 'static>(self, ctx: &mut AppCtx) -> Layout<'static, View<State>, AppCtx> {
+    pub fn build<State: 'static>(self, ctx: &mut AppCtx) -> Layout<'static, View<State>, AppCtx> {
         self.view().finish(ctx)
     }
 }
