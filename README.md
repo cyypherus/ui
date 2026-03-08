@@ -10,7 +10,7 @@ Built with [winit](https://github.com/rust-windowing/winit), [vello](https://git
 > - No video / gif support
 > - No rotation
 > - Incomplete widgets
-> - Limited effects (blur/shadow only for rects)
+> - Limited effects (blur/shadow)
 > - No accessibility
 > - Unknown RTL support
 > - Untested on platforms besides macOS
