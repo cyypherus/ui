@@ -8,9 +8,8 @@ Built with [winit](https://github.com/rust-windowing/winit), [vello](https://git
 > **Limitations**:
 >
 > - No video / gif support
-> - Single window only
 > - No rotation
-> - Incomplete scrolling
+> - Incomplete widgets
 > - Limited effects (blur/shadow only for rects)
 > - No accessibility
 > - Unknown RTL support
@@ -23,7 +22,7 @@ Leverages specialized crates:
 
 - **Declarative API**: Code structure mirrors UI hierarchy
 - **Flexible layout**: Constraint-based system powered by backer
-- **Smooth animations**: Frame-rate independent transitions using lilt
+<!--- **Smooth animations**: Frame-rate independent transitions using lilt-->
 - **GPU rendering**: Compute shader-based vector graphics using vello
 - **Probably Cross-platform**: Might work on Windows, macOS, and Linux?
 
@@ -49,23 +48,24 @@ Use the declarative layout API to define your interface structure.
 
 ```rust
 fn main() {
-    App::start(AppState::default(), || {
-        dynamic(|state: &mut AppState, _| {
+    App::start(
+        State::default(),
+        Window::new("main", |state, app| {
             column_spaced(
                 20.,
                 vec![
-                    text_field(id!(), binding!(AppState, text))
+                    text_field(id!(), binding!(state, AppState, text))
                         .font_size(40)
                         .finish(),
-                    toggle(id!(), binding!(AppState, toggle)).finish(),
-                    button(id!(), binding!(AppState, button))
+                    toggle(id!(), binding!(state, AppState, toggle)).build(app.ctx()),
+                    button(id!(), binding!(state, AppState, button))
                         .text_label(format!("Count: {}", state.count))
                         .on_click(|s, _| s.count += 1)
-                        .finish(),
+                        .build(app.ctx()),
                 ],
             )
-        })
-    });
+        }),
+    )
 }
 ```
 
