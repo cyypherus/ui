@@ -1,8 +1,8 @@
 use arboard::Clipboard;
+use haven::*;
 use parley::FontWeight;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use ui::*;
 
 #[derive(Clone)]
 enum DownloadState {
@@ -113,95 +113,100 @@ impl State {
 }
 
 fn main() {
-    App::builder(State::new(), Window::new("main", |state, app| {
-        let download_state = state.download_state.blocking_lock().clone();
-        let download_state_for_button = download_state.clone();
+    App::builder(
+        State::new(),
+        Window::new("main", |state, app| {
+            let download_state = state.download_state.blocking_lock().clone();
+            let download_state_for_button = download_state.clone();
 
-        column_spaced(
-            20.,
-            vec![
-                text(id!(), "Image Loader")
-                    .font_size(32)
-                    .font_weight(FontWeight::BOLD)
-                    .build(app.ctx())
-                    .pad(10.),
-                row_spaced(
-                    10.,
-                    vec![
-                        text(id!(), {
-                            let input = state.input.clone();
-                            if input.len() > 20 {
-                                format!("{}...", &input[..20])
-                            } else {
-                                input
-                            }
-                        })
-                        .font_size(16)
-                        .view()
-                        .finish(app.ctx())
-                        .pad(10.)
-                        .width_range(..200.),
-                        button(id!(), binding!(state, State, paste_button))
-                            .label(|_state, ctx| text(id!(), "Paste").build(ctx))
-                            .on_click(|s, _| s.paste_from_clipboard())
-                            .build(app.ctx())
-                            .height(40.)
-                            .width(80.),
-                    ],
-                ),
-                button(id!(), binding!(state, State, load_button))
-                    .label(move |_state, ctx| {
-                        text(
-                            id!(),
-                            match download_state_for_button {
-                                DownloadState::Downloading => "Loading...",
-                                _ => "Load Image",
-                            },
-                        )
-                        .build(ctx)
-                    })
-                    .on_click(|s, app| {
-                        if matches!(
-                            s.download_state.blocking_lock().clone(),
-                            DownloadState::Downloading
-                        ) {
-                            return;
-                        }
-                        s.load_image(app);
-                    })
-                    .build(app.ctx())
-                    .height(50.)
-                    .width(200.),
-                match download_state {
-                    DownloadState::Idle => text(id!(), "Enter a URL or file path and click Load")
-                        .font_size(14)
-                        .build(app.ctx()),
-                    DownloadState::Downloading => text(id!(), "Loading image...")
-                        .font_size(14)
-                        .build(app.ctx()),
-                    DownloadState::Success(ref image_id, ref bytes) => column_spaced(
+            column_spaced(
+                20.,
+                vec![
+                    text(id!(), "Image Loader")
+                        .font_size(32)
+                        .font_weight(FontWeight::BOLD)
+                        .build(app.ctx())
+                        .pad(10.),
+                    row_spaced(
                         10.,
                         vec![
-                            text(id!(), format!("Loaded {} bytes", bytes.len()))
-                                .font_size(14)
-                                .build(app.ctx()),
-                            image_from_bytes(id!(), bytes.clone())
-                                .image_id(image_id)
-                                .view()
-                                .finish(app.ctx())
-                                .height_range(100.0..)
-                                .width_range(100.0..),
+                            text(id!(), {
+                                let input = state.input.clone();
+                                if input.len() > 20 {
+                                    format!("{}...", &input[..20])
+                                } else {
+                                    input
+                                }
+                            })
+                            .font_size(16)
+                            .view()
+                            .finish(app.ctx())
+                            .pad(10.)
+                            .width_range(..200.),
+                            button(id!(), binding!(state, State, paste_button))
+                                .label(|_state, ctx| text(id!(), "Paste").build(ctx))
+                                .on_click(|s, _| s.paste_from_clipboard())
+                                .build(app.ctx())
+                                .height(40.)
+                                .width(80.),
                         ],
                     ),
-                    DownloadState::Error(ref error) => text(id!(), format!("Error: {error}"))
-                        .font_size(14)
-                        .fill(Color::from_rgb8(255, 0, 0))
-                        .build(app.ctx()),
-                },
-            ],
-        )
-        .pad(20.)
-        .pad_top(20.)
-    }))
+                    button(id!(), binding!(state, State, load_button))
+                        .label(move |_state, ctx| {
+                            text(
+                                id!(),
+                                match download_state_for_button {
+                                    DownloadState::Downloading => "Loading...",
+                                    _ => "Load Image",
+                                },
+                            )
+                            .build(ctx)
+                        })
+                        .on_click(|s, app| {
+                            if matches!(
+                                s.download_state.blocking_lock().clone(),
+                                DownloadState::Downloading
+                            ) {
+                                return;
+                            }
+                            s.load_image(app);
+                        })
+                        .build(app.ctx())
+                        .height(50.)
+                        .width(200.),
+                    match download_state {
+                        DownloadState::Idle => {
+                            text(id!(), "Enter a URL or file path and click Load")
+                                .font_size(14)
+                                .build(app.ctx())
+                        }
+                        DownloadState::Downloading => text(id!(), "Loading image...")
+                            .font_size(14)
+                            .build(app.ctx()),
+                        DownloadState::Success(ref image_id, ref bytes) => column_spaced(
+                            10.,
+                            vec![
+                                text(id!(), format!("Loaded {} bytes", bytes.len()))
+                                    .font_size(14)
+                                    .build(app.ctx()),
+                                image_from_bytes(id!(), bytes.clone())
+                                    .image_id(image_id)
+                                    .view()
+                                    .finish(app.ctx())
+                                    .height_range(100.0..)
+                                    .width_range(100.0..),
+                            ],
+                        ),
+                        DownloadState::Error(ref error) => text(id!(), format!("Error: {error}"))
+                            .font_size(14)
+                            .fill(Color::from_rgb8(255, 0, 0))
+                            .build(app.ctx()),
+                    },
+                ],
+            )
+            .pad(20.)
+            .pad_top(20.)
+        }),
+    )
     .start()
 }
