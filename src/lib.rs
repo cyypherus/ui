@@ -22,7 +22,7 @@ mod text_field;
 mod toggle;
 mod view;
 
-pub use app::{App, AppBuilder, AppCtx, AppState, RedrawTrigger, View, Window};
+pub use app::{App, AppBuilder, AppCtx, AppState, Callback, RedrawTrigger, View, Window};
 pub use backer::{Area, Layout, nodes::*};
 pub use background_style::BrushSource;
 pub use button::*;

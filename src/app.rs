@@ -364,6 +364,36 @@ impl AppState {
     pub fn redraw(&self) {
         let _ = self.redraw.blocking_send(());
     }
+
+    pub fn callback<State: 'static, T: Send + 'static>(
+        &self,
+        f: impl Fn(&mut State, T) + Send + Sync + 'static,
+    ) -> Callback<T> {
+        let f = Arc::new(f);
+        Callback {
+            event_proxy: self.event_proxy.clone(),
+            handler: Arc::new(move |val| {
+                let f = f.clone();
+                Box::new(move |any: &mut dyn std::any::Any| {
+                    if let Some(state) = any.downcast_mut::<State>() {
+                        f(state, val);
+                    }
+                })
+            }),
+        }
+    }
+}
+
+pub struct Callback<T> {
+    event_proxy: winit::event_loop::EventLoopProxy<AppEvent>,
+    handler: Arc<dyn Fn(T) -> Box<dyn FnOnce(&mut dyn std::any::Any) + Send> + Send + Sync>,
+}
+
+impl<T> Callback<T> {
+    pub fn send(&self, value: T) {
+        let cb = (self.handler)(value);
+        let _ = self.event_proxy.send_event(AppEvent::Callback(cb));
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -759,17 +789,32 @@ impl<State: 'static> App<'_, State> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
 pub(crate) enum AppEvent {
     RequestRedraw,
+    Callback(Box<dyn FnOnce(&mut dyn std::any::Any) + Send>),
     OpenWindow(&'static str),
     CloseWindow(WindowId),
+}
+
+impl std::fmt::Debug for AppEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AppEvent::RequestRedraw => write!(f, "RequestRedraw"),
+            AppEvent::Callback(_) => write!(f, "Callback"),
+            AppEvent::OpenWindow(name) => write!(f, "OpenWindow({name})"),
+            AppEvent::CloseWindow(id) => write!(f, "CloseWindow({id:?})"),
+        }
+    }
 }
 
 impl<State: 'static> ApplicationHandler<AppEvent> for App<'_, State> {
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: AppEvent) {
         match event {
             AppEvent::RequestRedraw => {
+                self.request_redraw();
+            }
+            AppEvent::Callback(cb) => {
+                cb(&mut self.state);
                 self.request_redraw();
             }
             AppEvent::OpenWindow(name) => {
