@@ -452,6 +452,9 @@ impl<State: 'static> App<'_, State> {
             .with_decorations(decorations)
             .with_visible(false);
 
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        let mut attributes = WinitWindow::default_attributes();
+
         if let Some(ref title) = config.title {
             attributes = attributes.with_title(title.clone());
         }
