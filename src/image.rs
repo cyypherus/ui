@@ -125,10 +125,7 @@ impl Image {
                 .insert(cache_key, (image_scene, width, height));
         }
 
-        let AppState {
-            image_scenes,
-            ..
-        } = app;
+        let AppState { image_scenes, .. } = app;
 
         if let Some((image_scene, width, height)) = image_scenes.get(&cache_key) {
             let width = *width as f64;

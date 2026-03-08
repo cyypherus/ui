@@ -384,6 +384,7 @@ impl AppState {
     }
 }
 
+#[derive(Clone)]
 pub struct Callback<T> {
     event_proxy: winit::event_loop::EventLoopProxy<AppEvent>,
     handler: Arc<dyn Fn(T) -> Box<dyn FnOnce(&mut dyn std::any::Any) + Send> + Send + Sync>,
@@ -636,9 +637,11 @@ impl<State: 'static> App<'_, State> {
 
         app.app_state.task_tracker.close();
 
-        app.app_state
-            .runtime
-            .shutdown_timeout(Duration::from_secs(5));
+        app.app_state.runtime.block_on(async {
+            tokio::time::timeout(Duration::from_secs(1), app.app_state.task_tracker.wait())
+                .await
+                .ok();
+        });
     }
 
     fn redraw(&mut self, window_id: winit::window::WindowId) {

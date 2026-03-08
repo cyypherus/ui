@@ -66,9 +66,7 @@ impl Svg {
                 }
             }
         }
-        let AppState {
-            svg_scenes, ..
-        } = app;
+        let AppState { svg_scenes, .. } = app;
         if let Some((svg_scene, width, height)) = svg_scenes.get(&self.content) {
             let width = *width as f64;
             let height = *height as f64;

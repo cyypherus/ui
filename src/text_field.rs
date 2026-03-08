@@ -55,14 +55,8 @@ pub fn text_field<'a, State>(
     }
 }
 
-type BgViewFn<'a, State> = Rc<
-    dyn Fn(
-        &TextState,
-        Area,
-        &mut AppCtx,
-    ) -> Layout<'a, View<State>, AppCtx>
-        + 'a,
->;
+type BgViewFn<'a, State> =
+    Rc<dyn Fn(&TextState, Area, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a>;
 
 pub struct TextField<'a, State> {
     pub(crate) id: u64,
@@ -168,12 +162,7 @@ impl<'a, State> TextField<'a, State> {
     }
     pub fn background(
         mut self,
-        f: impl Fn(
-            &TextState,
-            Area,
-            &mut AppCtx,
-        ) -> Layout<'a, View<State>, AppCtx>
-        + 'a,
+        f: impl Fn(&TextState, Area, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a,
     ) -> Self {
         self.background = Some(Rc::new(f));
         self
@@ -487,9 +476,7 @@ impl<'a, State> TextField<'a, State> {
         let background_fn = self.background;
         let ts = self.state.clone();
         let bg = if let Some(f) = background_fn {
-            draw(move |area, ctx: &mut AppCtx| {
-                f(&ts, area, ctx).draw(area, ctx)
-            })
+            draw(move |area, ctx: &mut AppCtx| f(&ts, area, ctx).draw(area, ctx))
         } else if editable {
             draw(move |area, ctx: &mut AppCtx| {
                 rect(crate::id!(id))

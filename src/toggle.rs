@@ -33,14 +33,8 @@ impl ToggleState {
     }
 }
 
-type ViewFn<'a, State> = Rc<
-    dyn Fn(
-        ToggleState,
-        Area,
-        &mut AppCtx,
-    ) -> Layout<'a, View<State>, AppCtx>
-        + 'a,
->;
+type ViewFn<'a, State> =
+    Rc<dyn Fn(ToggleState, Area, &mut AppCtx) -> Layout<'a, View<State>, AppCtx> + 'a>;
 
 pub struct Toggle<'a, State> {
     id: u64,
@@ -51,7 +45,10 @@ pub struct Toggle<'a, State> {
     track: Option<ViewFn<'a, State>>,
 }
 
-pub fn toggle<'a, State>(id: u64, state: (ToggleState, Binding<State, ToggleState>)) -> Toggle<'a, State> {
+pub fn toggle<'a, State>(
+    id: u64,
+    state: (ToggleState, Binding<State, ToggleState>),
+) -> Toggle<'a, State> {
     Toggle {
         id,
         on_toggle: None,
@@ -113,11 +110,8 @@ impl<'a, State> Toggle<'a, State> {
             let knob = if let Some(ref f) = knob_fn {
                 f(state, area, ctx)
             } else {
-                let knob_brush = adjust_brush(
-                    &Brush::Solid(DEFAULT_FG),
-                    state.depressed,
-                    state.hovered,
-                );
+                let knob_brush =
+                    adjust_brush(&Brush::Solid(DEFAULT_FG), state.depressed, state.hovered);
                 circle(id!(id))
                     .fill(knob_brush)
                     .finish(ctx)

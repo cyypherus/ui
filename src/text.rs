@@ -3,13 +3,13 @@ use crate::background_style::BrushSource;
 use crate::draw_layout::draw_layout;
 use crate::view::{Drawable, DrawableType};
 use crate::{DEFAULT_FG_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE};
-use vello_svg::vello::Scene;
 use backer::{Area, Layout};
 use parley::{
     Alignment, AlignmentOptions, FontContext, FontStack, FontWeight, Layout as ParleyLayout,
     LayoutContext, LineHeight, TextStyle,
 };
 use std::fmt::Debug;
+use vello_svg::vello::Scene;
 use vello_svg::vello::kurbo::Affine;
 use vello_svg::vello::peniko::Brush;
 
@@ -199,7 +199,13 @@ impl TextLayout {
 }
 
 impl Text {
-    pub(crate) fn draw(&mut self, animated_area: Area, area: Area, scene: &mut Scene, app: &mut AppState) {
+    pub(crate) fn draw(
+        &mut self,
+        animated_area: Area,
+        area: Area,
+        scene: &mut Scene,
+        app: &mut AppState,
+    ) {
         let fill = self.fill.resolve(area, &());
 
         let layout = app
