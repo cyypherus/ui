@@ -34,9 +34,6 @@ use winit::{dpi::LogicalSize, event::MouseButton};
 #[cfg(target_os = "macos")]
 use winit::platform::macos::WindowAttributesExtMacOS;
 
-#[cfg(target_os = "windows")]
-use winit::platform::windows::WindowAttributesExtWindows;
-
 type FontEntry = (Arc<Vec<u8>>, Option<String>);
 
 type ViewFn<State> = for<'a> fn(&'a State, &mut AppState) -> Layout<'a, View<State>, AppCtx>;
