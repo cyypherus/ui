@@ -1,4 +1,4 @@
-# UI
+# Haven UI
 
 A WIP declarative UI crate for building native applications with smooth animations & fluid layout. This crate handles windowing, layout, rendering, animations, and user interaction.
 
